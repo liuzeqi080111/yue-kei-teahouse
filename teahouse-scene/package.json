@@ -1,0 +1,7 @@
+{
+  "name": "teahouse-scene",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "茶餐厅场景逻辑模块（虚构餐厅的演示数据，原生 ES Module）"
+}

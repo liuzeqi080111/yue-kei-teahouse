@@ -1,0 +1,121 @@
+/* 局部语音面板：不覆盖场景、主对话与餐牌关闭键。 */
+#music-settings{border-top:1px solid #b49d6966;margin-top:16px;padding-top:8px;display:grid;gap:8px}
+#music-settings iframe{width:100%;min-height:220px;border:0}
+#music-settings a{color:#eed499;font-size:12px}
+#music-settings label{font-size:12px;line-height:1.7}
+#music-settings input{display:block;width:100%;font-size:12px}
+#voice-dock {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 8;
+  width: min(320px, 23vw);
+  color: #f7e9c8;
+  background: #173c32f2;
+  border: 1px solid #d7b87599;
+  box-shadow: 0 4px 18px #071d1a66;
+}
+#voice-dock > summary {
+  min-height: 44px;
+  padding: 12px 14px;
+  color: #e9bd72;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+}
+#voice-dock > summary::marker { color: #e9bd72; }
+#voice-host {
+  max-height: 55dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.voice-panel {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.voice-status,
+.voice-reply {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.voice-status { color: #e8d9b8; font-size: 12px; }
+.voice-panel textarea {
+  width: 100%;
+  min-height: 64px;
+  max-height: 140px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid #e9bd72;
+  border-radius: 0;
+  background: #fff8e8;
+  color: #183e34;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.voice-panel textarea::placeholder { color: #656759; opacity: 1; }
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.voice-controls button {
+  flex: 1 1 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-color: #cbb277;
+  background: #e9bd72;
+  color: #183e34;
+  font-size: 12px;
+}
+.voice-controls button:hover:not(:disabled) { background: #f3d494; }
+.voice-controls button:disabled { opacity: .48; cursor: not-allowed; }
+.voice-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.voice-controls input { width: 20px; height: 20px; margin: 0; }
+.voice-reply {
+  padding: 8px 10px;
+  border-left: 3px solid #e9bd72;
+  background: #0e2c2466;
+  color: #fff3d7;
+  font-size: 14px;
+}
+.voice-reply:empty { display: none; }
+.voice-panel small { color: #d5c8aa; line-height: 1.45; }
+#voice-dock summary:focus-visible,
+.voice-panel textarea:focus-visible,
+.voice-controls button:focus-visible,
+.voice-controls input:focus-visible {
+  outline: 3px solid #ffd98f;
+  outline-offset: 2px;
+}
+body.at-title #voice-dock,
+.game.is-finished #voice-dock { display: none; }
+@media (max-width: 650px) {
+  #voice-dock { top: 12px; left: 12px; width: calc(100vw - 84px);z-index:11; }
+  #voice-host { max-height: 32dvh; }
+  body[data-camera="menu"] #voice-host,
+  body[data-camera="bill"] #voice-host {max-height:22dvh;}
+  .game:has(#voice-dock[open]) .paper {top:calc(22dvh + 70px);}
+  .game:has(#voice-dock:not([open])) .paper {top:70px;}
+}
+
+.mic-device{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px;font-size:12px}
+.mic-device select{min-width:0;width:100%;padding:6px;background:#fff8e8;color:#183e34;border:1px solid #cbb277;font:inherit}
+.mic-monitor{display:grid;gap:3px}.mic-monitor meter{width:100%;height:10px;accent-color:#e9bd72}
+.mic-monitor small{font-size:11px;overflow-wrap:anywhere}
+
+.mic-detect{padding:7px;border:1px solid #cbb277;background:transparent;color:#eed499;font:inherit;font-size:12px}.mic-detect:disabled{opacity:.5}

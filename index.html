@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#183e34"><title>粵記茶餐廳 · 一席廣東話</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voice.css"></head>
+<body>
+<main>
+ <section id="game" class="game" aria-label="茶餐廳互動場景">
+  <canvas id="scene" width="1008" height="567" role="img" aria-label="粵記茶餐廳像素場景"></canvas>
+  <div class="scene-shade"></div>
+  <div class="scene-top"><span id="location" tabindex="-1">街邊 · 粵記門外</span><span id="stage">01 / 抵達</span></div>
+  <div id="shop-sign">粵記茶餐廳<small>YUE KEI TEA RESTAURANT</small></div>
+  <div id="welcome"><span class="eyebrow">香港日常 · 第一章</span><h1>一席廣東話</h1><p>午後三點，茶香啱啱好。<br>推門入座，慢慢講。</p><div class="title-options"><button class="primary" data-action="ENTER">開始遊戲 →</button><button data-dialog="chapters">章節選擇</button><button data-dialog="settings">設定</button></div><small>入座後可講粵語或輸入文字 · 識別後先核對文字再發送</small></div>
+  <button id="pause" data-dialog="settings" aria-label="開啟設定">☰</button>
+  <details id="voice-dock" open><summary>同阿明講粵語</summary><div id="voice-host"></div></details>
+  <div id="hotspots" aria-label="場景內互動"></div>
+  <div id="panel" class="paper" hidden tabindex="-1" aria-label="餐牌與訂單"></div>
+  <div id="ending" hidden><span class="eyebrow">多謝惠顧 · 下次再嚟</span><h2>食飽，慢行。</h2><p id="summary"></p><div class="phrase-recap">唔該，畀杯凍檸茶我。<br>少甜呀，唔該。<br>唔該，埋單。</div><button class="primary" data-action="RESTART">再嚟飲杯茶 ↺</button></div>
+  <div id="table-labels" aria-live="off"></div>
+  <div class="scene-bottom"><span id="scene-hint">一段屬於你的香港日常</span><nav id="cameras" aria-label="切換視角" hidden><button data-camera="room">抬頭 · 店內</button><button data-camera="table">低頭 · 桌面</button><button data-camera="menu">餐牌與訂單</button></nav></div>
+ <section class="conversation" aria-label="對話與操作"><div class="speaker"><span class="speaker-mark">記</span><span id="speaker"><span id="speaker-name">街角旁白</span><small>YUE KEI STORIES</small></span></div><div class="dialogue" aria-live="polite"><p id="dialogue">午後三點，茶香啱啱好。</p><p id="jyutping">ng5 hau6 saam1 dim2, caa4 hoeng1 ngaam1 ngaam1 hou2.</p><p id="meaning" hidden>下午三點，茶香正好。</p><p id="notice" role="status"></p></div><div id="actions" class="actions"></div></section>
+ </section>
+ <p id="asset-status" class="asset-status" role="status" hidden>部分場景素材未能載入，仍然可以繼續練習。重新整理可再試一次。</p>
+</main>
+<dialog id="settings" aria-labelledby="settings-title"><h2 id="settings-title">歇一歇 · 設定</h2><div class="settings"><button id="translation" aria-pressed="false">普通話釋義</button><button id="pronunciation" aria-pressed="false">顯示粵拼</button><button id="ambience" aria-pressed="true">背景音效：開</button><button id="restart">返回準備畫面</button></div><section id="music-settings" aria-label="香港老歌"></section><p>可點按鈕，或打開左上角語音面板講粵語／輸入文字；識別後先核對文字再發送。</p><p>Tab 選擇 · Enter 確認 · Esc 合上餐牌／設定</p><small>語音需要聯網，錄音會傳送至阿里雲識別；不包含發音評分。只作虛擬結帳，不會收款。服務演出會繼續完成。</small><button data-dismiss>返回</button></dialog>
+<dialog id="chapters" aria-labelledby="chapters-title"><h2 id="chapters-title">揀一段日常</h2><button data-chapter="full">完整體驗 · 由門外開始</button><button data-chapter="order">點餐與改單 · 已入座，空白訂單</button><button data-chapter="service">用餐與服務 · 預設菠蘿油、凍檸茶</button><button data-chapter="bill">埋單離店 · 預設 HK$40 虛擬帳單</button><button data-dismiss>返回</button></dialog><script type="module" src="app.js"></script></body></html>

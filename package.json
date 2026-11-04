@@ -1,0 +1,11 @@
+{
+  "name": "yue-kei-teahouse",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node tests/run.mjs",
+    "test:voice": "node tests/run-voice.mjs",
+    "build:pages": "node scripts/build-pages.mjs"
+  }
+}
