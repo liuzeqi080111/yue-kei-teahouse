@@ -18,3 +18,4 @@ QA.md
 opencode.jsonc
 docs/
 *.log
+/voice-hosting/

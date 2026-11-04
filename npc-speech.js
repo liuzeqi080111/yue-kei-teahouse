@@ -1,4 +1,5 @@
-// One current utterance, tied to the visible NPC. Playback drives the mouth envelope.
+import {voiceUrl} from './voice-endpoint.js';
+// One current utterance, tied to the visible NPC. Mouth animation stays disabled.
 export function createNpcSpeech({onActivity=()=>{},onState=()=>{},onSettled=()=>{},onLevel=()=>{}}={}){
  let current='',audio=null,url=null,controller=null,generation=0,muted=false,active=false,tick=0,deadline=0;
  const cache=new Map();
@@ -10,7 +11,7 @@ export function createNpcSpeech({onActivity=()=>{},onState=()=>{},onSettled=()=>
   deadline=setTimeout(()=>{controller?.abort();finish();onState('語音逾時，請按重播。');},44000);
   try{
    let data=cache.get(text);
-   if(!data){controller=new AbortController();const res=await fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text}),signal:controller.signal});if(!res.ok)throw Error('tts');data=await res.json();if(id!==generation)return;cache.set(text,data);if(cache.size>24)cache.delete(cache.keys().next().value);}
+   if(!data){controller=new AbortController();const res=await fetch(voiceUrl('/api/voice/speak'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text}),signal:controller.signal});if(!res.ok)throw Error('tts');data=await res.json();if(id!==generation)return;cache.set(text,data);if(cache.size>24)cache.delete(cache.keys().next().value);}
    const bytes=Uint8Array.from(atob(data.audioBase64),c=>c.charCodeAt(0));
    if(id!==generation||muted)return;
    url=URL.createObjectURL(new Blob([bytes],{type:data.mimeType||'audio/wav'}));audio=new Audio(url);

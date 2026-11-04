@@ -5,6 +5,7 @@
 import {createVoiceBridge} from './voice-bridge.js';
 import {preparePcm} from './voice-capture.js';
 import {createNpcSpeech} from './npc-speech.js';
+import {voiceUrl} from './voice-endpoint.js';
 
 const MAX_MS = 15000, TIMEOUT = 35000;
 const WAV_MIME = 'audio/wav';
@@ -135,7 +136,7 @@ export function mountVoice({ game, host } = {}) {
     const ctrl = new AbortController(); aborter = ctrl;
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
     try {
-      const res = await fetch(path, {
+      const res = await fetch(voiceUrl(path), {
         method: body === undefined ? 'GET' : 'POST',
         headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body), signal: ctrl.signal,
@@ -256,7 +257,7 @@ export function mountVoice({ game, host } = {}) {
   async function checkStatus(){
     if(statusLoading||destroyed)return;statusLoading=true;retryBtn.disabled=true;
     try {
-      const res=await fetch('/api/voice/status',{signal:AbortSignal.timeout(TIMEOUT)});
+      const res=await fetch(voiceUrl('/api/voice/status'),{signal:AbortSignal.timeout(TIMEOUT)});
       if(!res.ok)throw Error('status');
       const s=await res.json();if(destroyed)return;
       configured = !!(s && s.configured !== false && (s.asr || s.npc));

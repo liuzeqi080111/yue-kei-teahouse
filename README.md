@@ -5,7 +5,8 @@
 ## 在线试玩版
 
 GitHub Pages 发布版本支持完整按钮流程、粤语字幕、普通话释义、粤拼、背景器乐和手机布局。
-**语音识别、AI 文字对话和 NPC 语音后端暂未接入公开版**；公开页面不会请求麦克风权限。
+公开版接入独立云端语音后端，支持粤语识别、AI 文字对话和 NPC 配音。点击「开始说话」时允许麦克风权限，停止录音后核对文字，再按「发送」。
+只有主动录音或检测麦克风时才请求权限；录音提交至阿里云识别，游戏后端不保存录音。真人设备兼容性仍需测试；输入音量不动时，可使用「检测咪高峰」并选择正确输入设备。
 人物嘴部保持静止。所有账单及付款都是游戏模拟，不会收款。刷新页面会开始新一局。
 
 ## 请帮忙测试
@@ -39,11 +40,11 @@ npm run test:voice
 npm run build:pages
 ```
 
-Pages 构建仅复制明确列出的前端文件到 `dist/`，并关闭联网语音入口。
+Pages 构建仅复制明确列出的前端文件到 `dist/`；部署流程以 `VOICE_API_ORIGIN` 指定 HTTPS 语音服务地址。未设置时构建无语音的静态试玩版。
 源码中的本机模式保持启用，不影响本机语音测试。所有资源使用相对路径，支持 GitHub 项目子目录。
 GitHub 仓库 Settings → Pages 选择 GitHub Actions；推送 main 分支后自动验证并部署。
 
-主要文件：`app.js` 页面交互、`controller.js` 演出、`scene.js` 场景绘制、`teahouse-scene/` 业务规则、`voice.js` 本机录音、`server/bailian.mjs` 语音服务。
+主要文件：`app.js` 页面交互、`controller.js` 演出、`scene.js` 场景绘制、`teahouse-scene/` 业务规则、`voice.js` 浏览器录音、`voice-endpoint.js` 后端地址路由、`server/bailian.mjs` 语音服务。云端后端独立部署至 Sites，密钥仅通过服务器运行环境配置。
 
 ## 音乐与素材
 

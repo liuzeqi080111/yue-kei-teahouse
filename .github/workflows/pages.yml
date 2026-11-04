@@ -19,8 +19,11 @@ jobs:
       - run: npm test
       - run: npm run test:voice
       - run: node tests/voice-capture.test.mjs
+      - run: node tests/voice-endpoint.test.mjs
       - uses: actions/configure-pages@v5
       - run: npm run build:pages
+        env:
+          VOICE_API_ORIGIN: https://yue-kei-voice.ripeart3.chatgpt.site
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
