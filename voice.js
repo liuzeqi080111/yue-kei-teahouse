@@ -25,32 +25,35 @@ function wavFromPcm(samples) {
   return new Uint8Array(buf);
 }
 
-export function mountVoice({ game, host } = {}) {
+export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } = {}) {
   if (!game || !host) throw new TypeError('mountVoice 需要 game 与 host');
   const bridge = createVoiceBridge({ game });
   const root = el('section', { className: 'voice-panel', ariaLabel: '語音對話' });
   const status = el('p', { className: 'voice-status', role: 'status', ariaLive: 'polite' }, '準備中…');
-  const input = el('textarea', { maxLength: 500, rows: 2, ariaLabel: '識別文字，可修改後發送', placeholder: '例如：唔該，一杯絲襪奶茶，凍嘅，少甜。' });
+  const input = el('textarea', { maxLength: 500, rows: 2, ariaLabel: '識別文字，可修改後發送', placeholder: '在這裡核對識別文字，或直接輸入粵語。' });
   const micBtn = el('button', { type: 'button', ariaLabel: '開始說話' }, '開始說話');
   const sendBtn = el('button', { type: 'button', ariaLabel: '發送文字' }, '發送');
+  const cancelBtn = el('button', { type: 'button', ariaLabel: '取消本次語音', hidden: true }, '取消');
   const retryBtn=el('button',{type:'button',hidden:true},'重新連接語音');
   const replayBtn = el('button', { type: 'button', ariaLabel: '重播阿明回答', disabled: true }, '重播');
   const muteBox = el('input', { type: 'checkbox', ariaLabel: '靜音' });
   const muteLabel = el('label', {}, '靜音 '); muteLabel.append(muteBox);
   const replyEl = el('p', { className: 'voice-reply', ariaLive: 'polite' });
   const hint = el('small', {}, '停止錄音後先核對識別文字，再按發送。亦可輸入文字；改單請說「改成…」。錄音會送至阿里雲。');
-  const row = el('div', { className: 'voice-controls' }); row.append(micBtn, sendBtn, replayBtn, muteLabel,retryBtn);
+  const row = el('div', { className: 'voice-controls' }); row.append(micBtn, sendBtn, cancelBtn, replayBtn, muteLabel,retryBtn);
   const deviceLabel=el('label',{className:'mic-device'},'咪高峰 ');
   const deviceSelect=el('select',{ariaLabel:'選擇咪高峰'});deviceSelect.append(el('option',{value:''},'系統預設咪高峰'));deviceLabel.append(deviceSelect);
   const detectBtn=el('button',{type:'button',className:'mic-detect'},'檢測咪高峰');
   const meter=el('meter',{min:0,max:1,value:0,ariaLabel:'咪高峰輸入音量'});
   const meterText=el('small',{className:'mic-level'},'錄音時會顯示收到的聲音');
   const monitor=el('div',{className:'mic-monitor'});monitor.append(meter,meterText);
-  root.append(status,deviceLabel,detectBtn,monitor, input, row, replyEl, hint); host.append(root);
+  const devices=el('details',{className:'voice-devices',open:true});
+  devices.append(el('summary',{},'設備與咪高峰'),deviceLabel,detectBtn);
+  root.append(status,input,row,monitor,devices,replyEl,hint);host.append(root);
 
   let configured = false, runId = 0, applying = false, recorder = null, stream = null, recordTimer = 0;
-  let aborter = null, lastReply = '', lastKey = '';
-  let working=false,destroyed=false,serviceRound=null;
+  let aborter = null, lastReply = '', lastReplyRate = 1, lastKey = '';
+  let working=false,destroyed=false,serviceRound=null,asrResult=null;
   let lastNpcLine='',lineTimer=0,suppressLine=false,releaseFarewell=null,farewellText='';
   const speech=createNpcSpeech({onActivity:()=>{game.setSpeech?.(speech.active);refreshButtons();},onState:t=>{if(!working)setState(t);},onSettled:text=>{if(text===farewellText){releaseFarewell?.();releaseFarewell=null;farewellText='';}}});
   const bizKey = (s) => JSON.stringify([s.state, s.view.orderReview]);
@@ -61,10 +64,11 @@ export function mountVoice({ game, host } = {}) {
     detectBtn.disabled=working||busy;
     micBtn.disabled = (working && !recorder) || busy;
     sendBtn.disabled = working || busy || !input.value.trim();
+    cancelBtn.hidden = !working && !asrResult;
     micBtn.textContent = recorder ? '停止錄音' : '開始說話';
     micBtn.setAttribute('aria-label', micBtn.textContent);
     replayBtn.disabled = working || busy || !game.snapshot().state.waiterPresent || muteBox.checked || !lastReply;
-    window.dispatchEvent(new CustomEvent('voice-activity',{detail:{active:working||speech.active}}));
+    window.dispatchEvent(new CustomEvent('voice-activity',{detail:{active:working||speech.active,source:'voice',npcActive:speech.active,recording:Boolean(recorder),busy:working}}));
   }
   let monitorCtx=null,monitorTimer=0,monitorSource=null,monitorSink=null;
   async function loadDevices(){
@@ -129,7 +133,7 @@ export function mountVoice({ game, host } = {}) {
     try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
     recorder = null; stream = null;
   }
-  function cancel(preserveSpeech=false) { runId++;clearTimeout(lineTimer);if(!preserveSpeech){speech.stop();releaseFarewell?.();releaseFarewell=null;} working=false;serviceRound=null; try { aborter?.abort(); } catch {} aborter = null; stopMic(); closeCtx(); ready(); }
+  function cancel(preserveSpeech=false) { runId++;asrResult=null;clearTimeout(lineTimer);if(!preserveSpeech){speech.stop();releaseFarewell?.();releaseFarewell=null;} working=false;serviceRound=null; try { aborter?.abort(); } catch {} aborter = null; stopMic(); closeCtx(); ready(); }
   let audioCtx = null;
   function closeCtx() { const c = audioCtx; audioCtx = null; if (c) c.close().catch(() => {}); }
 
@@ -153,34 +157,44 @@ export function mountVoice({ game, host } = {}) {
     } finally { clearTimeout(timer); if (aborter === ctrl) aborter = null; }
   }
 
-  async function playReply(reply, id) {
-    if(reply&&!muteBox.checked&&id===runId){const s=game.snapshot();if(!s.view.busy)speech.speak(reply);}
+  async function playReply(reply, id, rate) {
+    if(reply&&!muteBox.checked&&id===runId){const s=game.snapshot();if(!s.view.busy)speech.speak(reply,{rate});}
     return;
   }
 
   async function sendFlow(raw) {
     const text = String(raw || '').trim();
     if (!text || working || destroyed) return;
-    if (game.snapshot().view.busy) { setState('阿明忙緊，請稍等再發送。'); return; }
+    const before=game.snapshot();
+    if (before.view.busy) { setState('阿明忙緊，請稍等再發送。'); return; }
+    const recognized=asrResult,fromThisAsr=Boolean(recognized&&recognized.id===runId&&recognized.round===before.state.round);
+    const editedTranscript=Boolean(fromThisAsr&&(recognized.edited||recognized.text!==text));
+    const mode=fromThisAsr&&!editedTranscript?'voice':'text';
+    const practiceTarget=typeof getPracticeTarget==='function'?getPracticeTarget():null;
     cancel(); working=true; const id = runId;
     try {
       setState('理解中'); refreshButtons();
       const tk = bridge.token(), context = bridge.context();
       const proposal = await api('/api/voice/interpret', { text, context });
       if (id !== runId) return; // 迟到回复不执行
+      const currentTarget=typeof getPracticeTarget==='function'?getPracticeTarget():null;
+      const targetCurrent=Boolean(practiceTarget&&currentTarget&&practiceTarget.round===currentTarget.round&&practiceTarget.phraseId===currentTarget.phraseId&&practiceTarget.key===currentTarget.key);
       applying = true;
       let result;
       try { result = bridge.apply({ ...proposal, playerText: text }, tk); } finally { applying = false; lastKey = bizKey(game.snapshot()); }
       if (id !== runId) return;
+      try{onPracticeAttempt?.({target:practiceTarget,mode,editedTranscript,result,targetCurrent});}catch{}
       if(result.ok&&game.snapshot().view.busy)serviceRound=game.snapshot().state.round;
       lastReply = game.snapshot().view.beat?.kind==='farewell'?game.snapshot().view.line[1]:result.reply || '';
+      lastReplyRate = result.playbackRate === 0.72 ? 0.72 : 1;
       replyEl.textContent = lastReply || '（無回覆）';
       if (result.ok && lastReply && typeof game.say === 'function' && !game.snapshot().view.busy) {
         suppressLine=true;applying=true;
-        try { game.say(lastReply, result.meaning || ''); } catch {} finally{suppressLine=false;applying=false;lastKey=bizKey(game.snapshot());}
+        try { game.say(lastReply, result.meaning || ''); lastNpcLine=game.snapshot().state.round+':'+lastReply; } catch {} finally{suppressLine=false;applying=false;lastKey=bizKey(game.snapshot());}
       }
-      setState(result.ok ? '準備好' : '未能執行');
-      if(game.snapshot().view.busy){working=false;lastNpcLine='';syncNpc(game.snapshot());}else await playReply(lastReply, id);
+      const semanticSuccess=result.ok&&result.executedIntents?.length>0;
+      setState(result.ok?(semanticSuccess?`意思已理解，合法操作已完成${mode==='voice'?'；未評估發音':''}。`:'已收到回覆，未執行目標操作。'):'未能執行。');
+      if(game.snapshot().view.busy){working=false;lastNpcLine='';syncNpc(game.snapshot());}else await playReply(lastReply, id, lastReplyRate);
     } catch (e) { if (id === runId) setState(e.message || '發生錯誤，請再試。'); }
     if(id===runId)working=false;
     refreshButtons();
@@ -226,8 +240,11 @@ export function mountVoice({ game, host } = {}) {
           const wav = wavFromPcm(prepared.samples);
           const { text } = await api('/api/voice/transcribe', { audioBase64: b64(wav), mimeType: WAV_MIME });
           if (id !== runId) return;
-          input.value = text || ''; working=false; refreshButtons();
-          if(text){setState('識別完成，請核對文字後按發送。');input.focus();}else setState('未聽清楚，請再講一次。');
+          const transcript=typeof text==='string'?text.trim():'';
+          input.value = transcript;
+          asrResult=transcript?{id,round:game.snapshot().state.round,text:transcript,edited:false}:null;
+          working=false; refreshButtons();
+          if(transcript){setState('識別完成，請核對文字後按發送。');input.focus();}else setState('未聽清楚，請再講一次。');
         } catch (e) { if (id === runId) { working=false;closeCtx();setState(e.message || '錄音或識別失敗，請再試或輸入文字。');refreshButtons(); } }
       };
       recorder.start();
@@ -244,14 +261,28 @@ export function mountVoice({ game, host } = {}) {
 
   micBtn.addEventListener('click', () => { if (recorder) { try { recorder.stop(); } catch {} } else startRecording(); });
   sendBtn.addEventListener('click', () => sendFlow(input.value));
+  function cancelPending(clear=false){
+    if(!working&&!asrResult)return;
+    if(!clear&&!working)return;
+    cancel(true);
+    if(clear){input.value='';refreshButtons();micBtn.focus({preventScroll:true});}
+    setState('已取消。可以再錄音，亦可以輸入文字。');
+  }
+  cancelBtn.addEventListener('click',()=>cancelPending(true));
   replayBtn.addEventListener('click', () => {
-    if(lastReply&&!working){speech.stop();speech.speak(lastReply);}
+    if(lastReply&&!working){speech.stop();speech.speak(lastReply,{rate:lastReplyRate});}
     return;
   });
   muteBox.addEventListener('change', () => {
     speech.setMuted(muteBox.checked);if(muteBox.checked){releaseFarewell?.();releaseFarewell=null;}refreshButtons();return;
   });
-  input.addEventListener('input', refreshButtons);
+  input.addEventListener('input', () => {
+    if(asrResult){
+      if(!input.value.trim())asrResult=null;
+      else if(input.value!==asrResult.text)asrResult.edited=true;
+    }
+    refreshButtons();
+  });
   input.addEventListener('keydown',e=>e.stopPropagation());
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); if (!sendBtn.disabled) sendFlow(input.value); } });
   const onHide = () => cancel();
@@ -297,10 +328,12 @@ export function mountVoice({ game, host } = {}) {
     clearTimeout(lineTimer);
     (()=>{
       if(destroyed||working||muteBox.checked)return;
-      lastReply=text;replyEl.textContent=text;speech.stop();speech.speak(text);refreshButtons();
+      lastReply=text;lastReplyRate=1;replyEl.textContent=text;speech.stop();speech.speak(text);refreshButtons();
     })();
   }
   return {
+    cancelPending,
+    setCompact(value){devices.open=!value;},
     sync(snapshot) {
       if (!snapshot) return;
       const key = bizKey(snapshot);
@@ -310,7 +343,7 @@ export function mountVoice({ game, host } = {}) {
         lastKey = key;
         if (!applying && (roundChanged || serviceRound!==snapshot.state.round)) cancel(false);
         // 本次语音触发的演出可以更新状态，不应截断它自己的播报；手动重开始终取消。
-        if (roundChanged) { input.value = ''; replyEl.textContent = ''; lastReply = ''; }
+        if (roundChanged) { input.value = ''; replyEl.textContent = ''; lastReply = ''; lastReplyRate = 1; }
       }
       if(!snapshot.view.busy)serviceRound=null;
       refreshButtons();

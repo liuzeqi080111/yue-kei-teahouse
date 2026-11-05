@@ -15,7 +15,20 @@ export const LINES={
  PAY_BILL:['阿明 · 侍應','收妥喇，多謝晒！','sau1 to5 laa3, do1 ze6 saai3!','已收妥，非常感謝！'],
  LEAVE:['阿明 · 侍應','慢行呀，得閒再嚟！','maan6 haang4 aa3, dak1 haan4 zoi3 lai4!','慢走，有空再來！'],
 };
-export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>{}}={}){
+export function diningOutcome(state,inspectDining=()=>null){
+ const outcome={completed:[],leftover:[],untouched:[],packed:[]};
+ for(const item of state?.items||[]){
+  if(item.status!=='served')continue;
+  const details=inspectDining(item.id),isDrink=typeof details?.isDrink==='boolean'?details.isDrink:item.itemId.startsWith('drink-');
+  const entry={name:item.name,isDrink};
+  if(details?.isPacked||item.options?.serving==='外賣')outcome.packed.push(entry);
+  else if(details?.found&&details.remaining===0)outcome.completed.push(entry);
+  else if(details?.found&&Number.isFinite(details.remaining)&&details.remaining<3)outcome.leftover.push(entry);
+  else outcome.untouched.push(entry);
+ }
+ return outcome;
+}
+export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>{},inspectDining=()=>null}={}){
  const session=createSession({maxPerItem:1});let timers=new Set(),generation=0,cameraRevision=0,farewellPending=null;
  let speechPending=false;
  let view={camera:'outside',busy:false,water:false,utensils:false,line:LINES.outside,notice:'',beat:null,near:false,orderReview:false};
@@ -56,7 +69,7 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
   if(type==='CONFIRM_ORDER'&&session.getState().items.some(i=>i.status==='pending')){
    const call=dispatch('CALL_WAITER');if(!call.ok)return call;
    sequence([['approach',MOTION.walk],['talk',500]],'order-review',()=>{
-    view.orderReview=true;view.line=['阿明 · 侍應','仲要唔要啲嘢？齊嘅話，我就幫你落單。','zung6 jiu3 m4 jiu3 di1 je5?','還要些什麼嗎？選好了我就幫你下單。'];
+    view.orderReview=true;view.line=['阿明 · 侍應','仲要唔要啲嘢？齊嘅話，我就幫你落單。','zung6 jiu3 m4 jiu3 di1 je5? cai4 ge3 waa6, ngo5 zau6 bong1 nei5 lok6 daan1.','還要些什麼嗎？選好了我就幫你下單。'];
    });return call;
   }
   if(type==='FINISH_ORDER'){
@@ -94,10 +107,13 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
    if(r.events.some(e=>e.type==='WAITER_APPROACH'))sequence([['approach',1000,()=>{view.line=['阿明 · 侍應','呢張係你張單，睇啱就可以埋單。','','這是你的帳單，核對後就可以結帳。'];}],['talk',900]],'bill',()=>{view.camera='bill';});
    else view.camera='bill';
   }
-  if(type==='PAY_BILL'&&r.events.some(e=>e.type==='PAYMENT_COMPLETED')){
-   view.busy=true;view.camera='room';view.near=true;
-   const packed=r.state.items.some(i=>i.options.serving==='外賣');
-   view.line=packed?['阿明 · 侍應','收妥喇，外賣記得拎埋。多謝，慢行呀！','','已收妥，請帶好外賣，謝謝惠顧！']:['阿明 · 侍應','收妥喇，多謝晒！慢行呀。','sau1 to5 laa3, do1 ze6 saai3! maan6 haang4 aa3.','已收妥，謝謝惠顧，慢走！'];
+   if(type==='PAY_BILL'&&r.events.some(e=>e.type==='PAYMENT_COMPLETED')){
+    view.busy=true;view.camera='room';view.near=true;
+    const outcome=diningOutcome(r.state,inspectDining),notes=[],meanings=[];
+    if(outcome.packed.length){notes.push('外賣記得拎埋');meanings.push('请带好外卖');}
+    if(outcome.leftover.length||outcome.untouched.length){notes.push('堂食有剩都唔緊要');meanings.push('堂食没吃完或没喝完也没关系');}
+    const suffix=notes.length?`${notes.join('；')}。`:'',meaningSuffix=meanings.length?`${meanings.join('；')}。`:'';
+    view.line=['阿明 · 侍應',`收妥喇，多謝晒！${suffix}慢行呀。`,'',`已收妥，謝謝惠顧！${meaningSuffix}慢走！`];
    view.beat={pose:'talk',kind:'farewell',start:Date.now(),duration:MOTION.farewell,round:session.getState().round};
    const deadline=Date.now()+45000;
    function finishFarewell(round){

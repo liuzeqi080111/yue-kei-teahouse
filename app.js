@@ -1,31 +1,234 @@
 const STATIC_PREVIEW = document.documentElement.dataset.preview === 'true';
 import {MENU,PHASES as P} from './teahouse-scene/index.js';
-import {createGame} from './controller.js';
-import {draw,food,ready} from './scene.js';
+import {createGame,diningOutcome} from './controller.js';
+import {createMobileTray,compactMobileActions} from './mobile-tray.js';
+import {fitScene} from './scene-viewport.js';
+import {draw,food,ready,tableFoodLayout,SCENE_WIDTH,SCENE_HEIGHT} from './scene.js';
+import {createDining} from './dining-actions.js';
 import {mountVoice} from './voice.js';
 import {createAmbience} from './ambient.js';
 import {mountMusic} from './music.js';
+import {createSoundscape} from './sound-priority.js';
+import {createLearningGuide} from './learning-guide.js';
+import {createPracticeAudio} from './practice-audio.js';
+import {createPracticeLog} from './learning-progress.js';
+import {createReviewStore} from './review-store.js';
+import {getPhrase,buildOrderPhrase} from './learning-phrases.js';
 const $=s=>document.querySelector(s),money=n=>'$'+(n/100).toFixed(2),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names={temperature:'溫度',sweetness:'甜度',serving:'享用方式',rice:'飯量',noodle:'麵條',soup:'湯量',bread:'麵包',syrup:'糖漿',spicy:'辣度'};
 const roman={'food-pineapple-bun':'BO LO YAU','food-charsiu-rice':'CHAR SIU RICE','food-wonton-noodle':'WONTON NOODLES','food-egg-sandwich':'EGG SANDWICH','food-french-toast':'FRENCH TOAST','food-curry-fishball':'CURRY FISHBALLS','drink-lemon-tea':'LEMON TEA','drink-milk-tea':'SILK STOCKING MILK TEA','drink-yuanyang':'YUANYANG','drink-horlicks':'HORLICKS'};
+const diningMeanings={'food-pineapple-bun':'菠蘿包夾牛油','food-charsiu-rice':'叉燒配白飯','food-wonton-noodle':'雲吞配竹昇麵','food-egg-sandwich':'雞蛋三文治','food-french-toast':'港式西多士','food-curry-fishball':'咖喱魚蛋','drink-lemon-tea':'檸檬紅茶','drink-milk-tea':'港式濃滑奶茶','drink-yuanyang':'咖啡混合奶茶','drink-horlicks':'麥芽奶飲品'};
+const diningFoodPhrases={'food-pineapple-bun':['菠蘿油，趁熱食，外脆內軟。','菠萝油要趁热吃，外脆内软。'],'food-charsiu-rice':['叉燒飯，叉燒配飯，慢慢食。','叉烧饭有叉烧和米饭，慢慢吃。'],'food-wonton-noodle':['雲吞麵，湯香麵爽，趁熱食。','云吞面汤香面爽，要趁热吃。'],'food-egg-sandwich':['蛋治，蛋香軟滑，啱啱好。','蛋治的鸡蛋香滑，刚刚好。'],'food-french-toast':['西多士，外脆內軟，加少少糖漿。','西多士外脆内软，配一点糖浆。'],'food-curry-fishball':['咖喱魚蛋，香辣彈牙，慢慢食。','咖喱鱼蛋香辣弹牙，慢慢吃。']};
+function diningPhrase(item,remaining=3){
+ if(remaining===0)return item.itemId.startsWith('drink-')
+  ? {text:'我飲晒喇。',meaning:'我喝完了。'}
+  : {text:'我食完喇。',meaning:'我吃完了。'};
+ if(remaining<3&&item.itemId.startsWith('food-'))return {text:'真係好好味！',meaning:'真的很好吃！'};
+ if(remaining<3&&item.options.temperature==='熱')return {text:'有啲熱，我慢慢飲。',meaning:'有点烫，我慢慢喝。'};
+ if(diningFoodPhrases[item.itemId]){const [text,meaning]=diningFoodPhrases[item.itemId];return {text,meaning};}
+ const cold=item.options.temperature==='凍',base={'drink-lemon-tea':'檸茶','drink-milk-tea':'奶茶','drink-yuanyang':'鴛鴦','drink-horlicks':'好立克'}[item.itemId]||item.name;
+ const name=`${cold?'凍':'熱'}${base}`,sweet=item.options.sweetness?`，${item.options.sweetness}`:'';
+ return {text:`${name}${sweet}，${cold?'冰涼解渴':'小心熱，慢慢飲'}。`,meaning:`${cold?'冰':'热'}${base}${sweet}，${cold?'冰凉解渴':'小心烫，慢慢喝'}。`};
+}
 const stageNames={[P.OUTSIDE]:'01 / 抵達',[P.GREETING]:'02 / 迎接',[P.SEATING]:'03 / 帶位',[P.SEATED]:'04 / 落座',[P.ORDERING]:'05 / 點餐',[P.DINING]:'06 / 用餐',[P.BILLING]:'07 / 埋單',[P.FINISHED]:'08 / 再會'};
 const locationNames={outside:'街邊 · 粵記門外',entrance:'門口 · 侍應迎接',walk:'走道 · 跟隨帶位',room:'窗邊卡座 · 03 號枱',table:'03 號枱 · 桌面',menu:'03 號枱 · 餐牌',bill:'03 號枱 · 帳單'};
-let tab='food',editing=null,showMeaning=true,lastCamera=null,tablePage=0,lastRound=null;
+let tab='food',editing=null,showMeaning=true,lastCamera=null,tablePage=0,lastRound=null,selectedDining=null;
 let lookCamera='room',panelKey='',panelMarkup='',previousPanel=false;
 const panelScroll=new Map();
-let frame=0;
-let voice=null;
-const game=createGame({changed:render});
-$('#translation').setAttribute('aria-pressed','true');
-createAmbience({button:$('#ambience')});
-mountMusic($('#music-settings'));
+let frame=0, lastMotionTime=0;
+let weather = 'dusk';
+const weatherChoices = new Set(['afternoon', 'dusk', 'rain']);
+try {
+ const saved = localStorage.getItem('yue-kei-weather');
+ if (weatherChoices.has(saved)) weather = saved;
+} catch {}
+document.body.dataset.weather = weather;
+$('#scene-weather').value = weather;
+let voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null;
+const game=createGame({changed:render,inspectDining:id=>dining?.inspect(id)});
+const practiceLog=createPracticeLog();
+let practiceRound=null,practiceAttemptSerial=0;
+function loadReviewStorage(){try{return globalThis.localStorage||null;}catch{return null;}}
+function createPageSessionId(){
+ try{const id=globalThis.crypto?.randomUUID?.();if(id)return `page-${id}`;}catch{}
+ return `page-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`;
+}
+const pageSessionId=createPageSessionId(),reviewStore=createReviewStore({storage:loadReviewStorage()});
+const settledPracticeRounds=new Set();
+let dynamicReviewPhrases=null,reviewChallenges=[],clearReviewArmed=false;
+function reviewRoundId(round){return `round:${pageSessionId}:${round}`;}
+function settlePracticeReview(state){
+ if(state.phase!==P.FINISHED)return;
+ const id=reviewRoundId(state.round);if(settledPracticeRounds.has(id))return;
+ settledPracticeRounds.add(id);reviewStore.saveRound(id,practiceLog.snapshot(state.round));
+}
+function dynamicReviewPhraseMap(){
+ if(dynamicReviewPhrases)return dynamicReviewPhrases;
+ dynamicReviewPhrases=new Map();
+ for(const item of MENU){
+  if(!item.available)continue;
+  let combinations=[{}];
+  for(const [key,values] of Object.entries(item.options||{}))combinations=combinations.flatMap(current=>values.map(value=>({...current,[key]:value})));
+  for(const options of combinations){
+   const phrase=buildOrderPhrase(item,options);if(phrase?.id)dynamicReviewPhrases.set(phrase.id,phrase);
+  }
+ }
+ return dynamicReviewPhrases;
+}
+function resolveReviewPhrase(id){return getPhrase(id)||dynamicReviewPhraseMap().get(id)||null;}
+function challengeCandidates(state){
+ const snapshot=practiceLog.snapshot(state.round),stored=reviewStore.snapshot().phrases;
+ const ids=[...reviewStore.recommend(100),...snapshot.reviewPhraseIds,...snapshot.phrases.map(phrase=>phrase.phraseId),...stored.map(phrase=>phrase.phraseId)];
+ const seen=new Set(),phrases=[];
+ for(const id of ids){
+  if(seen.has(id))continue;seen.add(id);
+  const phrase=resolveReviewPhrase(id);if(!phrase)continue;
+  phrases.push(phrase);if(phrases.length===2)break;
+ }
+ return phrases;
+}
+function syncPracticeRound(round){
+ if(practiceRound===round)return;
+ practiceLog.begin(round);practiceRound=round;practiceAttemptSerial=0;
+}
+function currentPracticeTarget(){
+ const {state}=game.snapshot();syncPracticeRound(state.round);
+ const practice=learningGuide?.getPractice();
+ if(!practice?.phraseId||!practice.intents.length)return null;
+ return {round:state.round,key:practice.key,phraseId:practice.phraseId,intents:practice.intents};
+}
+function markPracticeHint(kind,phraseId){
+ const {state}=game.snapshot();syncPracticeRound(state.round);
+ practiceLog.markHint(state.round,phraseId,kind);updatePracticeSummary(state.round);
+}
+function canonicalIntent(type,extra,state){
+ if(type==='ADD_ITEM'){
+  const line=state?.items?.find(item=>item.itemId===extra.itemId);
+  return line?{type,itemId:line.itemId,options:{...line.options}}:{type,itemId:extra.itemId};
+ }
+ if(type==='UPDATE_ITEM'){
+  const line=state?.items?.find(item=>item.id===extra.orderItemId);
+  return line?{type,orderItemId:line.id,options:{...line.options}}:{type,orderItemId:extra.orderItemId};
+ }
+ return {type};
+}
+function intentMatches(expected,actual){
+ if(!expected||!actual||expected.type!==actual.type)return false;
+ if(expected.itemId&&expected.itemId!==actual.itemId)return false;
+ if(expected.orderItemId&&expected.orderItemId!==actual.orderItemId)return false;
+ if(expected.options){
+  if(!actual.options)return false;
+  for(const [key,value] of Object.entries(expected.options))if(actual.options[key]!==value)return false;
+ }
+ return true;
+}
+function updatePracticeSummary(round=game.snapshot().state.round){
+ const {totals}=practiceLog.snapshot(round);
+  const text=totals.attemptCount||totals.phraseCount
+   ?`本局：语音 ${totals.byMode.voice} 次（独立 ${totals.independentAttemptCount}）· 文字 ${totals.byMode.text} 次 · 点击 ${totals.byMode.click} 次 · 目标匹配 ${totals.matchedAttemptCount} 次 · 待复习 ${totals.reviewPhraseCount} 句。只核对意思，不评发音。`
+   :'未用提示的语音在目标动作成功后，才记为独立表达；文字与点击另计，不评发音。';
+ document.querySelectorAll('[data-practice-progress]').forEach(el=>updateText(el,text));
+}
+function roundReviewMarkup(state){
+ const snapshot=practiceLog.snapshot(state.round),hintNames={full:'完整句',frame:'句框',audio:'示范音'};
+ const rows=snapshot.phrases.map(entry=>{
+  const phrase=resolveReviewPhrase(entry.phraseId);if(!phrase)return '';
+  const attempts=snapshot.attempts.filter(attempt=>attempt.phraseId===entry.phraseId);
+  const modes=['voice','text','click'].map(mode=>[mode,attempts.filter(attempt=>attempt.mode===mode).length]).filter(([,count])=>count);
+  const modeText=modes.length?modes.map(([mode,count])=>`${({voice:'语音',text:'文字',click:'点击'})[mode]} ${count} 次`).join(' · '):'尚未作答';
+  const status=entry.independent?'独立开口完成':entry.hinted?(entry.matched?'看过提示，场景目标已完成，仍建议复习':'看过提示，尚未匹配场景目标'):entry.matched&&modes.some(([mode])=>mode==='click'||mode==='text')?'点击／文字完成场景目标':entry.matched?'语音完成场景目标，仍建议复习':modes.length?'已尝试，尚未匹配场景目标':'尚未作答';
+  const hints=entry.hintKinds.length?` · 提示：${entry.hintKinds.map(kind=>hintNames[kind]).join('、')}`:'';
+  return `<li class="round-review-item"><div><strong>${esc(phrase.cantonese)}</strong><small>${esc(phrase.meaning)}</small></div><span>${status}</span><small>${modeText}${hints}</small></li>`;
+ }).filter(Boolean).join('');
+ return `<h3>本局练习回顾</h3><p>场景已完成 · 独立开口 ${snapshot.totals.independentPhraseCount}/${snapshot.totals.phraseCount} 句 · 待复习 ${snapshot.totals.reviewPhraseCount} 句。点击、文字和提示分别列出，不把场景动作当作发音评分。</p>${rows?`<ul class="round-review-list">${rows}</ul>`:'<p>本局还没有留下句子练习；可以再玩一局，或查看本机已有复习句。</p>'}`;
+}
+function renderRoundReview(state){
+ const host=$('#round-review');if(!host)return;
+ const markup=roundReviewMarkup(state);if(host.dataset.markup!==markup){host.innerHTML=markup;host.dataset.markup=markup;}
+ const challengeButton=$('#ending [data-open-review]');if(challengeButton)challengeButton.disabled=challengeCandidates(state).length===0;
+}
+function renderReview(focusSelector=''){
+ const dialog=$('#review-dialog');if(!dialog)return;
+ const state=game.snapshot().state,completed=reviewChallenges.filter(item=>item.completed).length,hinted=reviewChallenges.filter(item=>item.hinted).length;
+ updateText($('#review-context'),`先照着普通话提示试说，再看答案自己核对。想练一两句都可以，随时返回。`);
+ updateText($('#review-challenge-progress'),`挑战进度：${completed}/${reviewChallenges.length} 句已自练 · ${hinted} 句看过或听过答案。挑战不计入本局次数。`);
+ const markup=reviewChallenges.length?reviewChallenges.map((item,index)=>{
+  const {phrase,revealed,completed,hinted}=item;
+  return `<article class="review-challenge"><span class="review-challenge-number">第 ${index+1} 句 · ${completed?'已自练':'待练习'}</span><p class="review-challenge-meaning">普通话提示：${esc(phrase.meaning)}</p><div class="review-challenge-answer" ${revealed?'':'hidden'}><strong>${esc(phrase.cantonese)}</strong><span>粤拼：${esc(phrase.jyutping)}</span></div><p class="review-challenge-hint">${hinted?'本次挑战已使用答案提示':'答案仍隐藏；先试着独立说，也可以主动看答案。'}</p><div class="review-challenge-actions"><button type="button" data-challenge-reveal="${index}" aria-expanded="${revealed}">${revealed?'收起答案':'看答案'}</button><button type="button" data-challenge-listen="${index}" ${revealed&&practiceAudio?'':'hidden'}>试听答案</button><button type="button" class="primary" data-challenge-complete="${index}" ${completed?'disabled':''}>${completed?'已完成自我核对':'我已开口自练'}</button></div></article>`;
+ }).join(''):'<p class="review-empty">暂时没有可重建的复习句。先回游戏练几句；无效或已变更的旧菜单句会自动跳过。</p>';
+ const list=$('#review-challenge-list');list.innerHTML=markup;
+ if(focusSelector)dialog.querySelector(focusSelector)?.focus({preventScroll:true});
+}
+function openReview(){
+ const snapshot=game.snapshot();settlePracticeReview(snapshot.state);practiceAudio?.stop();
+ reviewChallenges=challengeCandidates(snapshot.state).map(phrase=>({phrase,revealed:false,hinted:false,completed:false}));
+ renderReview();const dialog=$('#review-dialog');if(!dialog.open)dialog.showModal();
+ dialog.querySelector('[data-dismiss]')?.focus({preventScroll:true});
+}
+function resetClearReview(){
+ clearReviewArmed=false;const button=$('#clear-review');if(button)button.textContent='清除學習記錄';
+ const status=$('#clear-review-status');if(status)status.textContent='';
+}
+function recordPracticeAttempt({target,mode,editedTranscript=false,ok=false,executedIntents=[]}){
+ if(!target||game.snapshot().state.round!==target.round)return {accepted:false,reason:'stale-target'};
+ syncPracticeRound(target.round);
+ const matched=ok===true&&executedIntents.some(actual=>target.intents.some(expected=>intentMatches(expected,actual)));
+ const result=practiceLog.record({round:target.round,attemptId:`practice-${target.round}-${++practiceAttemptSerial}`,phraseId:target.phraseId,mode,matched,editedTranscript});
+ updatePracticeSummary(target.round);return result;
+}
+function recordVoicePractice({target,mode,editedTranscript,result,targetCurrent}){
+ if(!targetCurrent)return;
+ recordPracticeAttempt({target,mode,editedTranscript,ok:result?.ok===true,executedIntents:result?.executedIntents||[]});
+}
+function performClickAction(type,extra={},target){
+ if(target===undefined)target=['ENTER','RESTART'].includes(type)?null:currentPracticeTarget();
+ const result=game.action(type,extra);
+ if(target){
+  const changed=!result?.events?.some(event=>event.type.endsWith('_NOOP'));
+  recordPracticeAttempt({target,mode:'click',ok:result?.ok===true,executedIntents:result?.ok&&changed?[canonicalIntent(type,extra,result.state)]:[]});
+ }
+ return result;
+}
+function performCamera(value){
+ const before=game.snapshot();
+ if(value==='menu'&&before.state.phase===P.SEATED)return performClickAction('OPEN_MENU');
+ const target=value==='menu'&&before.state.phase===P.ORDERING&&before.view.camera!=='menu'?currentPracticeTarget():null;
+ game.camera(value);
+ if(target){
+  const opened=game.snapshot().view.camera==='menu';
+  recordPracticeAttempt({target,mode:'click',ok:opened,executedIntents:opened?[{type:'OPEN_MENU'}]:[]});
+ }
+}
+dining=createDining({getSnapshot:()=>game.snapshot()});
+function syncMeaning(){
+ $('#translation').setAttribute('aria-pressed',String(showMeaning));
+ $('#meaning').hidden=!showMeaning;
+}
+learningGuide=createLearningGuide({
+ getSnapshot:()=>game.snapshot(),
+ getMenuContext:()=>({tab,editing,dining:selectedDining?dining.inspect(selectedDining):null}),
+ onMeaningChange:value=>{showMeaning=value;syncMeaning();},
+ onHint:markPracticeHint
+});
+showMeaning=learningGuide.showMeaning;syncMeaning();
+practiceAudio=STATIC_PREVIEW?null:createPracticeAudio({
+ getSnapshot:()=>game.snapshot(),
+ getPractice:()=>learningGuide.getPractice()
+});
+const sound = createSoundscape({musicButton: $('#music-toggle'), volumeControl: $('#music-volume')});
+createAmbience({button: $('#ambience'), sound});
+mountMusic($('#music-settings'), {sound});
 if(STATIC_PREVIEW){
  $('#voice-dock').hidden=true;$('#voice-dock').removeAttribute('open');
  $('#welcome > small').textContent='公開試玩版 · 用場景內選項點餐、加水和埋單；語音稍後開放。';
  const notes=$('#settings').querySelectorAll(':scope > p, :scope > small');
  if(notes[0])notes[0].textContent='本版本可測試完整點餐流程與背景音樂，語音及文字理解尚未開放。';
  if(notes[2])notes[2].textContent='只作虛擬結帳，不會收款；無需帳號，不會錄音。';
-}else voice=mountVoice({game,host:$('#voice-host')});
+}else voice=mountVoice({game,host:$('#voice-host'),getPracticeTarget:currentPracticeTarget,onPracticeAttempt:recordVoicePractice});
+const mobileTray=createMobileTray({
+ conversation:$('.conversation'),guide:$('#learning-guide'),voiceDock:$('#voice-dock'),staticPreview:STATIC_PREVIEW,
+ onLayout:()=>render(game.snapshot()),onCloseVoice:()=>voice?.cancelPending(),onCompact:value=>voice?.setCompact(value),
+});
 function feedback(s){
  if(s.includes('售罄'))return s.replace(/今日售罄.*/, '今日賣晒喇，揀過另一款吖。');
  if(s.includes('未确认的商品'))return '仲有餐點未確認，落單或取消嗰幾項之後就可以埋單。';
@@ -37,7 +240,7 @@ function feedback(s){
 }
 function updateText(el,value){if(el.textContent!==value)el.textContent=value;}
 function focusToken(el){
- const attr=['data-action','data-camera','data-tab','data-item','data-edit','data-close','data-back','data-cancel','data-table-page','name','type'].find(a=>el?.hasAttribute(a));
+ const attr=['data-action','data-practice-choice','data-camera','data-tab','data-item','data-edit','data-close','data-back','data-cancel','data-table-page','data-dining-select','data-dining-preview','data-dining-consume','data-dining-hot','data-dining-close','name','type'].find(a=>el?.hasAttribute(a));
  return attr?[attr,el.getAttribute(attr)]:null;
 }
 function restoreFocus(root,token){
@@ -51,8 +254,113 @@ function closePanel(){
  $('#hotspots button')?.focus({preventScroll:true});
 }
 function button(type,label,primary=false,disabled=false){return `<button data-action="${type}" class="${primary?'primary':''}" ${disabled?'disabled':''}>${label}</button>`;}
+const replyText=Object.freeze({
+ START_SEATING:'一位呀，唔該。', OPEN_MENU:'唔該，睇吓餐牌。',
+ CONTINUE_ORDER:'仲想加啲嘢。', FINISH_ORDER:'夠喇，唔該落單。',
+ REQUEST_WATER:'唔該，加水。', REQUEST_UTENSILS:'唔該，畀副餐具我。',
+ REQUEST_BILL:'唔該，埋單。', WAITER_LEAVE:'唔使住，唔該。'
+});
+function replyButton(type,label,primary=false,disabled=false){
+ const choice=button(type,label,primary,disabled),line=replyText[type];
+ if(!practiceAudio||!line)return choice;
+ return `<span class="reply-choice">${choice}<button type="button" data-practice-choice="${type}" aria-label="试听：${esc(line)}" ${disabled?'disabled':''}>试听</button></span>`;
+}
+function noteModelAudio(choiceType='',text=''){
+ const practice=learningGuide?.getPractice();if(!practice)return;
+ if(choiceType||text){
+  const matchesType=choiceType&&practice.intents.some(intent=>intent.type===choiceType);
+  if(!matchesType&&text!==practice.example)return;
+ }
+ learningGuide?.noteHint('audio');
+}
+function stopDiningSound(){
+ diningSoundGeneration++;
+ const context=diningAudio;diningAudio=null;
+ if(context)try{context.close().catch(()=>{});}catch{}
+}
+function playDiningSound(isDrink){
+ stopDiningSound();
+ const AudioContext=globalThis.AudioContext||globalThis.webkitAudioContext;if(!AudioContext)return;
+ let context;
+ try{
+  context=new AudioContext();if(context.state!=='running'){context.close().catch(()=>{});return;}
+  diningAudio=context;const token=diningSoundGeneration,now=context.currentTime;
+  const oscillator=context.createOscillator(),gain=context.createGain();
+  oscillator.type='sine';oscillator.frequency.setValueAtTime(isDrink?740:430,now);
+  gain.gain.setValueAtTime(.025,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.09);
+  oscillator.connect(gain);gain.connect(context.destination);
+  oscillator.onended=()=>{if(token!==diningSoundGeneration)return;if(diningAudio===context)diningAudio=null;context.close().catch(()=>{});};
+  oscillator.start(now);oscillator.stop(now+.09);
+ }catch{if(diningAudio===context)diningAudio=null;try{context?.close().catch(()=>{});}catch{}}
+}
+function diningReason(details){
+ if(details.reason==='empty')return details.isDrink?'呢杯已經飲晒，唔可以再飲。':'呢份已經食晒，唔可以再食。';
+ if(details.reason==='takeaway')return '外賣已經打包，唔可以喺度食或者飲。';
+ if(details.reason==='busy')return '阿明正在服務，請稍等一陣。';
+ if(details.reason==='stale_round')return '呢個操作屬於上一局，已經忽略。';
+ if(['not_dining','paid'].includes(details.reason))return '而家唔係用餐階段，唔可以消費餐點。';
+ return '呢份餐點未上枱或者已經唔存在。';
+}
+function endingSummary(state){
+ const outcome=diningOutcome(state,id=>dining?.inspect(id)),parts=[];
+ for(const item of outcome.completed)parts.push(`${item.name}已${item.isDrink?'飲':'食'}晒`);
+ for(const item of outcome.leftover)parts.push(`${item.name}${item.isDrink?'飲':'食'}咗啲，仲有剩`);
+ for(const item of outcome.untouched)parts.push(`${item.name}未碰`);
+ if(outcome.packed.length)parts.push(`外賣已打包取走：${outcome.packed.map(item=>item.name).join('、')}`);
+ const details=parts.length?`${parts.join('；')}。`:'';
+ return `你完成咗一餐 ${state.items.reduce((sum,i)=>sum+i.qty,0)} 份餐點。${details}合共 ${money(state.bill?.totalCents??0)}，已完成虛擬付款，冇實際扣款。阿明已同你道別：慢行呀，得閒再嚟！`;
+}
+function diningInventoryItem(item,state){
+ if(state.phase!==P.DINING)return `<span>${esc(item.name)} · ${itemStatus(item)} · ${Object.values(item.options).map(esc).join(' / ')}</span>`;
+ const details=dining.inspect(item.id),options=Object.values(item.options).map(esc).join(' / ');
+ if(details.isPacked)return `<span class="dining-takeaway">${esc(item.name)} · 外賣已打包 · 不可堂食</span>`;
+ return `<button type="button" class="dining-text-entry" data-dining-select="${esc(item.id)}" aria-pressed="${selectedDining===item.id}">${esc(item.name)} · ${options} · ${details.remaining?`剩 ${details.remaining} 啖`:'已用完'}</button>`;
+}
+function diningService(item,details,view){
+ if(details.isPacked||!details.remaining)return '';
+ const hot=details.isDrink&&item.options.temperature==='熱';
+ const choices=replyButton('REQUEST_WATER','唔該，加水。',false,view.busy)
+  +(details.isFood?replyButton('REQUEST_UTENSILS','唔該，畀副餐具我。',false,view.busy):'')
+  +(hot?`<button type="button" data-dining-hot="${esc(item.id)}" ${view.busy?'disabled':''}>有啲熱，等陣先飲。</button>`:'');
+ return `<div class="dining-service"><small>可選小情境 · 可以略過，唔影響埋單。</small><div class="dining-detail-actions">${choices}</div>${hot?'<p class="note">熱飲小心燙，可以等涼少少先飲；唔會改變你落單嘅溫度。</p>':''}</div>`;
+}
+function diningDetail(item,view){
+ const details=dining.inspect(item.id),phrase=diningPhrase(item,details.remaining),verb=details.isDrink?'飲':'食';
+ return `<section class="dining-detail" aria-label="${esc(item.name)}詳情"><button class="dining-detail-close" data-dining-close aria-label="關閉餐點詳情">✕</button><strong>${esc(item.name)}</strong><small>${roman[item.itemId]||''}</small><p>${esc(diningMeanings[item.itemId]||item.name)} · ${Object.values(item.options).map(esc).join(' / ')}</p><p class="dining-phrase">${esc(phrase.text)}<small>${esc(phrase.meaning)}</small></p><p class="dining-remaining${details.remaining<3?' changed':''}" role="status">剩餘 ${details.remaining} / 3 啖</p><div class="dining-detail-actions"><button data-dining-preview="${esc(item.id)}" ${practiceAudio?'':'hidden'}>听用餐短句</button><button type="button" data-dining-preview="${esc(item.id)}" data-dining-name ${practiceAudio?'':'hidden'}>听名称</button><button class="primary" data-dining-consume="${esc(item.id)}" ${details.canConsume?'':'disabled'}>${details.remaining?`${verb}一啖`:`已${verb}晒`}</button></div>${diningService(item,details,view)}${practiceAudio?'':'<small>靜態試玩版未開放語音試聽。</small>'}</section>`;
+}
+let measuredScene;
+function measureScene(view){
+ const canvas=$('#scene'),host=$('#hotspots');
+ const width=canvas.clientWidth,height=canvas.clientHeight,dpr=window.devicePixelRatio||1;
+ const originX=canvas.offsetLeft-host.offsetLeft,originY=canvas.offsetTop-host.offsetTop;
+ const key=[width,height,dpr,originX,originY,view.camera,mobileTray.mobile].join(':');
+ if(measuredScene?.key!==key){
+  const fit=fitScene({width,height,dpr,fit:getComputedStyle(canvas).objectFit,worldWidth:SCENE_WIDTH,worldHeight:SCENE_HEIGHT});
+  measuredScene={key,fit,originX,originY};
+ }
+ return measuredScene;
+}
+function foodHotspotStyle(slot,geometry){
+ const {fit:{scaleX:sx,scaleY:sy,offsetX,offsetY},originX,originY}=geometry;
+ const left=originX+offsetX+slot.x*sx,top=originY+offsetY+(slot.y-slot.size*42)*sy;
+ const width=Math.max(44,slot.size*86*sx),height=Math.max(44,slot.size*90*sy);
+ return `left:${left.toFixed(1)}px;top:${top.toFixed(1)}px;width:${width.toFixed(1)}px;height:${height.toFixed(1)}px`;
+}
+function diningHotspots(state,view){
+ if(state.phase!==P.DINING||view.camera!=='table')return '';
+ const geometry=measureScene(view);
+ return tableFoodLayout($('#scene'),state,{...view,tablePage,sceneFit:geometry.fit}).filter(slot=>!dining.inspect(slot.item.id).isPacked).map(slot=>{
+  const details=dining.inspect(slot.item.id),name=esc(slot.item.name);
+  return `<button class="dining-food-spot${selectedDining===slot.item.id?' selected':''}" data-dining-select="${esc(slot.item.id)}" style="${foodHotspotStyle(slot,geometry)}" aria-label="查看${name}，剩 ${details.remaining} 啖" title="查看${name}"></button>`;
+ }).join('');
+}
 const itemStatus=i=>i.options.serving==='外賣'?({pending:'待落單 · 外賣',confirmed:'已落單 · 待打包',served:'已打包'})[i.status]:({pending:'待落單',confirmed:'已落單 · 等上枱',served:'已上枱'})[i.status];
-function actions(state,view){const busy=view.busy;if(view.orderReview)return button('CONTINUE_ORDER','仲想加啲嘢',false,busy)+button('FINISH_ORDER','夠喇，唔該落單。',true,busy);switch(state.phase){case P.OUTSIDE:return '';case P.GREETING:return button('START_SEATING','一位呀，唔該。 →',true,busy);case P.SEATING:return '<span class="note busy">跟住阿明，行去窗口位…</span>';case P.SEATED:return button('OPEN_MENU','唔該，睇吓餐牌。',true,busy)+button('REQUEST_WATER','唔該，加水。',false,busy)+button('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.ORDERING:case P.DINING:return `<button data-camera="${view.camera==='table'?'room':'table'}">${view.camera==='table'?'抬頭傾偈':'睇吓枱面'}</button>`+`<button data-camera="menu">${state.phase===P.DINING?'想加啲嘢':'睇餐牌'}</button>`+button('REQUEST_WATER','唔該，加水。',false,busy)+button('REQUEST_UTENSILS','唔該，畀副餐具我。',false,busy)+(state.phase===P.DINING?button('REQUEST_BILL','唔該，埋單。',true,busy):'')+button('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.BILLING:return state.isPaid?'<span>已結帳 · 正在道別…</span>':`<button data-camera="bill">查看帳單</button>`+button('PAY_BILL','虛擬結帳',true,busy);case P.FINISHED:return '';}}
+function actionChoices(state,view){const busy=view.busy;if(view.orderReview)return replyButton('CONTINUE_ORDER','仲想加啲嘢',false,busy)+replyButton('FINISH_ORDER','夠喇，唔該落單。',true,busy);switch(state.phase){case P.OUTSIDE:return '';case P.GREETING:return replyButton('START_SEATING','一位呀，唔該。 →',true,busy);case P.SEATING:return '<span class="note busy">跟住阿明，行去窗口位…</span>';case P.SEATED:return replyButton('OPEN_MENU','唔該，睇吓餐牌。',true,busy)+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.ORDERING:case P.DINING:return `<button data-camera="${view.camera==='table'?'room':'table'}">${view.camera==='table'?'抬頭傾偈':'睇吓枱面'}</button>`+`<button data-camera="menu">${state.phase===P.DINING?'想加啲嘢':'睇餐牌'}</button>`+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('REQUEST_UTENSILS','唔該，畀副餐具我。',false,busy)+(state.phase===P.DINING?replyButton('REQUEST_BILL','唔該，埋單。',true,busy):'')+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.BILLING:return state.isPaid?'<span>已結帳 · 正在道別…</span>':`<button data-camera="bill">查看帳單</button>`+replyButton('PAY_BILL','虛擬結帳',true,busy);case P.FINISHED:return '';}}
+function actions(state,view){
+ const markup=actionChoices(state,view);
+ if(!markup.includes('data-action=')||learningGuide?.getPractice().hintLevel==='full')return markup;
+ return `<details class="learning-click-fallback" data-click-fallback><summary>用选项继续</summary><div class="learning-click-options">${markup}</div></details>`;
+}
 function panel(state,view){const el=$('#panel');const visible=['menu','bill'].includes(view.camera);
  if(previousPanel&&panelKey)panelScroll.set(panelKey,el.querySelector('.paper-body')?.scrollTop||0);
  el.hidden=!visible;if(!visible){previousPanel=false;return;}
@@ -77,7 +385,8 @@ function panel(state,view){const el=$('#panel');const visible=['menu','bill'].in
   const pending=state.items.filter(i=>i.status==='pending').length;
   foot=`<span>${view.busy?'侍應忙緊，請稍等':pending?`${pending} 項待確認`:'即點即製 · 慢慢揀'}</span>${button('CONFIRM_ORDER','確認落單 →',true,view.busy||!pending)}`;
  }
- const markup=`<div class="paper-head"><div><h2>${title}</h2><small>YUE KEI · SINCE 1986</small></div><button data-close aria-label="合上餐牌或帳單">✕</button></div>${tabs}<div class="paper-body" tabindex="0" aria-label="${title}內容">${body}</div><p class="paper-message" role="status" hidden></p><div class="paper-foot">${foot}</div>`;
+  const guideMarkup=`<section class="learning-guide learning-guide-panel" data-learning-guide aria-label="阶段练习"><span class="learning-guide-kicker">本阶段目标</span><strong data-learning-goal></strong><details class="panel-lesson-details" ${mobileTray.mobile?'':'open'}><summary>展开本步练习</summary><div class="learning-hint-actions" aria-label="分级提示"><button type="button" data-guide-hint="goal" aria-pressed="false">普通话目标</button><button type="button" data-guide-hint="frame" aria-pressed="false">句框</button><button type="button" data-guide-hint="full" aria-pressed="false">完整句</button></div><p class="learning-frame" data-learning-frame hidden></p><div class="learning-example"><p class="learning-cantonese">可以说：<span data-learning-example></span></p><p class="learning-jyutping">粤拼：<span data-learning-jyutping></span></p><p class="learning-translation" data-learning-translation></p><p class="learning-parts">分句：<span data-learning-parts></span></p><details class="learning-word-details"><summary>拆开学</summary><div class="learning-words" data-learning-words></div></details></div><div class="practice-controls" data-practice-controls hidden aria-label="示范音和跟读"><button type="button" data-practice-action="normal">试听</button><button type="button" data-practice-action="slow">慢速试听</button><button type="button" data-practice-action="follow">跟读</button><button type="button" data-practice-action="next" hidden>下一句</button><button type="button" data-practice-action="whole" hidden>整句</button><button type="button" data-practice-action="npc-slow">阿明慢速</button><button type="button" data-practice-action="stop" hidden>停止</button></div><details class="jyutping-intro"><summary>粤拼入门 · 字母与 1–6 声调</summary><p>粤拼用字母写出粤语读音，音节末尾的 1–6 标示六个声调；例如 jat1 的 1 是第 1 声，wai2 的 2 是第 2 声。字母不按英语读，有语音时可配合上方「试听」和「慢速试听」模仿。</p><p><b>唔該 m4 goi1</b>：请人帮忙、点餐或礼貌引起注意时用，也可回应日常小帮助；<b>多謝 do1 ze6</b>：收到礼物或表达较重谢意时常用。本局点单说「唔該」，结账道别说「多謝晒」。</p><p><b>畀 bei2</b>：给；<b>凍 dung3</b>：冰的，用于饮品温度。</p></details><p class="practice-progress" data-practice-progress role="status"></p><p class="practice-status" data-practice-status role="status" hidden></p><div class="learning-help-actions" aria-label="随时求助"><button type="button" data-guide-help="meaning">这句什么意思</button><button type="button" data-guide-help="answer">教我怎么答</button><button type="button" data-guide-help="slower">请说慢一点</button></div><p class="learning-help-result" data-learning-result role="status" hidden></p></details></section>`;
+ const markup=`<div class="paper-head"><div><h2>${title}</h2><small>YUE KEI · SINCE 1986</small></div><button data-close aria-label="合上餐牌或帳單">✕</button></div>${tabs}${guideMarkup}<div class="paper-body" tabindex="0" aria-label="${title}內容">${body}</div><p class="paper-message" role="status" hidden></p><div class="paper-foot">${foot}</div>`;
  if(markup!==panelMarkup){
   const changedView=key!==panelKey;
   el.innerHTML=panelMarkup=markup;
@@ -92,13 +401,20 @@ function panel(state,view){const el=$('#panel');const visible=['menu','bill'].in
  previousPanel=true;
 }
 function render({state,view}){
+ sound.setLocation(view.camera === 'outside' ? 'outside' : 'interior');
+ syncPracticeRound(state.round);settlePracticeReview(state);
  voice?.sync({state,view});
- const currentFocus=document.activeElement,actionToken=focusToken(currentFocus);
- syncStage(state,view);
- cancelAnimationFrame(frame);frame=requestAnimationFrame(animate);
+ const currentFocus=document.activeElement,actionToken=focusToken(currentFocus),hadHotspotFocus=$('#hotspots').contains(currentFocus);
  const gameEl=$('#game'),roundChanged=lastRound!==state.round;
+ if(roundChanged){selectedDining=null;tablePage=0;stopDiningSound();reviewChallenges=[];if($('#review-dialog')?.open)$('#review-dialog').close();}
+ if(state.phase!==P.DINING||view.camera!=='table')selectedDining=null;
+ const served=state.items.filter(i=>i.status==='served'),pages=Math.max(1,Math.ceil(served.length/6));tablePage=((tablePage%pages)+pages)%pages;
+ const pageItems=served.slice(tablePage*6,tablePage*6+6),detail=state.phase===P.DINING?pageItems.find(i=>i.id===selectedDining):null;
+ syncStage(state,view);
+ if(hadHotspotFocus)restoreFocus($('#hotspots'),actionToken);
  if(roundChanged){
   editing=null;tab='food';tablePage=0;lookCamera='room';panelScroll.clear();panelKey='';panelMarkup='';
+  learningGuide?.reset();
   gameEl.classList.remove('transitioning');
   lastRound=state.round;
  }
@@ -106,32 +422,50 @@ function render({state,view}){
  const outside=state.phase===P.OUTSIDE,finished=state.phase===P.FINISHED;
  $('#welcome').hidden=!outside;$('#shop-sign').hidden=!(outside||finished);$('#ending').hidden=!finished;
  const justFinished=finished&&!gameEl.classList.contains('is-finished');gameEl.classList.toggle('is-finished',finished);
- if(justFinished)$('#ending button').focus({preventScroll:true});
- if(finished)$('#summary').textContent=`你完成咗一餐 ${state.items.reduce((sum,i)=>sum+i.qty,0)} 份餐點，合共 ${money(state.bill.totalCents)}。${state.items.some(i=>i.options.serving==='外賣')?'外賣已打包取走，多謝惠顧！':''}`;
+ if(finished){
+   $('#summary').textContent=endingSummary(state);
+  renderRoundReview(state);
+ }
+ if(justFinished)$('#ending button:not(:disabled)')?.focus({preventScroll:true});
  $('#stage').textContent=stageNames[state.phase];$('#location').textContent=locationNames[view.camera];
  $('#cameras').hidden=![P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
  $('#cameras').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.camera===view.camera||(b.dataset.camera==='menu'&&view.camera==='bill'))));
  $('#scene-hint').textContent=view.busy?'阿明正在服務 · 請稍候':view.camera==='table'?`${state.items.filter(i=>i.status==='served').length} 項已上枱 · ${view.water?'水已加滿':'清水半杯'}${view.utensils?' · 餐具已送到':''}`:outside?'一段屬於你的香港日常':finished?'今日嘅練習完成 · 得閒再嚟':'視角可自由切換 · 訂單會一直保留';
  updateText($('#speaker-name'),view.line[0]);updateText($('#dialogue'),view.line[1]);updateText($('#jyutping'),view.line[2]);updateText($('#meaning'),view.line[3]);$('#meaning').hidden=!showMeaning;
  updateText($('#notice'),['menu','bill'].includes(view.camera)?'':feedback(view.notice));
- const actionMarkup=actions(state,view),actionEl=$('#actions'),hadActionFocus=actionEl.contains(currentFocus);
- if(actionEl.dataset.markup!==actionMarkup){actionEl.innerHTML=actionEl.dataset.markup=actionMarkup;}
  panel(state,view);
- const served=state.items.filter(i=>i.status==='served'),pages=Math.max(1,Math.ceil(served.length/6));tablePage=((tablePage%pages)+pages)%pages;
+ learningGuide?.render({state,view});
+ const trayActive=!outside&&!finished&&!['menu','bill'].includes(view.camera);
+ mobileTray.sync({active:trayActive,round:state.round});
+ const actionMarkup=actions(state,view),actionEl=$('#actions'),hadActionFocus=actionEl.contains(currentFocus);
+ const actionKey=(mobileTray.mobile?'mobile:':'desktop:')+actionMarkup;
+ if(actionEl.dataset.markup!==actionKey){
+  const moreWasOpen=Boolean(actionEl.querySelector('.mobile-secondary-actions[open]'))&&!roundChanged&&lastCamera===view.camera;
+  actionEl.dataset.markup=actionKey;actionEl.innerHTML=actionMarkup;
+  if(mobileTray.mobile)compactMobileActions(actionEl,moreWasOpen);
+  actionEl.querySelector('[data-click-fallback]')?.addEventListener('toggle',event=>{if(event.currentTarget.open)learningGuide?.noteHint('full');});
+ }
+ practiceAudio?.sync({state,view});
+ updatePracticeSummary(state.round);
  paint(state,view);
  const inventory=$('#table-labels');
- const inventoryMarkup=view.camera==='table'?`<div class="table-inventory">${served.slice(tablePage*6,tablePage*6+6).map(i=>`<span>${esc(i.name)} · ${itemStatus(i)} · ${Object.values(i.options).map(esc).join(' / ')}</span>`).join('')}${pages>1?`<button data-table-page>桌面 ${tablePage+1}/${pages} · 下一組 →</button>`:''}</div>`:'';
- if(inventory.dataset.markup!==inventoryMarkup){
-  const hadFocus=inventory.contains(document.activeElement);
-  inventory.innerHTML=inventory.dataset.markup=inventoryMarkup;
-  if(hadFocus)restoreFocus(inventory,actionToken);
- }
+ const inventoryMarkup=view.camera==='table'?`<div class="table-inventory">${pageItems.map(i=>diningInventoryItem(i,state)).join('')}${pages>1?`<button data-table-page>桌面 ${tablePage+1}/${pages} · 下一組 →</button>`:''}</div>${detail?diningDetail(detail,view):''}`:'';
+  if(inventory.dataset.markup!==inventoryMarkup){
+   const hadFocus=inventory.contains(document.activeElement);
+   inventory.innerHTML=inventory.dataset.markup=inventoryMarkup;
+   if(hadFocus&&!restoreFocus(inventory,actionToken)){
+    const fallback=inventory.querySelector('[data-dining-preview]:not(:disabled)')||inventory.querySelector('[data-dining-close]')||inventory.querySelector('.dining-text-entry,[data-table-page]');
+    fallback?.focus({preventScroll:true});
+   }
+  }
  $('#scene').setAttribute('aria-label',[locationNames[view.camera],state.waiterPresent?'侍應阿明在場':'',served.map(i=>`${i.name}${i.qty}份`).join('，'),view.water?'水已加滿':'',view.utensils?'餐具已送到':''].filter(Boolean).join('。'));
+ if (roundChanged || lastCamera !== view.camera) $('#explore-note').hidden = true;
  if(lastCamera!==view.camera){
   gameEl.classList.remove('transitioning');
   if(!roundChanged){void gameEl.offsetWidth;gameEl.classList.add('transitioning');}
   lastCamera=view.camera;
  }
+ scheduleSceneFrame();
  if(document.activeElement===document.body){
   if(hadActionFocus&&!restoreFocus(actionEl,actionToken)) (actionEl.querySelector('button:not(:disabled)')||$('#location')).focus({preventScroll:true});
   if(currentFocus?.matches('#welcome button, #ending button')) ($('#actions button:not(:disabled)')||$('#welcome button')).focus({preventScroll:true});
@@ -140,27 +474,91 @@ function render({state,view}){
 let lastPaint='',assetsSettled=false;
 function paint(state,view){
  const canvas=$('#scene');
- const key=JSON.stringify([canvas.clientWidth,canvas.clientHeight,assetsSettled,view.beat,view.camera,view.water,view.utensils,state.waiterPresent,state.billPresented,state.phase,tablePage,state.items.filter(i=>i.status==='served')]);
+ const geometry=measureScene(view);
+ const key=JSON.stringify([geometry.key,assetsSettled,weather,selectedDining,finishedDrinks(state).size,view.beat,view.camera,view.water,view.utensils,state.waiterPresent,state.billPresented,state.phase,tablePage,state.items.filter(i=>i.status==='served')]);
  if(lastPaint===key)return;
- lastPaint=key;draw(canvas,state,{...view,tablePage});
+ lastPaint=key;
+ draw(canvas,state,sceneView(state,view,geometry.fit,performance.now()));
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b||b.disabled)return;
- if(b.dataset.action){game.action(b.dataset.action);return;}
+ if (b.dataset.explore && b.closest('#hotspots')) {
+  const {state, view} = game.snapshot();
+  if (view.camera !== 'room' || view.busy || state.isPaid) return;
+  const windowSpot = b.dataset.explore === 'window';
+  const line = windowSpot ? '窗邊位（coeng1 bin1 wai2）' : '收銀處（sau1 ngan4 cyu3）';
+  const note = windowSpot ? '靠窗的座位。望出去就係香港街景。' : '收銀台。想攞帳單可以講「唔該，埋單」。';
+  updateText($('#explore-note'), line + ' · ' + note);
+  $('#explore-note').hidden = false;
+  return;
+ }
+ if(b.dataset.learningMode){learningGuide.choose(b.dataset.learningMode);render(game.snapshot());return;}
+ if(b.hasAttribute('data-learning-cancel')){learningGuide.cancel();return;}
+ if(b.hasAttribute('data-learning-settings')){learningGuide.openMode(null,$('#settings'),true);return;}
+ if(b.dataset.guideHint){learningGuide.setHint(b.dataset.guideHint);render(game.snapshot());return;}
+ if(b.dataset.practiceChoice){noteModelAudio(b.dataset.practiceChoice,replyText[b.dataset.practiceChoice]);practiceAudio?.preview(replyText[b.dataset.practiceChoice]);return;}
+ if(b.dataset.practiceAction){if(['normal','slow','follow','next','whole'].includes(b.dataset.practiceAction))noteModelAudio();practiceAudio?.handle(b.dataset.practiceAction,b.closest('[data-learning-guide]'));return;}
+ if(b.dataset.guideHelp){learningGuide.help(b.dataset.guideHelp);if(b.dataset.guideHelp==='slower')practiceAudio?.handle('npc-slow',b.closest('[data-learning-guide]'));return;}
+ if(b.hasAttribute('data-open-review')){const origin=b.closest('dialog');if(origin?.open)origin.close();openReview();return;}
+ if(b.dataset.challengeReveal!==undefined){
+  const index=Number(b.dataset.challengeReveal),item=reviewChallenges[index];if(!item)return;
+  item.revealed=!item.revealed;if(item.revealed)item.hinted=true;else practiceAudio?.stop();
+  renderReview(`[data-challenge-reveal="${index}"]`);return;
+ }
+ if(b.dataset.challengeListen!==undefined){
+  const index=Number(b.dataset.challengeListen),item=reviewChallenges[index];if(!item?.revealed||!practiceAudio)return;
+  item.hinted=true;practiceAudio.preview(item.phrase.cantonese,'review');renderReview(`[data-challenge-listen="${index}"]`);return;
+ }
+ if(b.dataset.challengeComplete!==undefined){
+  const index=Number(b.dataset.challengeComplete),item=reviewChallenges[index];if(!item||item.completed)return;
+  item.completed=true;reviewStore.noteReview(item.phrase.id,{hinted:item.hinted});practiceAudio?.stop();renderReview(`[data-challenge-reveal="${index}"]`);return;
+ }
+ if(b.dataset.diningSelect){
+  const snapshot=game.snapshot(),details=dining.inspect(b.dataset.diningSelect);
+  if(!details.found||![null,'empty','busy'].includes(details.reason)){game.notify(diningReason(details));return;}
+  selectedDining=b.dataset.diningSelect;render(snapshot);return;
+ }
+ if(b.hasAttribute('data-dining-close')){if(practiceAudio?.active)practiceAudio.stop();selectedDining=null;render(game.snapshot());return;}
+ if(b.dataset.diningPreview){
+  const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningPreview),details=dining.inspect(b.dataset.diningPreview);
+  if(snapshot.state.phase!==P.DINING||snapshot.view.camera!=='table'||!item||item.status!=='served'||details.isPacked){game.notify(diningReason(details));return;}
+  if(!practiceAudio){game.notify('呢個靜態試玩版未開放語音試聽。');return;}
+  const previewText=b.hasAttribute('data-dining-name')?item.name:diningPhrase(item,details.remaining).text;
+  noteModelAudio('',previewText);practiceAudio.preview(previewText);return;
+ }
+ if(b.dataset.diningHot){
+  const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningHot),details=dining.inspect(b.dataset.diningHot);
+  if(snapshot.state.phase!==P.DINING||snapshot.view.busy||!item||item.status!=='served'||!details.isDrink||details.isPacked||!details.remaining||item.options.temperature!=='熱'){
+   game.notify('呢個熱飲提示而家用唔到，請睇吓目前餐點。');return;
+  }
+  game.say('小心熱，唔急，等涼少少先飲吖。','小心烫，不着急，等凉一点再喝。');return;
+ }
+ if(b.dataset.diningConsume){
+  const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningConsume),result=dining.takeBite(b.dataset.diningConsume,snapshot.state.round);
+  if(!result.ok){game.notify(diningReason(result));return;}
+  playDiningSound(result.isDrink);
+  const verb=result.isDrink?'飲':'食';
+  game.notify(result.remaining?`${verb}咗一啖${item.name}，仲剩 ${result.remaining} 啖。`:`${item.name}${verb}晒，${result.isDrink?'解渴':'好味'}！`);return;
+ }
+ if(b.dataset.action){
+  if(b.dataset.action==='ENTER'){learningGuide.openMode(()=>game.action('ENTER'));return;}
+  if(b.dataset.action==='RESTART')learningGuide.reset();
+  performClickAction(b.dataset.action);return;
+ }
  if(b.dataset.dialog){$('#'+b.dataset.dialog).showModal();return;}
  if(b.hasAttribute('data-dismiss')){b.closest('dialog').close();return;}
- if(b.dataset.chapter){b.closest('dialog').close();game.chapter(b.dataset.chapter);return;}
- if(b.hasAttribute('data-table-page')){tablePage++;render(game.snapshot());return;}
- if(b.dataset.camera){game.camera(b.dataset.camera);return;}
+ if(b.dataset.chapter){const chapter=b.dataset.chapter;learningGuide.openMode(()=>game.chapter(chapter),$('#chapters'));return;}
+ if(b.hasAttribute('data-table-page')){tablePage++;selectedDining=null;render(game.snapshot());return;}
+  if(b.dataset.camera){performCamera(b.dataset.camera);return;}
  if(b.hasAttribute('data-close')){closePanel();return;}
  if(b.dataset.tab){tab=b.dataset.tab;editing=null;game.notify('');return;}
  if(b.hasAttribute('data-back')){editing=null;game.notify('');return;}
- if(b.dataset.item){if(game.snapshot().view.busy){game.notify('侍應正在服務，請稍等一陣。');return;}const item=MENU.find(i=>i.id===b.dataset.item);if(!item.available){game.action('ADD_ITEM',{itemId:item.id});return;}const selected=game.snapshot().state.items.find(l=>l.itemId===item.id);if(selected?.status==='served'){game.notify(selected.options.serving==='外賣'?'呢份已經打包，唔可以再改或者重複落單。':'呢份已經上枱，唔可以再改或者重複落單。');return;}editing=selected?{lineId:selected.id}:{itemId:item.id};render(game.snapshot());return;}
+ if(b.dataset.item){if(game.snapshot().view.busy){game.notify('侍應正在服務，請稍等一陣。');return;}const item=MENU.find(i=>i.id===b.dataset.item);if(!item.available){performClickAction('ADD_ITEM',{itemId:item.id});return;}const selected=game.snapshot().state.items.find(l=>l.itemId===item.id);if(selected?.status==='served'){game.notify(selected.options.serving==='外賣'?'呢份已經打包，唔可以再改或者重複落單。':'呢份已經上枱，唔可以再改或者重複落單。');return;}editing=selected?{lineId:selected.id}:{itemId:item.id};render(game.snapshot());return;}
  if(b.dataset.edit){const line=game.snapshot().state.items.find(i=>i.id===b.dataset.edit);if(line.status==='served'){game.notify(line.options.serving==='外賣'?'呢份已經打包，唔可以再改或者取消。':'呢份已經上枱，唔可以再改或者取消。');return;}editing={lineId:line.id};render(game.snapshot());return;}
- if(b.dataset.cancel){
-  const draft=editing;editing=null;
-  if(!game.action('CANCEL_ITEM',{orderItemId:b.dataset.cancel}).ok){editing=draft;render(game.snapshot());}
- }
+  if(b.dataset.cancel){
+   const draft=editing,target=currentPracticeTarget();editing=null;
+   if(!performClickAction('CANCEL_ITEM',{orderItemId:b.dataset.cancel},target).ok){editing=draft;render(game.snapshot());}
+  }
 });
 function readDraft(form){
  const data=new FormData(form);
@@ -170,6 +568,7 @@ document.addEventListener('input',e=>{
  const form=e.target.closest('#item-form');
  if(!form||!editing)return;
  Object.assign(editing,readDraft(form));e.target.removeAttribute('aria-invalid');
+ const snapshot=game.snapshot();learningGuide.render(snapshot);practiceAudio?.sync(snapshot);
 });
 document.addEventListener('submit',e=>{
  if(e.target.id!=='item-form')return;
@@ -179,11 +578,23 @@ document.addEventListener('submit',e=>{
   game.notify('每款餐點本局限一份。');
   return;
  }
- const previousTab=tab;editing=null;tab='order';
- const r=draft.lineId?game.action('UPDATE_ITEM',{orderItemId:draft.lineId,qty,options:draft.values}):game.action('ADD_ITEM',{itemId:draft.itemId,qty,options:draft.values});
+ const target=currentPracticeTarget(),previousTab=tab;editing=null;tab='order';
+ const r=draft.lineId?performClickAction('UPDATE_ITEM',{orderItemId:draft.lineId,qty,options:draft.values},target):performClickAction('ADD_ITEM',{itemId:draft.itemId,qty,options:draft.values},target);
  if(!r.ok){editing=draft;tab=previousTab;render(game.snapshot());}
 });
-$('#translation').addEventListener('click',()=>{showMeaning=!showMeaning;$('#translation').setAttribute('aria-pressed',String(showMeaning));$('#meaning').hidden=!showMeaning;});
+$('#translation').addEventListener('click',()=>learningGuide.setMeaning(!showMeaning));
+$('#review-dialog').addEventListener('close',()=>practiceAudio?.stop());
+$('#clear-review').addEventListener('click',()=>{
+ const status=$('#clear-review-status');
+ if(!clearReviewArmed){
+  clearReviewArmed=true;$('#clear-review').textContent='再按一次確認清除';
+  updateText(status,'只清除已保存的学习与复习记录，不改学习模式、字幕、声音等其他偏好。再按一次确认。');return;
+ }
+ reviewStore.clear();reviewChallenges=[];resetClearReview();
+ updateText(status,'已清除本机保存的学习记录，其他偏好未改。当前这一局仍可继续。');
+ if($('#review-dialog').open)renderReview();
+});
+$('#settings').addEventListener('close',resetClearReview);
 $('#restart').addEventListener('click',()=>{$('#settings').close();game.action('RESTART');});
 $('#pronunciation').addEventListener('click',e=>{const on=e.target.getAttribute('aria-pressed')!=='true';e.target.setAttribute('aria-pressed',on);document.body.classList.toggle('show-jyutping',on);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]')&&!$('#panel').hidden){e.preventDefault();closePanel();}});
@@ -192,28 +603,78 @@ render(game.snapshot());ready.then(results=>{
  if(results.some(r=>r.status==='rejected'))$('#asset-status').hidden=false;
 });
 
-new ResizeObserver(()=>{const {state,view}=game.snapshot();paint(state,view);}).observe($('#game'));
+new ResizeObserver(()=>render(game.snapshot())).observe($('#game'));
 
+function sceneSpot(view, id, label, x, y) {
+ const {fit, originX, originY} = measureScene(view);
+ const left = originX + fit.offsetX + x * fit.scaleX;
+ const top = originY + fit.offsetY + y * fit.scaleY;
+ return `<button type="button" class="spot explore-spot" data-explore="${id}" style="left:${left.toFixed(1)}px;top:${top.toFixed(1)}px">${label}</button>`;
+}
 function syncStage(state,view){
  const seated=[P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
  const down=view.camera==='table',open=['menu','bill'].includes(view.camera);
  document.body.dataset.camera=view.camera;
  document.body.classList.toggle('at-title',state.phase===P.OUTSIDE);
  const talk=view.beat?.pose==='talk'||state.phase===P.GREETING||(state.waiterPresent&&(!view.beat||view.beat.pose==='talk'||(view.beat.pose==='place'&&!['REQUEST_WATER','REQUEST_UTENSILS'].includes(view.beat.kind))));
- document.querySelector('.conversation').hidden=open||(!talk&&!view.notice);
+ document.querySelector('.conversation').hidden=open||(mobileTray.mobile?(state.phase===P.OUTSIDE||state.phase===P.FINISHED):(!talk&&!view.notice));
  const hot=$('#hotspots');
  let html='';
  if(seated&&!open&&!view.busy){
-  html=down?'<button class="spot menu-spot" data-camera="menu">拿起餐牌</button><button class="spot water-spot" data-action="REQUEST_WATER">唔該，加水</button><button class="look" data-camera="room">↑ 抬頭望吓</button>':'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明 · 唔該！</button><button class="look" data-camera="table">↓ 低頭睇枱面</button>';
+  html=down?`<button class="spot menu-spot" data-camera="menu">拿起餐牌</button><button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button><button class="look" data-camera="room">↑ 抬頭望吓</button>`:'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明</button><button class="look" data-camera="table">↓ 低頭睇枱面</button>';
   if(state.phase===P.BILLING)html=down?'<button class="spot menu-spot" data-camera="bill">拿起帳單</button><button class="look" data-camera="room">↑ 抬頭望吓</button>':'<button class="look" data-camera="bill">查看帳單</button>';
  }
  if(state.waiterPresent&&!open)html='';
+ if (seated && !view.busy && !state.isPaid && view.camera === 'room') {
+  html += sceneSpot(view, 'window', '窗邊', 306, 244);
+  html += sceneSpot(view, 'cashier', '收銀處', 704, 252);
+ }
+ html+=diningHotspots(state,view);
  if(hot.innerHTML!==html)hot.innerHTML=html;
 }
-// A single render loop only while a beat is active. No business actions in frames.
-function animate(){
- const {state,view}=game.snapshot();
- draw($('#scene'),state,{...view,tablePage});
- frame=requestAnimationFrame(animate);
+function finishedDrinks(state) {
+ return new Set(state.items.filter(item => item.itemId.startsWith('drink-') &&
+  item.status === 'served' && dining.inspect(item.id).remaining === 0).map(item => item.id));
 }
-window.addEventListener('pagehide',()=>cancelAnimationFrame(frame));
+function sceneView(state, view, sceneFit, elapsed) {
+ return {...view, tablePage, sceneFit, weather, elapsed, finishedDrinks: finishedDrinks(state)};
+}
+function motionNeeded(state, view) {
+ if (document.hidden || document.querySelector('dialog[open]') ||
+  ['menu', 'bill'].includes(view.camera) || selectedDining) return false;
+ if (view.beat && Date.now() < view.beat.start + view.beat.duration) return true;
+ if (view.camera === 'room') return true;
+ if (view.camera !== 'table') return false;
+ return state.items.some(item => item.status === 'served' && item.itemId.startsWith('drink-') &&
+  item.options.temperature === '熱' && dining.inspect(item.id).remaining > 0);
+}
+function scheduleSceneFrame() {
+ const {state, view} = game.snapshot();
+ if (!frame && motionNeeded(state, view)) frame = requestAnimationFrame(animate);
+}
+function animate(now) {
+ frame = 0;
+ const {state, view} = game.snapshot();
+ if (!motionNeeded(state, view)) return;
+ const moving = view.beat && Date.now() < view.beat.start + view.beat.duration;
+ if (moving || now - lastMotionTime >= 65) {
+  draw($('#scene'), state, sceneView(state, view, measuredScene?.fit, now));
+  lastMotionTime = now;
+ }
+ frame = requestAnimationFrame(animate);
+}
+$('#scene-weather').addEventListener('change', event => {
+ if (!weatherChoices.has(event.target.value)) return;
+ weather = event.target.value;
+ document.body.dataset.weather = weather;
+ try { localStorage.setItem('yue-kei-weather', weather); } catch {}
+ render(game.snapshot());
+});
+document.addEventListener('close', scheduleSceneFrame, true);
+document.addEventListener('visibilitychange', () => {
+ document.body.toggleAttribute('data-page-hidden', document.hidden);
+ if (document.hidden) { cancelAnimationFrame(frame); frame = 0; }
+ else scheduleSceneFrame();
+});
+window.addEventListener('pagehide', () => { cancelAnimationFrame(frame); frame = 0; stopDiningSound(); });
+window.addEventListener('pageshow', scheduleSceneFrame);

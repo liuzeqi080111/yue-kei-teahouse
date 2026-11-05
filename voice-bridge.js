@@ -21,6 +21,41 @@ const REPLIES = {
   CONFIRM_ORDER: ['仲要唔要啲嘢？齊嘅話，我就幫你落單。', '还要别的吗？选好了我就帮你下单。'],
   FINISH_ORDER: ['好，而家幫你落單，請稍等。', '好，现在帮你下单，请稍等。'],
 };
+const COMPLIMENTS = new Set(['好好味', '真係好好味', '真系好好味', '好味', '真係好味', '真系好味', '好好飲', '真係好好飲', '好好吃', '真好吃']);
+const SLOWER_REQUESTS = new Set(['講慢啲', '講慢少少', '可唔可以講慢啲', '可唔可以講慢少少', '講慢點', '說慢一點', '說慢點', '说慢一点', '说慢点', '讲慢一点', '讲慢点']);
+const UNCLEAR_REQUESTS = new Set(['聽唔明', '我聽唔明', '聽唔懂', '我聽唔懂', '唔明', '我唔明', '聽不懂', '我聽不懂', '听不懂', '我听不懂', '聽不明白', '我聽不明白', '聽唔明白', '我聽唔明白', '听不明白', '我听不明白']);
+function normalizeConversation(value) {
+  return String(value || '').trim().replace(/[\s，。！？!?,.、~～呀啊喇啦吖]/g, '').replace(/^(?:唔該你|唔該|唔该你|唔该|請你|請|请你|请)+/, '').replace(/(?:唔該晒|唔该晒|唔該|唔该)$/, '');
+}
+function stageHint(state, view) {
+  if (view.orderReview) return ['齊嘅話就話「落單」，想加嘢就話「繼續揀」。', '选好了就说“下单”，想加菜就说“继续选”。'];
+  const hints = {
+    [P.OUTSIDE]: ['想入嚟食嘢，就話「入嚟」。', '想进来吃饭，就说“进来”。'],
+    [P.GREETING]: ['一位嘅話，就話「一位呀」。', '一位的话，就说“一位呀”。'],
+    [P.SEATING]: ['跟住阿明去窗口位就得喇。', '跟着阿明到靠窗座位就可以。'],
+    [P.SEATED]: ['想睇餐牌，就話「睇餐牌」。', '想看菜单，就说“看菜单”。'],
+    [P.ORDERING]: ['可以話我知想食咩，齊咗就話「確認落單」。', '可以告诉我吃什么，选好了就说“确认下单”。'],
+    [P.DINING]: ['可以話「加水」、「攞餐具」或者「埋單」。', '可以说“加水”、“拿餐具”或者“结账”。'],
+    [P.BILLING]: [state.billPresented ? '睇完張單，確認虛擬付款先話我知。' : '想睇張單，就話「埋單」。', state.billPresented ? '看完账单，确认虚拟付款再告诉我。' : '想看账单，就说“结账”。'],
+    [P.FINISHED]: ['今餐已經完成，多謝晒。', '这一餐已经完成，谢谢。'],
+  };
+  return hints[state.phase] || ['你睇住而家嘅提示，再話我知。', '你看着当前提示，再告诉我。'];
+}
+function conversationReply(playerText, state, view) {
+  const normalized = normalizeConversation(playerText);
+  if (COMPLIMENTS.has(normalized)) {
+    const served = [P.ORDERING, P.DINING].includes(state.phase) && state.items.some((item) => item.status === 'served');
+    return served
+      ? { reply: '多謝晒！聽到你咁講真係開心，慢慢享用。', meaning: '谢谢！听你这么说很开心，请慢慢享用。' }
+      : { reply: '多謝晒！聽到你咁講真係開心。', meaning: '谢谢！听你这么说很开心。' };
+  }
+  const slower = SLOWER_REQUESTS.has(normalized), unclear = UNCLEAR_REQUESTS.has(normalized);
+  if (!slower && !unclear) return null;
+  const [hint, hintMeaning] = stageHint(state, view);
+  return slower
+    ? { reply: `好，我講慢啲。${hint}`, meaning: `好，我说慢一点。${hintMeaning}`, playbackRate: 0.72 }
+    : { reply: `唔緊要，我講簡單啲。${hint}`, meaning: `没关系，我说简单一点。${hintMeaning}` };
+}
 
 export function createVoiceBridge({ game } = {}) {
   if (!game || typeof game.snapshot !== 'function' || typeof game.action !== 'function') {
@@ -124,15 +159,22 @@ export function createVoiceBridge({ game } = {}) {
       history.push({ role: 'npc', text: npcText });
       history = history.slice(-6);
     };
+    const conversational = conversationReply(text(proposal.playerText), state, view);
+    const replyOnly = ({ reply, meaning, playbackRate }) => {
+      pendingQuestion = null; record(reply); memoryToken = token();
+      return { ok: true, reply, meaning, executed: [], executedIntents: [], ...(playbackRate ? { playbackRate } : {}) };
+    };
 
     if (proposal.decision !== 'execute') {
       if (intents.length) return bad('非執行決策唔可以帶動作。');
+      if (conversational) return replyOnly(conversational);
       const reply = text(proposal.reply) || (proposal.decision === 'clarify' ? text(proposal.question) : '') || '唔好意思，可唔可以再講一次？';
       pendingQuestion = proposal.decision === 'clarify' ? { question: text(proposal.question) || reply } : null;
       record(reply);
-      return { ok: true, reply, meaning: text(proposal.meaning), executed: [] };
+      return { ok: true, reply, meaning: text(proposal.meaning), executed: [], executedIntents: [] };
     }
 
+    if (conversational) return replyOnly(conversational);
     if (!intents.length) return bad('冇可執行嘅動作。');
     const allowed = new Set(allowedActions(state, view));
     const isOrderBatch = intents.every((it) => it && ORDER_TYPES.has(it.type));
@@ -155,7 +197,7 @@ export function createVoiceBridge({ game } = {}) {
       if (it.type === 'PAY_BILL' && (!state.billPresented || state.isPaid || !state.bill)) return bad('而家未可以付款，請先核對帳單。');
     }
 
-    const executed = [], names = [];
+    const executed = [], executedIntents = [], names = [];
     let reply = '', meaning = '';
     for (const it of intents) {
       let r;
@@ -171,6 +213,20 @@ export function createVoiceBridge({ game } = {}) {
       }
       if (!r || !r.ok) return bad('而家做唔到呢個操作，請檢查訂單再試一次。');
       executed.push(it.type);
+      const noop=r.events?.some((event)=>event.type.endsWith('_NOOP'));
+      if(!noop){
+       const actual={type:it.type};
+       if(it.type==='ADD_ITEM'||it.type==='UPDATE_ITEM'){
+        const actualLine=it.type==='ADD_ITEM'?r.state?.items?.find((item)=>item.itemId===it.itemId):r.state?.items?.find((item)=>item.id===it.orderItemId);
+        if(actualLine){
+         if(it.type==='ADD_ITEM')actual.itemId=actualLine.itemId;else actual.orderItemId=actualLine.id;
+         actual.options={...actualLine.options};
+        }else{
+         if(it.itemId)actual.itemId=it.itemId;if(it.orderItemId)actual.orderItemId=it.orderItemId;
+        }
+       }else if(it.orderItemId)actual.orderItemId=it.orderItemId;
+       executedIntents.push(actual);
+      }
       const line = it.orderItemId ? state.items.find((l) => l.id === it.orderItemId) : null;
       const menuItem = it.itemId ? getMenuItem(it.itemId) : null;
       if (menuItem || line) names.push((menuItem || line).name);
@@ -193,7 +249,7 @@ export function createVoiceBridge({ game } = {}) {
     if (token() !== tk) { pendingQuestion = null; history = []; } // 任何业务变化/重开/动画完成使旧上下文作废
     record(reply);
     memoryToken=token();
-    return { ok: true, reply, meaning, executed };
+    return { ok: true, reply, meaning, executed, executedIntents };
   }
 
   return { context, token, apply };

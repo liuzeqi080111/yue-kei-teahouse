@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import {createGame,MOTION} from '../controller.js';
+import {createGame,diningOutcome,MOTION} from '../controller.js';
+import {createDining} from '../dining-actions.js';
 function harness(){let seq=0;const queue=new Map(),delays=[];const game=createGame({schedule:(fn,delay)=>{delays.push(delay);queue.set(++seq,fn);return seq;},cancel:id=>queue.delete(id)});return {game,queue,delays,flush(){let limit=100;while(queue.size){assert.ok(limit--);const [id,fn]=queue.entries().next().value;queue.delete(id);fn();}}};}
 function confirm(h){h.game.action('CONFIRM_ORDER');h.flush();assert.equal(h.game.snapshot().view.orderReview,true);h.game.action('FINISH_ORDER');h.flush();}
 let count=0;const test=(name,fn)=>{fn();console.log('PASS '+name);count++};
@@ -156,7 +157,7 @@ test('takeaway stays packed across cameras, receipt and automatic farewell',()=>
  g.action('REQUEST_BILL');h.flush();assert.equal(g.snapshot().state.bill.lines[0].options.serving,'外賣');
  assert.equal(g.snapshot().state.bill.totalCents,1800);g.action('PAY_BILL');assert.match(g.snapshot().view.line[1],/外賣/);h.flush();assert.equal(g.snapshot().state.phase,'结束');
 });
-console.log(`All ${count} controller integration tests passed.`);
+
 
 test('departure waits for pending speech and restart clears the hold',()=>{
  const h=harness(),g=h.game;g.chapter('bill');g.action('WAITER_LEAVE');g.setSpeech(true);
@@ -164,3 +165,29 @@ test('departure waits for pending speech and restart clears the hold',()=>{
  assert.equal(g.snapshot().view.beat.pose,'talk');g.setSpeech(false);h.flush();assert.equal(g.snapshot().view.near,false);
  g.chapter('bill');g.action('WAITER_LEAVE');g.setSpeech(true);g.action('RESTART');g.action('ENTER');h.flush();assert.equal(g.snapshot().view.busy,false);
 });
+test('dining recap survives payment, keeps takeaway separate, and resets between rounds',()=>{
+ const h=harness(),g=h.game,dining=createDining({getSnapshot:g.snapshot});
+ seated(h);
+ g.action('ADD_ITEM',{itemId:'food-charsiu-rice'});
+ g.action('ADD_ITEM',{itemId:'drink-lemon-tea'});
+ g.action('ADD_ITEM',{itemId:'food-egg-sandwich'});
+ g.action('ADD_ITEM',{itemId:'food-pineapple-bun',options:{serving:'外賣'}});
+ confirm(h);
+ const {state}=g.snapshot(),[finishedFood,partialDrink,untouchedFood,takeaway]=state.items;
+ for(let bite=0;bite<3;bite++)assert.equal(dining.takeBite(finishedFood.id,state.round).ok,true);
+ assert.equal(dining.takeBite(partialDrink.id,state.round).ok,true);
+ assert.equal(dining.takeBite(takeaway.id,state.round).ok,false);
+ g.action('REQUEST_BILL');h.flush();
+ assert.equal(g.snapshot().state.bill.totalCents,state.items.reduce((total,item)=>total+item.unitPrice,0));
+ g.action('PAY_BILL');h.flush();
+ const recap=diningOutcome(g.snapshot().state,dining.inspect);
+ assert.deepEqual(recap.completed,[{name:finishedFood.name,isDrink:false}]);
+ assert.deepEqual(recap.leftover,[{name:partialDrink.name,isDrink:true}]);
+ assert.deepEqual(recap.untouched,[{name:untouchedFood.name,isDrink:false}]);
+ assert.deepEqual(recap.packed,[{name:takeaway.name,isDrink:false}]);
+ g.chapter('service');
+ const next=diningOutcome(g.snapshot().state,dining.inspect);
+ assert.equal(next.untouched.length,2);
+ assert.equal(next.completed.length,0);
+});
+console.log(`All ${count} controller integration tests passed.`);

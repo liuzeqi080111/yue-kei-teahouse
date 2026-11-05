@@ -7,7 +7,7 @@ import {createBailian} from './server/bailian.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url));
 try{process.loadEnvFile(path.join(root,'.env'));}catch{/* 缺文件或其他读取问题均忽略；不读取、不输出任何凭证内容 */}
 
-const allowed=new Set(['index.html','style.css','app.js','scene.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','npc-speech.js','music.js','voice-capture.js','voice-endpoint.js']);
+const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','practice-audio.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','music.js','voice-capture.js','voice-endpoint.js']);
 const mime={'.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
 const MAX_BODY=3*1024*1024,MAX_CONCURRENCY=2,RATE_PER_MINUTE=30;
 const HTTP_BY_CODE={INVALID_INPUT:400,INVALID_JSON:400,UNSUPPORTED_MEDIA_TYPE:415,PAYLOAD_TOO_LARGE:413,AUDIO_TOO_LARGE:413,ASR_EMPTY:422,PROVIDER_UNCONFIGURED:503,UPSTREAM_TIMEOUT:504,UPSTREAM_ERROR:502,UPSTREAM_STATUS:502,INVALID_MODEL_JSON:502,UNTRUSTED_AUDIO_URL:502,RATE_LIMITED:429};

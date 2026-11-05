@@ -5,10 +5,10 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const target=path.join(root,'dist');
 // Explicit allowlist: no environment files, recordings, server code or local notes.
 export const publicFiles=[
- 'index.html','style.css','voice.css','app.js','controller.js','scene.js',
- 'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','music.js','ambient.js',
+ 'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js',
+ 'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','practice-audio.js','music.js','ambient.js','sound-priority.js',
  'teahouse-scene/index.js','teahouse-scene/menu.js','teahouse-scene/session.js',
- ...['interior-furnished.png','exterior.png','waiter-poses.png','table.png','food-sheet.png','drinks.png','waiter-gait-v2.png','service-hands.png','takeaway-bun.png','hongkong-evening.wav'].map(n=>'assets/'+n)
+ ...['interior-furnished.png','exterior.png','waiter-poses.png','table.png','food-sheet.png','drinks.png','waiter-gait-v2.png','service-hands.png','takeaway-bun.png','hongkong-evening.wav','hongkong-arrival.png'].map(n=>'assets/'+n)
 ];
 await mkdir(target,{recursive:true});
 // Refuse stale/unexpected output rather than risk publishing local private files.

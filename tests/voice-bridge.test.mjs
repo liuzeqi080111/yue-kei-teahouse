@@ -35,4 +35,22 @@ const token=bridge.token();game.camera('room');assert.equal(bridge.token(),token
 assert.equal(bridge.apply({decision:'clarify',intents:[],reply:'凍定熱？',question:'凍定熱？'},bridge.token()).ok,true);
 assert.ok(bridge.context().pendingQuestion);
 game.chapter('bill');assert.equal(bridge.context().pendingQuestion,null);assert.deepEqual(bridge.context().history,[]);assert.ok(!bridge.context().allowedActions.includes('CALL_WAITER'));
-console.log('PASS voice bridge: atomic rejection, menu rules, modifications, two-step order, service, virtual payment, stale response');
+game.chapter('service');
+const meal=game.snapshot().state;
+for(const [playerText,pattern,rate] of [
+ ['真係好好味！',/多謝/,undefined],
+ ['我聽唔明。',/加水.*埋單/,undefined],
+ ['可唔可以講慢啲呀，唔該？',/講慢啲.*加水/,0.72]
+]){
+ // The local conversational answer must override an accidental model action.
+ const response=bridge.apply({decision:'execute',playerText,intents:[{type:'REQUEST_BILL'}]},bridge.token());
+ assert.equal(response.ok,true);
+ assert.deepEqual(response.executedIntents,[]);
+ assert.match(response.reply,pattern);
+ assert.equal(response.playbackRate,rate);
+ assert.deepEqual(game.snapshot().state,meal);
+}
+const unknown=bridge.apply({decision:'clarify',playerText:'呢個點搞？',reply:'想問邊一樣？',intents:[]},bridge.token());
+assert.equal(unknown.reply,'想問邊一樣？');
+assert.deepEqual(game.snapshot().state,meal);
+console.log('PASS voice bridge: menu rules, service, safe virtual payment, contextual replies without order mutation, and stale response');
