@@ -119,3 +119,11 @@ body.at-title #voice-dock,
 .mic-monitor small{font-size:11px;overflow-wrap:anywhere}
 
 .mic-detect{padding:7px;border:1px solid #cbb277;background:transparent;color:#eed499;font:inherit;font-size:12px}.mic-detect:disabled{opacity:.5}
+
+/* Keep connection failures visible while typing or scrolling on a phone. */
+.voice-status{position:sticky;top:0;z-index:2;background:#173c32;padding:8px 0;}
+@media(max-width:650px){
+ .voice-panel textarea{font-size:16px;touch-action:manipulation;}
+ .voice-panel{gap:10px;}
+ #voice-host{-webkit-overflow-scrolling:touch;}
+}

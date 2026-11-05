@@ -10,12 +10,13 @@ const names={temperature:'溫度',sweetness:'甜度',serving:'享用方式',rice
 const roman={'food-pineapple-bun':'BO LO YAU','food-charsiu-rice':'CHAR SIU RICE','food-wonton-noodle':'WONTON NOODLES','food-egg-sandwich':'EGG SANDWICH','food-french-toast':'FRENCH TOAST','food-curry-fishball':'CURRY FISHBALLS','drink-lemon-tea':'LEMON TEA','drink-milk-tea':'SILK STOCKING MILK TEA','drink-yuanyang':'YUANYANG','drink-horlicks':'HORLICKS'};
 const stageNames={[P.OUTSIDE]:'01 / 抵達',[P.GREETING]:'02 / 迎接',[P.SEATING]:'03 / 帶位',[P.SEATED]:'04 / 落座',[P.ORDERING]:'05 / 點餐',[P.DINING]:'06 / 用餐',[P.BILLING]:'07 / 埋單',[P.FINISHED]:'08 / 再會'};
 const locationNames={outside:'街邊 · 粵記門外',entrance:'門口 · 侍應迎接',walk:'走道 · 跟隨帶位',room:'窗邊卡座 · 03 號枱',table:'03 號枱 · 桌面',menu:'03 號枱 · 餐牌',bill:'03 號枱 · 帳單'};
-let tab='food',editing=null,showMeaning=false,lastCamera=null,tablePage=0,lastRound=null;
+let tab='food',editing=null,showMeaning=true,lastCamera=null,tablePage=0,lastRound=null;
 let lookCamera='room',panelKey='',panelMarkup='',previousPanel=false;
 const panelScroll=new Map();
 let frame=0;
 let voice=null;
 const game=createGame({changed:render});
+$('#translation').setAttribute('aria-pressed','true');
 createAmbience({button:$('#ambience')});
 mountMusic($('#music-settings'));
 if(STATIC_PREVIEW){

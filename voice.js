@@ -59,8 +59,8 @@ export function mountVoice({ game, host } = {}) {
   function refreshButtons() {
     const busy = game.snapshot().view.busy;
     detectBtn.disabled=working||busy;
-    micBtn.disabled = !configured || (working && !recorder) || busy;
-    sendBtn.disabled = !configured || working || busy || !input.value.trim();
+    micBtn.disabled = (working && !recorder) || busy;
+    sendBtn.disabled = working || busy || !input.value.trim();
     micBtn.textContent = recorder ? '停止錄音' : '開始說話';
     micBtn.setAttribute('aria-label', micBtn.textContent);
     replayBtn.disabled = working || busy || !game.snapshot().state.waiterPresent || muteBox.checked || !lastReply;
@@ -86,7 +86,8 @@ export function mountVoice({ game, host } = {}) {
   }
   // Explicit user-started local check: measure devices, never upload or save audio.
   detectBtn.addEventListener('click',async()=>{
-   if(working||game.snapshot().view.busy||!navigator.mediaDevices?.getUserMedia)return;
+   if(working||game.snapshot().view.busy)return;
+   if(!navigator.mediaDevices?.getUserMedia){setState('此瀏覽器不支援咪高峰，請在系統瀏覽器開啟，或直接輸入文字。');return;}
    cancel();working=true;const id=runId;refreshButtons();deviceSelect.disabled=true;
    let best=null;
    try{
@@ -143,10 +144,11 @@ export function mountVoice({ game, host } = {}) {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error?.message || `服務錯誤（${res.status}），請稍後再試。`);
+      configured=true;retryBtn.hidden=true;
       return data;
     } catch (e) {
       if (e?.name === 'AbortError') throw new Error('已取消或逾時，請再試一次。');
-      if (e instanceof TypeError) throw new Error('網絡離線或服務未啟動，可繼續用按鈕操作。');
+      if (e instanceof TypeError) throw new Error('未能連接語音服務，文字已保留。若在微信內，請用右上角選單在系統瀏覽器開啟後重試；亦可繼續用遊戲按鈕。');
       throw e;
     } finally { clearTimeout(timer); if (aborter === ctrl) aborter = null; }
   }
@@ -158,7 +160,7 @@ export function mountVoice({ game, host } = {}) {
 
   async function sendFlow(raw) {
     const text = String(raw || '').trim();
-    if (!text || !configured || working || destroyed) return;
+    if (!text || working || destroyed) return;
     if (game.snapshot().view.busy) { setState('阿明忙緊，請稍等再發送。'); return; }
     cancel(); working=true; const id = runId;
     try {
@@ -185,9 +187,9 @@ export function mountVoice({ game, host } = {}) {
   }
 
   async function startRecording() {
-    if (!configured || working || destroyed) return;
+    if (working || destroyed) return;
     if (game.snapshot().view.busy) { setState('阿明忙緊，請稍等再錄音。'); return; }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setState('此瀏覽器不支援錄音，請用文字輸入。'); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setState('此瀏覽器不支援錄音。請用右上角選單在系統瀏覽器開啟，或直接輸入文字。'); return; }
     cancel(); working=true; refreshButtons(); const id = runId;
     try {
       // Resume under the click gesture, before the permission await.
@@ -213,7 +215,8 @@ export function mountVoice({ game, host } = {}) {
           const decoded = await audioCtx.decodeAudioData(await blob.arrayBuffer());
           if(id!==runId)return;
           const frames = Math.ceil(decoded.duration * 16000);
-          const off = new OfflineAudioContext(1, frames, 16000);
+          const OfflineAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+          const off = new OfflineAC(1, frames, 16000);
           const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
           const rendered = await off.startRendering(); if(id===runId)closeCtx();
           if (id !== runId) return;
@@ -249,21 +252,25 @@ export function mountVoice({ game, host } = {}) {
     speech.setMuted(muteBox.checked);if(muteBox.checked){releaseFarewell?.();releaseFarewell=null;}refreshButtons();return;
   });
   input.addEventListener('input', refreshButtons);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sendBtn.disabled) sendFlow(input.value); } });
+  input.addEventListener('keydown',e=>e.stopPropagation());
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); if (!sendBtn.disabled) sendFlow(input.value); } });
   const onHide = () => cancel();
   window.addEventListener('pagehide', onHide);
 
   let statusLoading=false;
   async function checkStatus(){
     if(statusLoading||destroyed)return;statusLoading=true;retryBtn.disabled=true;
+    const statusController=new AbortController();
+    const statusTimer=setTimeout(()=>statusController.abort(),10000);
     try {
-      const res=await fetch(voiceUrl('/api/voice/status'),{signal:AbortSignal.timeout(TIMEOUT)});
+      const res=await fetch(voiceUrl('/api/voice/status'),{signal:statusController.signal});
       if(!res.ok)throw Error('status');
       const s=await res.json();if(destroyed)return;
       configured = !!(s && s.configured !== false && (s.asr || s.npc));
-      setState(configured ? '準備好' : '語音服務未配置，可用原有按鈕同文字遊戲。');
+      setState(configured ? '準備好' : '語音服務未配置，請稍後重試；可繼續用遊戲按鈕。');
       if(configured){lastNpcLine='';syncNpc(game.snapshot());}
-    } catch { configured = false; setState('語音服務未連接，可用原有按鈕繼續遊戲。'); }
+    } catch { if(!destroyed){configured = false; setState('未能確認語音連線，可直接嘗試錄音或發送文字。若仍失敗，請在系統瀏覽器開啟此網址重試。');} }
+    finally{clearTimeout(statusTimer);}
     statusLoading=false;retryBtn.disabled=false;retryBtn.hidden=configured;refreshButtons();
   }
   retryBtn.addEventListener('click',checkStatus);
