@@ -23,7 +23,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: npm run build:pages
         env:
-          VOICE_API_ORIGIN: https://yue-kei-voice.ripeart3.chatgpt.site
+          VOICE_API_ORIGIN: https://yue-kei-voice-whmzrtlgod.cn-hangzhou.fcapp.run
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
