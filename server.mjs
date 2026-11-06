@@ -3,14 +3,31 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {createBailian} from './server/bailian.mjs';
+import {createPronunciationProvider,PronunciationError} from './server/pronunciation.mjs';
+import {buildOrderPhrase,getPhrase} from './learning-phrases.js';
+import {MENU} from './teahouse-scene/index.js';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
 try{process.loadEnvFile(path.join(root,'.env'));}catch{/* 缺文件或其他读取问题均忽略；不读取、不输出任何凭证内容 */}
 
-const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','practice-audio.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','music.js','voice-capture.js','voice-endpoint.js']);
+const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','practice-audio.js','practice-recorder.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','music.js','voice-capture.js','voice-endpoint.js']);
 const mime={'.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
 const MAX_BODY=3*1024*1024,MAX_CONCURRENCY=2,RATE_PER_MINUTE=30;
 const HTTP_BY_CODE={INVALID_INPUT:400,INVALID_JSON:400,UNSUPPORTED_MEDIA_TYPE:415,PAYLOAD_TOO_LARGE:413,AUDIO_TOO_LARGE:413,ASR_EMPTY:422,PROVIDER_UNCONFIGURED:503,UPSTREAM_TIMEOUT:504,UPSTREAM_ERROR:502,UPSTREAM_STATUS:502,INVALID_MODEL_JSON:502,UNTRUSTED_AUDIO_URL:502,RATE_LIMITED:429};
+const PRACTICE_HTTP={INVALID_INPUT:400,PRACTICE_NO_SPEECH:422,PRACTICE_UNCONFIGURED:503,PRACTICE_UPSTREAM_ERROR:502,PRACTICE_TIMEOUT:504,PRACTICE_RATE_LIMITED:429};
+
+const orderPracticePhrases=new Map();
+for(const item of MENU){
+  if(!item.available)continue;
+  let combinations=[{}];
+  for(const [key,values] of Object.entries(item.options||{})){
+    combinations=combinations.flatMap(current=>values.map(value=>({...current,[key]:value})));
+  }
+  for(const options of combinations){
+    const phrase=buildOrderPhrase(item,options);
+    if(phrase?.id)orderPracticePhrases.set(phrase.id,phrase);
+  }
+}
 
 const sendJson=(res,status,obj)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(obj));};
 const failJson=(res,status,code,message)=>sendJson(res,status,{ok:false,error:{code,message}});
@@ -58,7 +75,7 @@ async function handleStatic(req,res,pathname){
   }catch{res.writeHead(404);res.end('Not found');}
 }
 
-export function createServer({provider=createBailian()}={}){
+export function createServer({provider=createBailian(),pronunciation=createPronunciationProvider()}={}){
   let active=0;const stamps=[];
   const rateOk=()=>{const now=Date.now();while(stamps.length&&now-stamps[0]>60000)stamps.shift();if(stamps.length>=RATE_PER_MINUTE)return false;stamps.push(now);return true;};
 
@@ -68,6 +85,14 @@ export function createServer({provider=createBailian()}={}){
       '/api/voice/transcribe':{method:'POST',call:(body)=>provider.transcribe(body)},
       '/api/voice/interpret':{method:'POST',call:(body)=>provider.interpret(body)},
       '/api/voice/speak':{method:'POST',call:(body)=>provider.speak(body)},
+      '/api/practice/status':{method:'GET',call:()=>({configured:pronunciation.configured,locale:'zh-HK'})},
+      '/api/practice/assess':{method:'POST',call:async(body)=>{
+        const id=body?.phraseId;
+        const phrase=typeof id==='string'&&(getPhrase(id)||orderPracticePhrases.get(id));
+        if(!phrase)throw new PronunciationError('INVALID_INPUT','练习题目无效。');
+        const result=await pronunciation.assess({audioBase64:body.audioBase64,referenceText:phrase.cantonese});
+        return {...result,phraseId:id,referenceJyutping:phrase.jyutping};
+      }},
     };
     const route=routes[pathname];
     if(!route)return failJson(res,404,'NOT_FOUND','Not found');
@@ -79,6 +104,7 @@ export function createServer({provider=createBailian()}={}){
       const result=await route.call(body);
       sendJson(res,200,result);
     }catch(e){
+      if(e instanceof PronunciationError&&Object.hasOwn(PRACTICE_HTTP,e.code))return failJson(res,PRACTICE_HTTP[e.code],e.code,e.message);
       // 仅透传已知安全 code/message；不输出上游原文、堆栈或请求头
       if(typeof e?.code==='string'&&Object.hasOwn(HTTP_BY_CODE,e.code))return failJson(res,HTTP_BY_CODE[e.code],e.code,({ASR_EMPTY:'未聽清楚，請靠近咪高峰再講一次。',UPSTREAM_TIMEOUT:'語音服務逾時，請稍後重試。',RATE_LIMITED:'語音服務繁忙，請稍後重試。',PROVIDER_UNCONFIGURED:'語音服務未配置。'}[e.code]||'請求未完成，請檢查輸入或稍後重試。'));
       failJson(res,500,'INTERNAL_ERROR','服務內部錯誤');

@@ -59,6 +59,8 @@ const shots={
  entrance:{zoom:1.08,centerX:555,centerY:282},
  walk:{zoom:1.08,centerX:555,centerY:282},
  room:{zoom:1,centerX:W/2,centerY:H/2},
+ window:{zoom:1.75,centerX:322,centerY:232},
+ cashier:{zoom:1.65,centerX:700,centerY:256},
 };
 function table(c){
  if(available(tableImage)){backgroundImage(c,tableImage,0,0,W,H);return;}
@@ -258,7 +260,29 @@ export function draw(canvas,state,view){
  // The fitted scene crops the sides on a phone. Keep every slot and the place
  // setting inside that visible area and keep the same slot order at every angle.
  const {span,scale}=tableGeometry(sceneFit),list=tableFoodSlots(state,view,span,scale);
- list.forEach(({item,x,y,size})=>food(c,item.itemId,x,y,size,item.options));
+ list.forEach(({item,x,y,size})=>{
+  const remaining=view.diningPortions?.get(item.id)??3;
+  if(remaining===3||item.options.serving==='外賣'){
+   food(c,item.itemId,x,y,size,item.options);return;
+  }
+  if(item.itemId.startsWith('drink-')){
+   c.save();c.translate(x,y);c.scale(size,size);
+   ellipse(c,0,6,25,6,'#241c2255');
+   poly(c,[[-18,-43],[18,-43],[14,4],[-14,4]],'#dbd4bc');
+   ellipse(c,0,-43,18,5,'#e9e5cf');ellipse(c,0,-42,14,3,'#625644');
+   if(remaining){
+    const level=remaining===2?-27:-15;
+    const liquid=item.itemId==='drink-lemon-tea'?'#a75928':'#a47a4e';
+    poly(c,[[-14,level],[14,level],[12,2],[-12,2]],liquid);
+    ellipse(c,0,level,14,3,'#d2a575');
+   }
+   rect(c,-13,-35,2,30,'#fff4ce88');c.restore();return;
+  }
+  ellipse(c,x,y+3*size,31*size,13*size,'#a19b7d');
+  ellipse(c,x,y,30*size,11*size,'#f2e4bc');
+  ellipse(c,x,y,24*size,8*size,'#d4c9a9');
+  if(remaining)food(c,item.itemId,x,y-3*size,size*(remaining===2?.74:.48),item.options);
+ });
  if (Number.isFinite(elapsed) && (camera === 'table' || camera === 'room')) {
   const hotDrinks = list.filter(({item}) => item.itemId.startsWith('drink-') && item.options.temperature === '熱'
    && item.options.serving !== '外賣' && !view.finishedDrinks?.has(item.id));

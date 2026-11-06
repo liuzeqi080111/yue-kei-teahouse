@@ -2,7 +2,7 @@ import {createSession, PHASES as P} from './teahouse-scene/index.js';
 export const MOTION = Object.freeze({walk:3200, lead:3800, frame:220, water:4800, utensils:3200, withdraw:1200, farewell:1800});
 export const LINES={
  outside:['街角旁白','午後三點，茶香啱啱好。','ng5 hau6 saam1 dim2, caa4 hoeng1 ngaam1 ngaam1 hou2.','下午三點，茶香正好。'],
- ENTER:['阿明 · 侍應','你好呀，一位？入嚟坐吖。','nei5 hou2 aa3, jat1 wai2? jap6 lai4 co5 aa1.','你好，一位嗎？進來坐吧。'],
+ ENTER:['阿明 · 侍應','你好呀，幾位呀？','nei5 hou2 aa3, gei2 wai2 aa3?','你好，请问几位？'],
  START_SEATING:['阿明 · 侍應','呢邊吖，窗口位留咗畀你。','ni1 bin1 aa1, coeng1 hau2 wai2 lau4 zo2 bei2 nei5.','這邊，靠窗的座位給你留好了。'],
  SIT_DOWN:['阿明 · 侍應','坐吖，睇吓想食啲乜。','co5 aa1, tai2 haa5 soeng2 sik6 di1 mat1.','請坐，看看想吃些什麼。'],
  OPEN_MENU:['阿明 · 侍應','餐牌喺度，慢慢睇，睇啱話我知。','','菜單在這裡，慢慢看，選好告訴我。'],
@@ -80,7 +80,7 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
   if(type==='ENTER')sequence([['talk',500]],'greeting');
   if(type==='WAITER_LEAVE'){view.orderReview=false;sequence([['talk',300],['depart',850]],'dismiss');}
   if(type==='START_SEATING'){
-   view.line=LINES.START_SEATING;view.busy=true;view.camera='entrance';
+   view.line=r.state.partySize===2?['阿明 · 侍應','兩位，呢邊吖，窗口有位。','loeng5 wai2, ni1 bin1 aa1, coeng1 hau2 jau5 wai2.','两位，这边请，窗边有座位。']:LINES.START_SEATING;view.busy=true;view.camera='entrance';
    view.beat={pose:'talk',kind:'seating',start:Date.now(),duration:500,round:session.getState().round};
    later(()=>afterSpeech(()=>{view.near=false;view.camera='walk';view.beat={pose:'depart',kind:'seating',start:Date.now(),duration:MOTION.lead,round:session.getState().round};emit();
     later(round=>{dispatch('SIT_DOWN',{round});view.camera='room';view.near=true;view.line=LINES.SIT_DOWN;sequence([['talk',500],['depart',MOTION.walk]],'seated');},MOTION.lead);

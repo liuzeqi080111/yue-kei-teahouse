@@ -87,7 +87,7 @@ export function createVoiceBridge({ game } = {}) {
       case P.GREETING: return ['START_SEATING'];
       case P.SEATING: return [];
       case P.SEATED:
-        return ['OPEN_MENU', 'CALL_WAITER', 'REQUEST_WATER', 'REQUEST_UTENSILS', 'WAITER_LEAVE'];
+        return ['OPEN_MENU', 'ADD_ITEM', 'CALL_WAITER', 'REQUEST_WATER', 'REQUEST_UTENSILS', 'WAITER_LEAVE'];
       case P.ORDERING: case P.DINING: {
         if (view.orderReview) return ['FINISH_ORDER', 'CONTINUE_ORDER'];
         const list = ['OPEN_MENU', 'CALL_WAITER', 'REQUEST_WATER', 'REQUEST_UTENSILS', 'WAITER_LEAVE', 'ADD_ITEM'];
@@ -191,12 +191,14 @@ export function createVoiceBridge({ game } = {}) {
       if (failure) return failure; // 整批不执行，状态不变
     } else {
       const it = intents[0];
+      if (it.type === 'START_SEATING' && it.partySize !== undefined && ![1, 2].includes(it.partySize)) return bad('而家可以安排一位或者兩位。');
       if (it.type === 'CONFIRM_ORDER' && (view.orderReview || !state.items.some((i) => i.status === 'pending'))) return bad('而家未有需要確認嘅餐點。');
       if ((it.type === 'FINISH_ORDER' || it.type === 'CONTINUE_ORDER') && !view.orderReview) return bad('要先用「確認落單」問過阿明先。');
       if (it.type === 'REQUEST_BILL' && state.items.some((i) => i.status === 'pending')) return bad('仲有餐點未確認，落單或取消之後先可以埋單。');
       if (it.type === 'PAY_BILL' && (!state.billPresented || state.isPaid || !state.bill)) return bad('而家未可以付款，請先核對帳單。');
     }
 
+    if (state.phase === P.SEATED && isOrderBatch && !game.action('OPEN_MENU')?.ok) return bad('而家未能開始點餐，請稍後再試。');
     const executed = [], executedIntents = [], names = [];
     let reply = '', meaning = '';
     for (const it of intents) {
@@ -205,6 +207,7 @@ export function createVoiceBridge({ game } = {}) {
         game.camera('menu'); r = { ok: true, events: [] }; // 已打开过菜单：仅视图切换
       } else {
         const extra = {};
+        if (it.type === 'START_SEATING') extra.partySize = it.partySize;
         if (it.type === 'ADD_ITEM') { extra.itemId = it.itemId; extra.qty = 1; extra.options = it.options ?? {}; }
         if (it.type === 'UPDATE_ITEM') { extra.orderItemId = it.orderItemId; extra.qty = 1; extra.options = it.options ?? {}; }
         if (it.type === 'CANCEL_ITEM') extra.orderItemId = it.orderItemId;
