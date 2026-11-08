@@ -31,8 +31,11 @@ body[data-immersive] #notice{display:none}
 #immersive-hud .hud-help-controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 #immersive-hud .hud-fallback{margin-top:12px;border-top:1px solid #ffffff20;padding-top:8px}
 #immersive-hud .hud-fallback summary{cursor:pointer;color:#e9d29c;font-size:var(--hud-ui-size);line-height:44px}
-#immersive-hud #actions{position:static;inset:auto;display:flex;flex-direction:row;flex-wrap:wrap;align-items:stretch;gap:8px;max-height:30dvh;overflow:auto;padding:8px 0 0;pointer-events:auto}
+/* The help card owns scrolling. A nested auto scrollbar could appear when a
+   bottom-row button moved on :active, rewrap the row and swallow mouseup. */
+#immersive-hud #actions{position:static;inset:auto;display:flex;flex-direction:row;flex-wrap:wrap;align-items:stretch;gap:8px;max-height:none;overflow:visible;padding:8px 0 2px;pointer-events:auto}
 #immersive-hud #actions button{min-height:44px;padding:8px 14px;border:1px solid #d5bb7c77;border-radius:10px;background:#ffffff08;color:#fff1c7;font-size:var(--hud-ui-size);line-height:1.5;white-space:normal}
+#immersive-hud #actions button:active{transform:none;background:#d9b86a30}
 body[data-help-goal="true"] #hotspots button{outline:2px solid #e9cc82;outline-offset:5px;box-shadow:0 0 0 8px #e9cc8218}
 #immersive-hud .hud-more-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 #immersive-hud .hud-original{margin-top:10px;padding:10px;border-radius:10px;background:#ffffff08;white-space:pre-wrap;overflow-wrap:anywhere;color:#f5dda4;font-size:var(--hud-ui-size)}

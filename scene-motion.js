@@ -22,29 +22,30 @@ export function streetMotionAt(elapsed=0){
  return {x,y:494-x*.12,width:138*depth,height:82*depth,phase};
 }
 
-// All positions use original painting pixels. Walkers are on the opposite
-// pavement, behind the tram; their periods differ so the street never marches
-// in sync. Both ends of each route are outside the visible glass.
+// Original painting pixels: two nearby passers use the pavement in front of
+// the tram, with one smaller passer across the road. Reset behind the adjacent
+// mullions, avoiding long journeys outside the window's visible street.
 export function streetWalkersAt(elapsed=0){
  return [
-  {row:0,direction:1,period:31000,offset:16000,height:36,cycle:1120,lane:0},
-  {row:1,direction:-1,period:37000,offset:10000,height:33,cycle:1280,lane:-3},
-  {row:0,direction:-1,period:43000,offset:3000,height:30,cycle:1250,lane:-6},
+  {row:0,direction:1,period:18000,offset:4500,height:38,cycle:1120,lane:18,depth:'near'},
+  {row:1,direction:-1,period:20500,offset:6000,height:36,cycle:1280,lane:16,depth:'near'},
+  {row:0,direction:-1,period:23000,offset:3000,height:30,cycle:1250,lane:-6,depth:'far'},
  ].map(person=>{
   const phase=wrap01((elapsed+person.offset)/person.period);
-  const x=person.direction===1?-65+430*phase:365-430*phase;
+  const x=person.direction===1?95+220*phase:315-220*phase;
   const depth=1+(200-x)*.00045;
   const gait=wrap01(elapsed/person.cycle+person.row*.37);
   return {...person,x,y:480-x*.12+person.lane,height:person.height*depth,frame:Math.floor(gait*8)};
  });
 }
 
-function drawStreetWalkers(ctx,elapsed,sheet){
+function drawStreetWalkers(ctx,elapsed,sheet,depth){
  if(!sheet?.naturalWidth)return;
  // Hip anchors were measured in the generated sheet, not estimated from the
  // changing silhouette bounds; swinging legs must not move the body's pivot.
  const hips=[118,343,560,783,1009,1230,1450,1671];
  for(const person of streetWalkersAt(elapsed).sort((a,b)=>a.height-b.height)){
+  if(person.depth!==depth)continue;
   const hip=hips[person.frame],sx=Math.max(0,hip-120),sw=Math.min(sheet.naturalWidth-sx,240);
   const scale=person.height/377;
   ctx.save();ctx.translate(person.x,person.y);
@@ -81,13 +82,16 @@ function drawDistantTraffic(ctx, elapsed, sourceX, sourceY, zoom, street) {
  // painting is never replaced, and its baked-in stationary tram is removed.
  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
  ctx.drawImage(street.clean,0,0,IMAGE_WIDTH,IMAGE_HEIGHT);
- drawStreetWalkers(ctx,elapsed,street.walkers);
+ drawStreetWalkers(ctx,elapsed,street.walkers,'far');
  const {x,y,width,height}=streetMotionAt(elapsed);
+ ctx.save();
  ctx.translate(x,y);ctx.rotate(-.045);
  // Tight alpha bounds of the versioned sprite; keep transparent margins out of
  // world-space sizing so wheels and road retain a stable contact anchor.
  const crop=street.crop||{x:0,y:0,width:street.tram.naturalWidth,height:street.tram.naturalHeight};
  ctx.drawImage(street.tram,crop.x,crop.y,crop.width,crop.height,0,-height,width,height);
+ ctx.restore();
+ drawStreetWalkers(ctx,elapsed,street.walkers,'near');
  ctx.restore();
 }
 
