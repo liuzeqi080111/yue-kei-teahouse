@@ -42,7 +42,20 @@ function stageHint(state, view) {
   return hints[state.phase] || ['你睇住而家嘅提示，再話我知。', '你看着当前提示，再告诉我。'];
 }
 function conversationReply(playerText, state, view) {
+  playerText=String(playerText||'').split('\n').map(line=>line.trim()).filter(Boolean).at(-1)||'';
   const normalized = normalizeConversation(playerText);
+  if(/你刚才问什么|你剛才問什麼|解释上一句|解釋上一句/.test(playerText))return {reply:view.line?.[1]||'你可以睇吓提示。',meaning:view.line?.[3]||'可以打开帮助查看当前问题。',teaching:true};
+  // Teaching a phrase is never an order, even if an upstream model proposes one.
+  // Preserve the clarification already in progress so the next real answer works.
+  if(/怎么说|怎麼說|怎么讲|怎麼講|点讲|點講|點樣講|点样讲|教我|不会说|不會說|唔識講|不知道怎么表达|不知道怎麼表達|我能做什么|我能做什麼|什么意思|什麼意思|咩意思/.test(playerText)){
+    const teaching=String(playerText).match(/奶茶|加水|两位|兩位|菠萝油|菠蘿油|结账|結賬|埋單|买单/);
+    const examples={奶茶:['奶茶，naai5 caa4。想點一杯，可以講「唔該，我要一杯奶茶」。','奶茶读作 naai5 caa4。要点一杯，可以说“唔該，我要一杯奶茶”。'],加水:['可以講「唔該，幫我加啲水」。','可以说“唔該，幫我加啲水”，意思是麻烦帮我加点水。'],两位:['可以講「兩位呀，唔該」。','可以说“兩位呀，唔該”，意思是两位，麻烦你。']};
+    examples['菠萝油']=['可以講「唔該，我要一個菠蘿油」。','可以说“唔該，我要一個菠蘿油”，意思是麻烦给我一个菠萝油。'];
+    examples['结账']=['可以講「唔該，埋單」。','可以说“唔該，埋單”，意思是麻烦结账。'];
+    const word=teaching?.[0].replace('兩位','两位').replace('菠蘿油','菠萝油').replace(/結賬|埋單|买单/,'结账');
+    const [reply,meaning]=examples[word]||stageHint(state,view);
+    return {reply,meaning,teaching:true,helpRequested:!teaching};
+  }
   if (COMPLIMENTS.has(normalized)) {
     const served = [P.ORDERING, P.DINING].includes(state.phase) && state.items.some((item) => item.status === 'served');
     return served
@@ -53,8 +66,8 @@ function conversationReply(playerText, state, view) {
   if (!slower && !unclear) return null;
   const [hint, hintMeaning] = stageHint(state, view);
   return slower
-    ? { reply: `好，我講慢啲。${hint}`, meaning: `好，我说慢一点。${hintMeaning}`, playbackRate: 0.72 }
-    : { reply: `唔緊要，我講簡單啲。${hint}`, meaning: `没关系，我说简单一点。${hintMeaning}` };
+    ? { reply: `好，我講慢啲。${view.line?.[0]?.startsWith('阿明')?view.line[1]:hint}`, meaning: `好，我说慢一点。${view.line?.[3]||hintMeaning}`, playbackRate: 0.72,teaching:true }
+    : { reply: `唔緊要，我講簡單啲。${hint}`, meaning: `没关系，我说简单一点。${hintMeaning}`,teaching:true };
 }
 
 export function createVoiceBridge({ game } = {}) {
@@ -71,10 +84,22 @@ export function createVoiceBridge({ game } = {}) {
     const { state, view } = snap();
     return JSON.stringify([state, view.orderReview, view.busy]);
   }
-  let memoryToken=token();
+  // Presentation (waiter presence / animation) cannot erase a clarification.
+  // Execution still uses the original strict token above.
+  function dialogueMemoryKey(){
+    const {state,view}=snap();
+    return JSON.stringify([state.round,state.phase,state.items,view.orderReview,state.bill,state.billPresented,state.isPaid,state.partySize]);
+  }
+  function historyLifecycleKey(){
+    const {state}=snap();
+    return JSON.stringify([state.round,state.phase===P.FINISHED]);
+  }
+  let memoryKey=dialogueMemoryKey(),historyKey=historyLifecycleKey();
   function refreshMemory(){
-    const current=token();
-    if(current!==memoryToken){pendingQuestion=null;history=[];memoryToken=current;}
+    const currentHistoryKey=historyLifecycleKey();
+    if(currentHistoryKey!==historyKey){history=[];historyKey=currentHistoryKey;}
+    const current=dialogueMemoryKey();
+    if(current!==memoryKey){pendingQuestion=null;memoryKey=current;}
   }
 
   /** 阶段合法动作表，与 session.ACTION_PHASES 及 controller 两步落单一致；billing 不能加水/餐具。 */
@@ -160,9 +185,9 @@ export function createVoiceBridge({ game } = {}) {
       history = history.slice(-6);
     };
     const conversational = conversationReply(text(proposal.playerText), state, view);
-    const replyOnly = ({ reply, meaning, playbackRate }) => {
-      pendingQuestion = null; record(reply); memoryToken = token();
-      return { ok: true, reply, meaning, executed: [], executedIntents: [], ...(playbackRate ? { playbackRate } : {}) };
+    const replyOnly = ({ reply, meaning, playbackRate, teaching,helpRequested }) => {
+      if(!teaching)pendingQuestion = null; record(reply); memoryKey = dialogueMemoryKey();
+      return { ok: true, reply, meaning, executed: [], executedIntents: [], ...(playbackRate ? { playbackRate } : {}),...(helpRequested?{helpRequested:true}:{}) };
     };
 
     if (proposal.decision !== 'execute') {
@@ -198,6 +223,7 @@ export function createVoiceBridge({ game } = {}) {
       if (it.type === 'PAY_BILL' && (!state.billPresented || state.isPaid || !state.bill)) return bad('而家未可以付款，請先核對帳單。');
     }
 
+    const memoryBefore=dialogueMemoryKey();
     if (state.phase === P.SEATED && isOrderBatch && !game.action('OPEN_MENU')?.ok) return bad('而家未能開始點餐，請稍後再試。');
     const executed = [], executedIntents = [], names = [];
     let reply = '', meaning = '';
@@ -249,9 +275,9 @@ export function createVoiceBridge({ game } = {}) {
     else if (names.length && executed.includes('UPDATE_ITEM')) { reply = `改好喇：${names.join('、')}，未落單前仲可以改。`; meaning = `已修改：${names.join('、')}，下单前还可以再改。`; }
     else if (names.length && executed.includes('CANCEL_ITEM')) { reply = `取消咗：${names.join('、')}。`; meaning = `已取消：${names.join('、')}。`; }
 
-    if (token() !== tk) { pendingQuestion = null; history = []; } // 任何业务变化/重开/动画完成使旧上下文作废
+    if (dialogueMemoryKey() !== memoryBefore) pendingQuestion = null;
     record(reply);
-    memoryToken=token();
+    memoryKey=dialogueMemoryKey();
     return { ok: true, reply, meaning, executed, executedIntents };
   }
 

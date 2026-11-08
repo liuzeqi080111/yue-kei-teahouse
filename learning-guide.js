@@ -55,7 +55,7 @@ function goalFor({state,view},menuContext={}){
   if(details.remaining<3)return target('尝过以后，可以用粤语说说味道。',phrase(details.isDrink?'delicious-drink':'delicious'));
  }
  const goals={
-  [P.GREETING]:target('告诉阿明，你是一个人来吃饭的。',phrase('one-person'),[{type:'START_SEATING'}]),
+  [P.GREETING]:target('告诉阿明，有几位客人一起用餐。',phrase('one-person'),[{type:'START_SEATING'}]),
   [P.SEATING]:target('跟阿明到窗边，等他带你入座。',phrase('follow-seat')),
   [P.SEATED]:target('请阿明给你菜单，再决定吃什么。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
   [P.ORDERING]:target('打开菜单选餐。阿明会再问一次，确认后才会下单。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
@@ -146,9 +146,9 @@ export function createLearningGuide({getSnapshot,getMenuContext,onMeaningChange,
   const phraseKey=JSON.stringify([currentPhrase.id,currentPhrase.cantonese,currentPhrase.jyutping,currentPhrase.meaning,currentPhrase.parts,currentPhrase.words]);
   const key=JSON.stringify([goal.goal,phraseKey,view.line?.[1],view.line?.[3]]);
   hintKey=JSON.stringify([goal.goal,phraseKey]);
-  const savedLevel=hintLevels.get(hintKey),hintLevel=['frame','full','goal'].includes(savedLevel)?savedLevel:preferences.mode==='beginner'?'full':'goal';
+  const savedLevel=hintLevels.get(hintKey),hintLevel=['frame','full','goal'].includes(savedLevel)?savedLevel:'goal';
   document.body.dataset.learningHint=hintLevel;
-  practiceData={key,phraseId:currentPhrase.id,example:currentPhrase.cantonese,parts:[...currentPhrase.parts],npcText:view.line?.[0]?.startsWith('阿明')?view.line[1]:'',intents:copyIntents(goal.intents||[]),hintLevel};
+  practiceData={goal:goal.goal,meaning:currentPhrase.meaning,jyutping:currentPhrase.jyutping,frame:currentPhrase.cantonese.startsWith('唔該，我要一杯')?'唔該，我要一杯＿＿＿。':currentPhrase.parts.map(part=>part==='唔該'?part:'＿＿＿').join('，')+'。',key,phraseId:currentPhrase.id,example:currentPhrase.cantonese,parts:[...currentPhrase.parts],npcText:view.line?.[0]?.startsWith('阿明')?view.line[1]:'',intents:copyIntents(goal.intents||[]),hintLevel};
   if(key!==guideKey){guideKey=key;helpText='';}
   document.querySelectorAll('[data-learning-guide]').forEach(el=>{
    const inPanel=el.classList.contains('learning-guide-panel'),shown=visible&&(inPanel?open:!open);
@@ -178,7 +178,7 @@ export function createLearningGuide({getSnapshot,getMenuContext,onMeaningChange,
    el.querySelectorAll('[data-guide-hint]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.guideHint===hintLevel)));
    const result=el.querySelector('[data-learning-result]');
    setText(result,helpText);if(result)result.hidden=!helpText;
-   if(shown&&(hintLevel==='full'||hintLevel==='frame'))noteHint(hintLevel);
+   if(shown&&el.getClientRects().length&&(hintLevel==='full'||hintLevel==='frame'))noteHint(hintLevel);
   });
  }
  function help(kind){

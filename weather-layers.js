@@ -138,12 +138,12 @@ function drawRain(ctx, elapsed, sourceX, sourceY, zoom) {
       const y = pane.minY + yRatio * (pane.maxY - pane.minY);
       ctx.moveTo(mapX(x, sourceX, zoom), mapY(y, sourceY, zoom));
       ctx.lineTo(
-        mapX(x + drop.slant, sourceX, zoom),
-        mapY(y + drop.length, sourceY, zoom),
+        mapX(x + drop.slant*.32, sourceX, zoom),
+        mapY(y + drop.length*.38, sourceY, zoom),
       );
     }
-    ctx.strokeStyle = 'rgba(193, 221, 241, 0.55)';
-    ctx.lineWidth = Math.max(0.7, 1.3 * zoom);
+    ctx.strokeStyle = 'rgba(193, 221, 241, 0.27)';
+    ctx.lineWidth = Math.max(0.45, .55 * zoom);
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();

@@ -2,6 +2,8 @@ const STATIC_PREVIEW = document.documentElement.dataset.preview === 'true';
 import {MENU,PHASES as P} from './teahouse-scene/index.js';
 import {createGame,diningOutcome} from './controller.js';
 import {createMobileTray,compactMobileActions} from './mobile-tray.js';
+import {createImmersiveHud} from './immersive-hud.js';
+import {localizeUi,systemText} from './ui-language.js';
 import {fitScene} from './scene-viewport.js';
 import {draw,food,ready,tableFoodLayout,SCENE_WIDTH,SCENE_HEIGHT} from './scene.js';
 import {createDining} from './dining-actions.js';
@@ -46,7 +48,7 @@ try {
 } catch {}
 document.body.dataset.weather = weather;
 $('#scene-weather').value = weather;
-let voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null;
+let hud=null,voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null;
 const game=createGame({changed:render,inspectDining:id=>dining?.inspect(id)});
 const practiceLog=createPracticeLog();
 let practiceRound=null,practiceAttemptSerial=0;
@@ -58,7 +60,7 @@ function createPageSessionId(){
 const pageSessionId=createPageSessionId(),reviewStore=createReviewStore({storage:loadReviewStorage()});
 const settledPracticeRounds=new Set();
 let dynamicReviewPhrases=null,reviewChallenges=[],clearReviewArmed=false;
-let reviewIndex=0,reviewReady=false,reviewMessage='',reviewState='',reviewSession=0,reviewPlayback=null;
+let reviewIndex=0,reviewReady=false,reviewMessage='',reviewState='',reviewSession=0,reviewPlayback=null,reviewProgress={seconds:0,level:0};
 const reviewRecorder=createPracticeRecorder(recording=>{
  window.dispatchEvent(new CustomEvent('voice-activity',{detail:{source:'review-recording',recording}}));
 });
@@ -140,7 +142,7 @@ function roundReviewMarkup(state){
  const completed=snapshot.attempts.find(attempt=>attempt.mode==='voice'&&attempt.matched);
  const phrase=resolveReviewPhrase(completed?.phraseId)||challengeCandidates(state)[0];
  const source=completed?'本次用语音完成了一项粤语任务。':'你完成了这次茶餐厅体验。';
- const practice=phrase?`<p><strong>记住一句</strong> ${esc(phrase.cantonese)}<br><small>${esc(phrase.meaning)}</small></p>`:'';
+ const practice=phrase?`<p><strong>记住一句</strong> <span lang="yue">${esc(phrase.cantonese)}</span><br><small>${esc(phrase.meaning)}</small></p>`:'';
  return `<h3>本次成果小票</h3><p>${source}</p>${practice}<p><strong>下次试试</strong> 先开口说一句，再用选项继续。</p>`;
 }
 function renderRoundReview(state){
@@ -164,9 +166,9 @@ function renderReview(focusSelector=''){
  let markup='<p>短复习结束。你可以回到游戏，继续下一次茶餐厅体验。</p>';
  if(item){
   const {phrase,result}=item,revealed=item.revealed||result;
-  const working=reviewState==='opening'||reviewState==='scoring';
+  const working=['opening','preparing','scoring'].includes(reviewState);
   const recording=reviewState==='recording';
-  const label=recording?'停止并评分':working?(reviewState==='opening'?'正在打开麦克风':'正在评测'):(result?'再录一次':'开始录音');
+  const label=recording?(reviewReady?'停止并评分':'停止录音'):working?({opening:'正在打开麦克风',preparing:'正在处理录音',scoring:'正在评测'}[reviewState]):(item.audio?'再录一次':'开始录音');
   const metrics=result?Object.entries({accuracy:'发音准确度',fluency:'流利度',completeness:'跟读完整度'})
    .filter(([key])=>Number.isFinite(result.scores[key]))
    .map(([key,name])=>`<span>${name} <strong>${Math.round(result.scores[key])}</strong>/100</span>`).join(''):'';
@@ -175,24 +177,36 @@ function renderReview(focusSelector=''){
   const feedback=omission?`试着补上「${omission.text}」。`:mispronounced?`可以先重练「${mispronounced.text}」，再读整句。`:'可以再听一次示范，和自己的录音对照。';
   markup=`<article class="review-challenge"><p class="review-challenge-meaning">普通话提示：${esc(phrase.meaning)}</p>
     ${revealed?`<div class="review-challenge-answer">${referenceJyutpingMarkup(phrase)}</div>`:''}
-    ${result?`<div class="review-score">${metrics}</div><p class="review-challenge-hint">${esc(feedback)}</p>`:''}
+    ${result?`<div class="review-score">${metrics}</div><p class="review-score-note">评分仅供参考，不评声调或实际粤拼。</p><p class="review-challenge-hint">${esc(feedback)}</p>`:''}
     <p class="review-challenge-hint" role="status">${esc(reviewMessage)}</p>
+    <div class="review-recording-monitor" ${recording?'':'hidden'}><span data-review-recording-time>录音 ${reviewProgress.seconds.toFixed(1)} / 15 秒</span><meter data-review-recording-level min="0" max="1" value="${reviewProgress.level}" aria-label="录音声音强弱"></meter></div>
     <div class="review-challenge-actions">
       <button type="button" data-challenge-reveal="${reviewIndex}" ${result||recording||working?'disabled':''}>${item.revealed?'收起答案':'看答案'}</button>
       ${revealed&&practiceAudio?`<button type="button" data-challenge-listen="${reviewIndex}" ${recording||working?'disabled':''}>听示范</button>`:''}
       ${item.audio?`<button type="button" data-review-playback ${recording||working?'disabled':''}>听我的录音</button>`:''}
-      <button type="button" class="primary" data-challenge-record ${working||!reviewReady?'disabled':''}>${label}</button>
-      <button type="button" data-challenge-next>${result?(reviewIndex+1===reviewChallenges.length?'完成':'下一句'):'跳过这句'}</button>
+      <button type="button" class="primary" data-challenge-record ${working?'disabled':''}>${label}</button>
+      ${item.audio&&!result&&reviewReady?`<button type="button" data-review-retry ${working||recording?'disabled':''}>重试评分</button>`:''}
+      <button type="button" data-challenge-next>${item.audio?(reviewIndex+1===reviewChallenges.length?'完成':'下一句'):'跳过这句'}</button>
     </div></article>`;
  }
- const list=$('#review-challenge-list');list.innerHTML=markup;
+ const list=$('#review-challenge-list');
+ if(list.dataset.markup!==markup){list.innerHTML=markup;list.dataset.markup=markup;}
  if(focusSelector)dialog.querySelector(focusSelector)?.focus({preventScroll:true});
 }
+function updateReviewProgress({seconds=0,level=0}={}){
+ reviewProgress={seconds,level};
+ const dialog=$('#review-dialog');
+ if(!dialog?.open||document.hidden||reviewState!=='recording')return;
+ const time=dialog.querySelector('[data-review-recording-time]');
+ if(time)updateText(time,`录音 ${seconds.toFixed(1)} / 15 秒`);
+ const meter=dialog.querySelector('[data-review-recording-level]');
+ if(meter)meter.value=Math.max(0,Math.min(1,level));
+}
 function openReview(){
- const snapshot=game.snapshot();settlePracticeReview(snapshot.state);practiceAudio?.stop();
+ const snapshot=game.snapshot();settlePracticeReview(snapshot.state);practiceAudio?.stop();voice?.suspend(true);
  reviewChallenges=challengeCandidates(snapshot.state).map(phrase=>({phrase,revealed:false,hinted:false,result:null,audio:null}));
  const session=++reviewSession;reviewIndex=0;reviewReady=false;reviewState='';
- reviewMessage=STATIC_PREVIEW?'评分需连接语音服务。':'正在检查评分服务…';
+ reviewMessage=STATIC_PREVIEW?'可以录音并回听。发音评分需要连接评测服务。':'可以先录音；正在检查评分服务…';
  renderReview();const dialog=$('#review-dialog');if(!dialog.open)dialog.showModal();
  dialog.querySelector('[data-dismiss]')?.focus({preventScroll:true});
  if(STATIC_PREVIEW)return;
@@ -201,7 +215,7 @@ function openReview(){
   .then(async response=>response.ok&&(await response.json()).configured===true)
   .catch(()=>false).then(available=>{
    if(session!==reviewSession||!dialog.open)return;
-   reviewReady=available;reviewMessage=available?'录音会提交给粤语发音评测服务。':'发音评分服务暂未就绪，可先试听并核对粤拼。';renderReview();
+   reviewReady=available;if(!reviewState){reviewMessage=available?'录音会提交给粤语发音评测服务。':'评分暂不可用。仍可录音、回听并核对参考粤拼。';renderReview();}
   }).finally(()=>clearTimeout(timer));
 }
 
@@ -251,7 +265,7 @@ function syncMeaning(){
 learningGuide=createLearningGuide({
  getSnapshot:()=>game.snapshot(),
  getMenuContext:()=>({tab,editing,dining:selectedDining?dining.inspect(selectedDining):null}),
- onMeaningChange:value=>{showMeaning=value;syncMeaning();},
+ onMeaningChange:value=>{showMeaning=value;syncMeaning();hud?.sync(game.snapshot());},
  onHint:markPracticeHint
 });
 showMeaning=learningGuide.showMeaning;syncMeaning();
@@ -267,20 +281,21 @@ if(STATIC_PREVIEW){
  $('#welcome > small').textContent='公開試玩版 · 用場景內選項點餐、加水和埋單；語音稍後開放。';
  const notes=$('#settings').querySelectorAll(':scope > p, :scope > small');
  if(notes[0])notes[0].textContent='本版本可測試完整點餐流程與背景音樂，語音及文字理解尚未開放。';
- if(notes[2])notes[2].textContent='只作虛擬結帳，不會收款；無需帳號，不會錄音。';
+ if(notes[2])notes[2].textContent='结账为游戏模拟，不会收款，无需账号。短复习可在本机录音回听；此版本不提供在线评分。';
 }else voice=mountVoice({game,host:$('#voice-host'),getPracticeTarget:currentPracticeTarget,onPracticeAttempt:recordVoicePractice});
 const mobileTray=createMobileTray({
  conversation:$('.conversation'),guide:$('#learning-guide'),voiceDock:$('#voice-dock'),staticPreview:STATIC_PREVIEW,
  onLayout:()=>render(game.snapshot()),onCloseVoice:()=>voice?.cancelPending(),onCompact:value=>voice?.setCompact(value),
 });
+hud=createImmersiveHud({game,guide:learningGuide,voice,preview:text=>practiceAudio?.preview(text)});
 function feedback(s){
- if(s.includes('售罄'))return s.replace(/今日售罄.*/, '今日賣晒喇，揀過另一款吖。');
- if(s.includes('未确认的商品'))return '仲有餐點未確認，落單或取消嗰幾項之後就可以埋單。';
- if(s.includes('已经上菜'))return '呢份已經上枱，唔可以再改數量、選項或者取消。';
- if(s.includes('尚未完成虚拟结账'))return '要先完成虛擬結帳，先可以離店。';
- if(s.includes('数量必须'))return '每款餐點本局限一份。';
- if(/选项|取值/.test(s))return '呢個規格揀唔到，請用餐牌上提供嘅選項。';
- return /[订单账阶认请执数]/.test(s)?'而家做唔到呢個操作，睇吓餐牌或者帳單再試。':s;
+ if(s.includes('售罄'))return s.replace(/今日售罄.*/, '今天已经售完，请选另一款。');
+ if(s.includes('未确认的商品'))return '还有餐品未确认，下单或取消这些餐品后就可以结账。';
+ if(s.includes('已经上菜'))return '这份餐品已经上桌，无法再修改数量、规格或取消。';
+ if(s.includes('尚未完成虚拟结账'))return '请先完成虚拟结账，再离开餐厅。';
+ if(s.includes('数量必须'))return '每款餐品本局限一份。';
+ if(/选项|取值/.test(s))return '该规格不可选，请使用菜单提供的选项。';
+ return systemText(s);
 }
 function updateText(el,value){if(el.textContent!==value)el.textContent=value;}
 function focusToken(el){
@@ -338,21 +353,20 @@ function playDiningSound(isDrink){
  }catch{if(diningAudio===context)diningAudio=null;try{context?.close().catch(()=>{});}catch{}}
 }
 function diningReason(details){
- if(details.reason==='empty')return details.isDrink?'呢杯已經飲晒，唔可以再飲。':'呢份已經食晒，唔可以再食。';
- if(details.reason==='takeaway')return '外賣已經打包，唔可以喺度食或者飲。';
- if(details.reason==='busy')return '阿明正在服務，請稍等一陣。';
- if(details.reason==='stale_round')return '呢個操作屬於上一局，已經忽略。';
- if(['not_dining','paid'].includes(details.reason))return '而家唔係用餐階段，唔可以消費餐點。';
- return '呢份餐點未上枱或者已經唔存在。';
+ if(details.reason==='empty')return details.isDrink?'这杯饮品已经喝完了。':'这份餐品已经吃完了。';
+ if(details.reason==='takeaway')return '外带餐品已经打包，不能在店内吃喝。';
+ if(details.reason==='busy')return '阿明正在服务，请稍等。';
+ if(details.reason==='stale_round')return '这是上一局的操作，已经忽略。';
+ if(['not_dining','paid'].includes(details.reason))return '当前不在用餐阶段，无法吃喝。';
+ return '这份餐品还未上桌，或已经不存在。';
 }
 function endingSummary(state){
  const outcome=diningOutcome(state,id=>dining?.inspect(id)),parts=[];
- for(const item of outcome.completed)parts.push(`${item.name}已${item.isDrink?'飲':'食'}晒`);
- for(const item of outcome.leftover)parts.push(`${item.name}${item.isDrink?'飲':'食'}咗啲，仲有剩`);
- for(const item of outcome.untouched)parts.push(`${item.name}未碰`);
- if(outcome.packed.length)parts.push(`外賣已打包取走：${outcome.packed.map(item=>item.name).join('、')}`);
- const details=parts.length?`${parts.join('；')}。`:'';
- return `你完成咗一餐 ${state.items.reduce((sum,i)=>sum+i.qty,0)} 份餐點。${details}合共 ${money(state.bill?.totalCents??0)}，已完成虛擬付款，冇實際扣款。阿明已同你道別：慢行呀，得閒再嚟！`;
+ for(const item of outcome.completed)parts.push(`${systemText(item.name)}已${item.isDrink?'喝完':'吃完'}`);
+ for(const item of outcome.leftover)parts.push(`${systemText(item.name)}还剩一些`);
+ for(const item of outcome.untouched)parts.push(`${systemText(item.name)}尚未品尝`);
+ if(outcome.packed.length)parts.push(`已打包：${outcome.packed.map(item=>systemText(item.name)).join('、')}`);
+ return `${parts.join('；')}。合计 ${money(state.bill?.totalCents??0)}，虚拟结账已完成。阿明向你道别，欢迎下次再来。`;
 }
 function diningInventoryItem(item,state){
  if(state.phase!==P.DINING)return `<span>${esc(item.name)} · ${itemStatus(item)} · ${Object.values(item.options).map(esc).join(' / ')}</span>`;
@@ -370,7 +384,7 @@ function diningService(item,details,view){
 }
 function diningDetail(item,view){
  const details=dining.inspect(item.id),phrase=diningPhrase(item,details.remaining),verb=details.isDrink?'飲':'食';
- return `<section class="dining-detail" aria-label="${esc(item.name)}詳情"><button class="dining-detail-close" data-dining-close aria-label="關閉餐點詳情">✕</button><strong>${esc(item.name)}</strong><small>${roman[item.itemId]||''}</small><p>${esc(diningMeanings[item.itemId]||item.name)} · ${Object.values(item.options).map(esc).join(' / ')}</p><p class="dining-phrase">${esc(phrase.text)}<small>${esc(phrase.meaning)}</small></p><p class="dining-remaining${details.remaining<3?' changed':''}" role="status">剩餘 ${details.remaining} / 3 啖</p><div class="dining-detail-actions"><button data-dining-preview="${esc(item.id)}" ${practiceAudio?'':'hidden'}>听用餐短句</button><button type="button" data-dining-preview="${esc(item.id)}" data-dining-name ${practiceAudio?'':'hidden'}>听名称</button><button class="primary" data-dining-consume="${esc(item.id)}" ${details.canConsume?'':'disabled'}>${details.remaining?`${verb}一啖`:`已${verb}晒`}</button></div>${diningService(item,details,view)}${practiceAudio?'':'<small>靜態試玩版未開放語音試聽。</small>'}</section>`;
+ return `<section class="dining-detail" aria-label="${esc(item.name)}詳情"><button class="dining-detail-close" data-dining-close aria-label="關閉餐點詳情">✕</button><strong>${esc(item.name)}</strong><small>${roman[item.itemId]||''}</small><p>${esc(diningMeanings[item.itemId]||item.name)} · ${Object.values(item.options).map(esc).join(' / ')}</p><p class="dining-phrase">${esc(phrase.meaning)}</p><p class="dining-remaining${details.remaining<3?' changed':''}" role="status">剩餘 ${details.remaining} / 3 啖</p><div class="dining-detail-actions"><button data-dining-preview="${esc(item.id)}" ${practiceAudio?'':'hidden'}>听用餐短句</button><button type="button" data-dining-preview="${esc(item.id)}" data-dining-name ${practiceAudio?'':'hidden'}>听名称</button><button class="primary" data-dining-consume="${esc(item.id)}" ${details.canConsume?'':'disabled'}>${details.remaining?`${verb}一啖`:`已${verb}晒`}</button></div>${diningService(item,details,view)}${practiceAudio?'':'<small>靜態試玩版未開放語音試聽。</small>'}</section>`;
 }
 let measuredScene;
 function measureScene(view){
@@ -399,12 +413,10 @@ function diningHotspots(state,view){
  }).join('');
 }
 const itemStatus=i=>i.options.serving==='外賣'?({pending:'待落單 · 外賣',confirmed:'已落單 · 待打包',served:'已打包'})[i.status]:({pending:'待落單',confirmed:'已落單 · 等上枱',served:'已上枱'})[i.status];
-function actionChoices(state,view){const busy=view.busy;if(view.orderReview)return replyButton('CONTINUE_ORDER','仲想加啲嘢',false,busy)+replyButton('FINISH_ORDER','夠喇，唔該落單。',true,busy);switch(state.phase){case P.OUTSIDE:return '';case P.GREETING:return replyButton('START_SEATING','一位呀，唔該。 →',true,busy);case P.SEATING:return '<span class="note busy">跟住阿明，行去窗口位…</span>';case P.SEATED:return replyButton('OPEN_MENU','唔該，睇吓餐牌。',true,busy)+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.ORDERING:case P.DINING:return `<button data-camera="${view.camera==='table'?'room':'table'}">${view.camera==='table'?'抬頭傾偈':'睇吓枱面'}</button>`+`<button data-camera="menu">${state.phase===P.DINING?'想加啲嘢':'睇餐牌'}</button>`+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('REQUEST_UTENSILS','唔該，畀副餐具我。',false,busy)+(state.phase===P.DINING?replyButton('REQUEST_BILL','唔該，埋單。',true,busy):'')+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.BILLING:return state.isPaid?'<span>已結帳 · 正在道別…</span>':`<button data-camera="bill">查看帳單</button>`+replyButton('PAY_BILL','虛擬結帳',true,busy);case P.FINISHED:return '';}}
+function actionChoices(state,view){const busy=view.busy;if(view.orderReview)return replyButton('CONTINUE_ORDER','仲想加啲嘢',false,busy)+replyButton('FINISH_ORDER','夠喇，唔該落單。',true,busy);switch(state.phase){case P.OUTSIDE:return '';case P.GREETING:return replyButton('START_SEATING','一位',true,busy)+`<button data-action="START_SEATING" data-party-size="2" ${busy?'disabled':''}>两位</button>`;case P.SEATING:return '<span class="note busy">跟住阿明，行去窗口位…</span>';case P.SEATED:return replyButton('OPEN_MENU','唔該，睇吓餐牌。',true,busy)+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.ORDERING:case P.DINING:return `<button data-camera="${view.camera==='table'?'room':'table'}">${view.camera==='table'?'抬頭傾偈':'睇吓枱面'}</button>`+`<button data-camera="menu">${state.phase===P.DINING?'想加啲嘢':'睇餐牌'}</button>`+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('REQUEST_UTENSILS','唔該，畀副餐具我。',false,busy)+(state.phase===P.DINING?replyButton('REQUEST_BILL','唔該，埋單。',true,busy):'')+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.BILLING:return state.isPaid?'<span>已結帳 · 正在道別…</span>':`<button data-camera="bill">查看帳單</button>`+replyButton('PAY_BILL','虛擬結帳',true,busy);case P.FINISHED:return '';}}
 function actions(state,view){
  if(['window','cashier'].includes(view.camera))return '<button type="button" class="primary" data-camera="room">回到座位</button>';
- const markup=actionChoices(state,view);
- if(!markup.includes('data-action=')||learningGuide?.getPractice().hintLevel==='full')return markup;
- return `<details class="learning-click-fallback" data-click-fallback><summary>用选项继续</summary><div class="learning-click-options">${markup}</div></details>`;
+ return actionChoices(state,view);
 }
 function panel(state,view){const el=$('#panel');const visible=['menu','bill'].includes(view.camera);
  if(previousPanel&&panelKey)panelScroll.set(panelKey,el.querySelector('.paper-body')?.scrollTop||0);
@@ -510,6 +522,8 @@ function render({state,view}){
   if(!roundChanged){void gameEl.offsetWidth;gameEl.classList.add('transitioning');}
   lastCamera=view.camera;
  }
+ for(const selector of ['#panel','#hotspots','#table-labels','#ending','#actions','#location','#stage','#notice','#scene-hint','#cameras'])localizeUi($(selector));
+ hud?.sync({state,view});
  scheduleSceneFrame();
  if(document.activeElement===document.body){
   if(hadActionFocus&&!restoreFocus(actionEl,actionToken)) (actionEl.querySelector('button:not(:disabled)')||$('#location')).focus({preventScroll:true});
@@ -533,9 +547,10 @@ document.addEventListener('click',e=>{
   if (view.camera !== 'room' || view.busy || state.isPaid) return;
   const windowSpot = b.dataset.explore === 'window';
   const camera=windowSpot?'window':'cashier';
-  const line = windowSpot ? '窗邊位（coeng1 bin1 wai2）' : '收銀處（sau1 ngan4 cyu3）';
-  const note = windowSpot ? '靠窗的座位。望出去就係香港街景。' : '收銀台。想攞帳單可以講「唔該，埋單」。';
+  const line = windowSpot ? '窗外街景' : '收银处';
+  const note = windowSpot ? '街上的车慢慢驶过，店里飘着茶香。' : '用餐后，可以请阿明拿来账单。';
   game.camera(camera);
+  $('#game').append($('#explore-note'));
   $('#actions [data-camera="room"]')?.focus({preventScroll:true});
   setTimeout(()=>{
    const current=game.snapshot();
@@ -561,18 +576,21 @@ document.addEventListener('click',e=>{
   const index=Number(b.dataset.challengeListen),item=reviewChallenges[index];if(!item?.revealed||!practiceAudio)return;
   stopReviewPlayback();item.hinted=true;practiceAudio.preview(item.phrase.cantonese,'review');renderReview(`[data-challenge-listen="${index}"]`);return;
  }
- if(b.hasAttribute('data-challenge-record')){
-  const item=reviewChallenges[reviewIndex];if(!item||!reviewReady)return;
+ if(b.hasAttribute('data-challenge-record')||b.hasAttribute('data-review-retry')){
+  const item=reviewChallenges[reviewIndex];if(!item)return;
   if(reviewState==='recording'){reviewRecorder.stop();return;}
-  practiceAudio?.stop();stopReviewPlayback();voice?.cancelPending();
-  reviewRecorder.start(item.phrase.id,{
-   onState(state){reviewState=state;reviewMessage=state==='recording'?'请读完后停止，最长录音 15 秒。':'';renderReview('[data-challenge-record]');},
+  practiceAudio?.stop();stopReviewPlayback();voice?.suspend(true);
+  const callbacks={score:reviewReady,onProgress:updateReviewProgress,
+   onRecorded(audio){item.audio=audio;item.result=null;},
+   onState(state){reviewState=state;reviewMessage=state==='recording'?'请读完后停止，最长录音 15 秒。':state==='recorded'?'录音已保留在本次复习中，可回听和核对参考粤拼。':'';renderReview('[data-challenge-record]');},
    onResult(result,audio){
     item.result=result;item.audio=audio;item.revealed=true;reviewState='';reviewMessage='';
     reviewStore.noteReview(item.phrase.id,{hinted:item.hinted});renderReview('[data-challenge-record]');
    },
    onError(message){reviewState='';reviewMessage=message;renderReview('[data-challenge-record]');},
-  });return;
+  };
+  if(b.hasAttribute('data-review-retry')){if(item.audio&&reviewReady)reviewRecorder.assess(item.phrase.id,item.audio,callbacks);}
+  else {updateReviewProgress();reviewRecorder.start(item.phrase.id,callbacks);}return;
  }
  if(b.hasAttribute('data-review-playback')){
   const audio=reviewChallenges[reviewIndex]?.audio;if(!audio)return;
@@ -583,7 +601,7 @@ document.addEventListener('click',e=>{
  }
  if(b.hasAttribute('data-challenge-next')){
   reviewRecorder.cancel();practiceAudio?.stop();stopReviewPlayback();reviewIndex++;
-  reviewState='';reviewMessage=reviewReady?'':'发音评分服务暂未就绪，可先试听并核对粤拼。';
+  reviewState='';reviewMessage=reviewReady?'':'评分暂不可用。可以录音、回听并核对参考粤拼。';
   renderReview(reviewIndex<reviewChallenges.length?'[data-challenge-record]':'[data-dismiss]');return;
  }
  if(b.dataset.diningSelect){
@@ -595,14 +613,14 @@ document.addEventListener('click',e=>{
  if(b.dataset.diningPreview){
   const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningPreview),details=dining.inspect(b.dataset.diningPreview);
   if(snapshot.state.phase!==P.DINING||snapshot.view.camera!=='table'||!item||item.status!=='served'||details.isPacked){game.notify(diningReason(details));return;}
-  if(!practiceAudio){game.notify('呢個靜態試玩版未開放語音試聽。');return;}
+  if(!practiceAudio){game.notify('此版本暂不提供在线语音试听。');return;}
   const previewText=b.hasAttribute('data-dining-name')?item.name:diningPhrase(item,details.remaining).text;
   noteModelAudio('',previewText);practiceAudio.preview(previewText);return;
  }
  if(b.dataset.diningHot){
   const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningHot),details=dining.inspect(b.dataset.diningHot);
   if(snapshot.state.phase!==P.DINING||snapshot.view.busy||!item||item.status!=='served'||!details.isDrink||details.isPacked||!details.remaining||item.options.temperature!=='熱'){
-   game.notify('呢個熱飲提示而家用唔到，請睇吓目前餐點。');return;
+   game.notify('当前餐品不适用热饮提示，请查看餐品详情。');return;
   }
   game.say('小心熱，唔急，等涼少少先飲吖。','小心烫，不着急，等凉一点再喝。');return;
  }
@@ -610,13 +628,13 @@ document.addEventListener('click',e=>{
   const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningConsume),result=dining.takeBite(b.dataset.diningConsume,snapshot.state.round);
   if(!result.ok){game.notify(diningReason(result));return;}
   playDiningSound(result.isDrink);
-  const verb=result.isDrink?'飲':'食';
-  game.notify(result.remaining?`${verb}咗一啖${item.name}，仲剩 ${result.remaining} 啖。`:`${item.name}${verb}晒，${result.isDrink?'解渴':'好味'}！`);return;
+  const verb=result.isDrink?'喝':'吃';
+  game.notify(result.remaining?`${verb}了一口${systemText(item.name)}，还剩 ${result.remaining} 口。`:`${systemText(item.name)}已经${verb}完了。`);return;
  }
  if(b.dataset.action){
   if(b.dataset.action==='ENTER'){learningGuide.openMode(()=>game.action('ENTER'));return;}
   if(b.dataset.action==='RESTART')learningGuide.reset();
-  performClickAction(b.dataset.action);return;
+  performClickAction(b.dataset.action,b.dataset.partySize?{partySize:Number(b.dataset.partySize)}:{});return;
  }
  if(b.dataset.dialog){$('#'+b.dataset.dialog).showModal();return;}
  if(b.hasAttribute('data-dismiss')){b.closest('dialog').close();return;}
@@ -626,8 +644,8 @@ document.addEventListener('click',e=>{
  if(b.hasAttribute('data-close')){closePanel();return;}
  if(b.dataset.tab){tab=b.dataset.tab;editing=null;game.notify('');return;}
  if(b.hasAttribute('data-back')){editing=null;game.notify('');return;}
- if(b.dataset.item){if(game.snapshot().view.busy){game.notify('侍應正在服務，請稍等一陣。');return;}const item=MENU.find(i=>i.id===b.dataset.item);if(!item.available){performClickAction('ADD_ITEM',{itemId:item.id});return;}const selected=game.snapshot().state.items.find(l=>l.itemId===item.id);if(selected?.status==='served'){game.notify(selected.options.serving==='外賣'?'呢份已經打包，唔可以再改或者重複落單。':'呢份已經上枱，唔可以再改或者重複落單。');return;}editing=selected?{lineId:selected.id}:{itemId:item.id};render(game.snapshot());return;}
- if(b.dataset.edit){const line=game.snapshot().state.items.find(i=>i.id===b.dataset.edit);if(line.status==='served'){game.notify(line.options.serving==='外賣'?'呢份已經打包，唔可以再改或者取消。':'呢份已經上枱，唔可以再改或者取消。');return;}editing={lineId:line.id};render(game.snapshot());return;}
+ if(b.dataset.item){if(game.snapshot().view.busy){game.notify('阿明正在服务，请稍等。');return;}const item=MENU.find(i=>i.id===b.dataset.item);if(!item.available){performClickAction('ADD_ITEM',{itemId:item.id});return;}const selected=game.snapshot().state.items.find(l=>l.itemId===item.id);if(selected?.status==='served'){game.notify(selected.options.serving==='外賣'?'这份餐品已打包，无法再修改或重复下单。':'这份餐品已上桌，无法再修改或重复下单。');return;}editing=selected?{lineId:selected.id}:{itemId:item.id};render(game.snapshot());return;}
+ if(b.dataset.edit){const line=game.snapshot().state.items.find(i=>i.id===b.dataset.edit);if(line.status==='served'){game.notify(line.options.serving==='外賣'?'这份餐品已打包，无法再修改或取消。':'这份餐品已上桌，无法再修改或取消。');return;}editing={lineId:line.id};render(game.snapshot());return;}
   if(b.dataset.cancel){
    const draft=editing,target=currentPracticeTarget();editing=null;
    if(!performClickAction('CANCEL_ITEM',{orderItemId:b.dataset.cancel},target).ok){editing=draft;render(game.snapshot());}
@@ -648,7 +666,7 @@ document.addEventListener('submit',e=>{
  e.preventDefault();if(!editing)return;
  const draft=Object.assign(editing,readDraft(e.target)),qty=Number(draft.qty);
  if(qty!==1){
-  game.notify('每款餐點本局限一份。');
+  game.notify('每款餐品本局限一份。');
   return;
  }
  const target=currentPracticeTarget(),previousTab=tab;editing=null;tab='order';
@@ -657,7 +675,7 @@ document.addEventListener('submit',e=>{
 });
 $('#translation').addEventListener('click',()=>learningGuide.setMeaning(!showMeaning));
 function closeReviewPractice(){
- reviewSession++;reviewRecorder.cancel();practiceAudio?.stop();stopReviewPlayback();
+ reviewSession++;reviewRecorder.cancel();practiceAudio?.stop();stopReviewPlayback();voice?.suspend(false);
  for(const item of reviewChallenges)item.audio=null;
 }
 $('#review-dialog').addEventListener('close',closeReviewPractice);
@@ -676,6 +694,7 @@ $('#settings').addEventListener('close',resetClearReview);
 $('#restart').addEventListener('click',()=>{$('#settings').close();game.action('RESTART');});
 $('#pronunciation').addEventListener('click',e=>{const on=e.target.getAttribute('aria-pressed')!=='true';e.target.setAttribute('aria-pressed',on);document.body.classList.toggle('show-jyutping',on);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]')&&!$('#panel').hidden){e.preventDefault();closePanel();}});
+for(const selector of ['#welcome','#settings','#sound-controls','#chapters','#learning-mode','#pause','#asset-status'])localizeUi($(selector));
 render(game.snapshot());ready.then(results=>{
  assetsSettled=true;render(game.snapshot());
  if(results.some(r=>r.status==='rejected'))$('#asset-status').hidden=false;
@@ -700,10 +719,9 @@ function syncStage(state,view){
  const hot=$('#hotspots');
  let html='';
  if(seated&&!open&&!view.busy){
-  html=down?`<button class="spot menu-spot" data-camera="menu">拿起餐牌</button><button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button><button class="look" data-camera="room">↑ 抬頭望吓</button>`:'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明</button><button class="look" data-camera="table">↓ 低頭睇枱面</button>';
+  html=down?`<button class="spot menu-spot" data-camera="menu">拿起餐牌</button><button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button><button class="look" data-camera="room">↑ 抬頭望吓</button>`:`${state.waiterPresent?'':'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明</button>'}<button class="look" data-camera="table">↓ 低頭睇枱面</button>`;
   if(state.phase===P.BILLING)html=down?'<button class="spot menu-spot" data-camera="bill">拿起帳單</button><button class="look" data-camera="room">↑ 抬頭望吓</button>':'<button class="look" data-camera="bill">查看帳單</button>';
  }
- if(state.waiterPresent&&!open)html='';
  if(exploring)html='';
  if (seated && !view.busy && !state.isPaid && view.camera === 'room') {
   html += sceneSpot(view, 'window', '窗邊', 306, 244);
@@ -723,7 +741,7 @@ function sceneView(state, view, sceneFit, elapsed) {
  return {...view, tablePage, sceneFit, weather, elapsed, finishedDrinks: finishedDrinks(state),diningPortions:diningPortions(state)};
 }
 function motionNeeded(state, view) {
- if (document.hidden || document.querySelector('dialog[open]') ||
+ if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches || document.querySelector('dialog[open]') ||
   ['menu', 'bill'].includes(view.camera) || selectedDining) return false;
  if (view.beat && Date.now() < view.beat.start + view.beat.duration) return true;
  if (['room','window','cashier'].includes(view.camera)) return true;

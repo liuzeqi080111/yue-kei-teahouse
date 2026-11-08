@@ -32,7 +32,9 @@ node server.mjs
 `.env` 不提交、不发布。后端仅监听本机，不适合直接作为公网语音服务。
 真人录音兼容性仍在排查；本机面板提供输入设备选择、音量条及本地麦克风检测。
 
-本机候选版的两句短复习可配置 Azure Speech。将 `AZURE_SPEECH_KEY` 与 `AZURE_SPEECH_REGION` 填入后端使用的本机 `.env`，重启后端。参考粤拼来自题库，评分来自 `zh-HK` 发音评测。配置缺失时仍可看粤拼和试听。
+本机候选版的两句短复习可独立录音、停止、回听、重录和跳过，显示录音计时及实际声音强弱。可配置 Azure Speech：将 `AZURE_SPEECH_KEY` 与 `AZURE_SPEECH_REGION` 填入后端使用的本机 `.env`，重启后端。参考粤拼来自题库；服务可用时的评分来自 `zh-HK` 发音评测，不提供声调或实际发音粤拼推断。配置缺失不影响本地录音回听，也不会显示分数。
+
+UX3 候选默认使用麦克风与紧凑普通话字幕；帮助按层展开，文字输入、原句、设备及字号在“更多”中。点击场景观察，使用餐品动作吃喝；当前候选尚未合并或发布。
 
 ## 开发及部署
 
@@ -40,9 +42,11 @@ node server.mjs
 npm test
 npm run test:voice
 npm run build:pages
+npm run test:ux3
 ```
 
-Pages 构建仅复制明确列出的前端文件到 `dist/`；部署流程以 `VOICE_API_ORIGIN` 指定 HTTPS 语音服务地址。未设置时构建无语音的静态试玩版。
+Pages 构建仅复制明确列出的前端文件到 `dist/`；部署流程以 `VOICE_API_ORIGIN` 指定 HTTPS 语音服务地址。未设置时构建不含在线语音服务的静态试玩版，本地短复习录音回听仍可用。
+`test:ux3` 运行本地自动验收，需要可用的 Playwright 与 Edge（可用 `PLAYWRIGHT_MODULE` 指定现有模块）。逐项日志及固定提交信息写入被 Git 忽略的 `output/ux3/verification.json`。它不调用真实模型或评测服务；合成音频、接口替身及软键盘几何模拟不代表真人或真机验证。
 源码中的本机模式保持启用，不影响本机语音测试。所有资源使用相对路径，支持 GitHub 项目子目录。
 GitHub 仓库 Settings → Pages 选择 GitHub Actions；推送 main 分支后自动验证并部署。
 

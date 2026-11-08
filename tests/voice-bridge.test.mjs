@@ -53,4 +53,16 @@ for(const [playerText,pattern,rate] of [
 const unknown=bridge.apply({decision:'clarify',playerText:'呢個點搞？',reply:'想問邊一樣？',intents:[]},bridge.token());
 assert.equal(unknown.reply,'想問邊一樣？');
 assert.deepEqual(game.snapshot().state,meal);
+game.chapter('order');
+bridge.apply({decision:'clarify',reply:'想要凍定熱？',question:'想要凍定熱？',intents:[]},bridge.token());
+const pending=bridge.context().pendingQuestion;
+for(const playerText of ['奶茶怎么说','奶茶點講','教我点一杯奶茶','加水怎么说','菠萝油怎么说']){
+ const before=game.snapshot().state;
+ const answer=bridge.apply({decision:'execute',playerText,intents:[{type:'ADD_ITEM',itemId:'drink-milk-tea'}]},bridge.token());
+ assert.deepEqual(answer.executedIntents,[]);
+ assert.deepEqual(game.snapshot().state,before);
+ assert.deepEqual(bridge.context().pendingQuestion,pending,'teaching must preserve pending clarification');
+}
+const ordered=bridge.apply({decision:'execute',playerText:'我要一杯热奶茶，正常甜',intents:[{type:'ADD_ITEM',itemId:'drink-milk-tea',options:{temperature:'熱',sweetness:'正常甜'}}]},bridge.token());
+assert.equal(ordered.ok,true);assert.equal(game.snapshot().state.items.length,1);
 console.log('PASS voice bridge: menu rules, service, safe virtual payment, contextual replies without order mutation, and stale response');

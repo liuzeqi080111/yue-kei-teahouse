@@ -7,7 +7,6 @@ const IMAGE_WIDTH = 1672;
 const IMAGE_HEIGHT = 941;
 const SCALE_X = WIDTH / IMAGE_WIDTH;
 const SCALE_Y = HEIGHT / IMAGE_HEIGHT;
-const AVERAGE_SCALE = (SCALE_X + SCALE_Y) * 0.5;
 
 // Exactly the lower-left glass polygon in FEEDBACK-11 weather-layers.mjs.
 // All moving traffic pixels are clipped to this existing interior-furnished.png pane.
@@ -52,41 +51,40 @@ function traceTrafficPane(ctx, sourceX, sourceY, zoom) {
 function drawDistantTraffic(ctx, elapsed, sourceX, sourceY, zoom, variant) {
   // One distant vehicle crosses every 32 seconds. It is fully outside the glass
   // at both wrap endpoints, so the repeat never produces a visible jump/flash.
-  const phase = wrap01(elapsed / 32000 + 0.18);
-  const x = TRAFFIC_PANE.minX - 30
-    + phase * (TRAFFIC_PANE.maxX - TRAFFIC_PANE.minX + 60);
+  const phase = wrap01(elapsed / 24000 + 0.18);
+  const x = TRAFFIC_PANE.minX - 65
+    + phase * (TRAFFIC_PANE.maxX - TRAFFIC_PANE.minX + 130);
   const y = 466 + (x - TRAFFIC_PANE.minX) * 0.018;
-  const lightAlpha = variant === 'afternoon' ? 0.34 : variant === 'rain' ? 0.78 : 0.62;
 
   traceTrafficPane(ctx, sourceX, sourceY, zoom);
   ctx.clip();
 
-  // A subdued body and two small headlights follow the painted street, rather
-  // than adding an unrelated particle or a full-scene lighting effect.
-  ctx.fillStyle = variant === 'afternoon'
-    ? 'rgba(54, 48, 43, 0.42)'
-    : 'rgba(24, 28, 31, 0.58)';
-  ctx.fillRect(
-    mapX(x - 12, sourceX, zoom),
-    mapY(y - 4, sourceY, zoom),
-    24 * SCALE_X * zoom,
-    6 * SCALE_Y * zoom,
-  );
-  ctx.fillStyle = `rgba(255, 218, 151, ${lightAlpha})`;
-  const lightWidth = Math.max(0.7, 2.4 * AVERAGE_SCALE * zoom);
-  const lightHeight = Math.max(0.55, 1.8 * SCALE_Y * zoom);
-  ctx.fillRect(
-    mapX(x + 4, sourceX, zoom),
-    mapY(y - 3, sourceY, zoom),
-    lightWidth,
-    lightHeight,
-  );
-  ctx.fillRect(
-    mapX(x + 9, sourceX, zoom),
-    mapY(y - 3, sourceY, zoom),
-    lightWidth,
-    lightHeight,
-  );
+  // Small painted minibus with windows, wheels and shaded body, behind the
+  // actual glass opening. Its entire body exits before the loop restarts.
+  ctx.save();
+  ctx.translate(mapX(x,sourceX,zoom),mapY(y,sourceY,zoom));
+  ctx.scale(SCALE_X*zoom,SCALE_Y*zoom);
+  ctx.globalAlpha=variant==='rain'?.72:.9;
+  ctx.fillStyle='#252e2b';ctx.fillRect(-27,-2,54,4);
+  ctx.fillStyle='#aa8c5a';ctx.fillRect(-27,-29,51,26);
+  ctx.fillStyle='#d6bc7d';ctx.fillRect(-26,-28,47,13);
+  ctx.fillStyle='#823d32';ctx.fillRect(-27,-31,46,4);
+  ctx.fillStyle='#384d48';for(let n=0;n<5;n++)ctx.fillRect(-23+n*8,-25,6,9);
+  ctx.fillStyle='#d4cbaa';ctx.fillRect(18,-25,6,12);
+  ctx.fillStyle='#33332a';ctx.fillRect(-19,-5,7,7);ctx.fillRect(13,-5,7,7);
+  ctx.fillStyle='#f3dc9e';ctx.fillRect(21,-8,4,3);
+  ctx.restore();
+
+  // A slower pedestrian gives the street another depth/speed cue.
+  const walkerX=TRAFFIC_PANE.maxX+12-wrap01(elapsed/41000+.59)*(TRAFFIC_PANE.maxX-TRAFFIC_PANE.minX+24);
+  const step=Math.sin(elapsed/220)*1.3;
+  ctx.save();ctx.translate(mapX(walkerX,sourceX,zoom),mapY(455,sourceY,zoom));ctx.scale(SCALE_X*zoom,SCALE_Y*zoom);
+  ctx.fillStyle='#ab8a67';ctx.fillRect(-2,-16,4,4);
+  ctx.fillStyle='#4e6151';ctx.fillRect(-3,-12,6,8);
+  ctx.fillStyle='#333b34';ctx.fillRect(-3+step,-4,2,5);ctx.fillRect(1-step,-4,2,5);
+  if(variant==='rain'){ctx.fillStyle='#7d5144';ctx.beginPath();ctx.moveTo(-10,-17);ctx.quadraticCurveTo(0,-29,10,-17);ctx.fill();ctx.fillRect(0,-17,1,9);}
+  ctx.restore();
+
 }
 
 function drawHotDrinkSteam(ctx, elapsed, hotDrinks, variant) {
@@ -158,7 +156,7 @@ export function drawSceneMotion(
   } = {},
 ) {
   if (!ctx) return;
-  const interiorCamera = camera === 'entrance' || camera === 'walk' || camera === 'room';
+  const interiorCamera = camera === 'entrance' || camera === 'walk' || camera === 'room' || camera === 'window';
   const tableCamera = camera === 'table' || camera === 'menu' || camera === 'bill';
   if (!interiorCamera && !tableCamera) return;
 

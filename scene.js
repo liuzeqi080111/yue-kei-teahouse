@@ -8,26 +8,57 @@ import {drawOutdoorWeather} from './outdoor-weather.js';
 const interior=new Image(),exterior=new Image(),waiterImage=new Image();waiterImage.src='assets/waiter-poses.png';interior.src='assets/interior-furnished.png';exterior.src='assets/exterior.png';
 const tableImage=new Image();tableImage.src='assets/table.png';
 const foodImage=new Image();foodImage.src='assets/food-sheet.png';
+const foodEmptyImage=new Image();foodEmptyImage.src='assets/food-empty-ux3.png';
 const foodIds=['food-pineapple-bun','food-charsiu-rice','food-wonton-noodle','food-egg-sandwich','food-french-toast','food-curry-fishball','drink-lemon-tea','drink-milk-tea','drink-yuanyang','drink-horlicks'];
 const drinkImage=new Image();drinkImage.src='assets/drinks.png';
+const drinkEmptyImage=new Image();drinkEmptyImage.src='assets/drinks-empty-ux3.png';
 const walkImage = new Image();
 walkImage.src = 'assets/waiter-gait-v2.png';
 const handsImage=new Image();handsImage.src='assets/service-hands.png';
 const takeawayImage=new Image();takeawayImage.src='assets/takeaway-bun.png';
-export const ready=Promise.allSettled([interior.decode(),exterior.decode(),waiterImage.decode(),tableImage.decode(),foodImage.decode(),drinkImage.decode(),walkImage.decode(),handsImage.decode(),takeawayImage.decode()]);
+export const ready=Promise.allSettled([interior.decode(),exterior.decode(),waiterImage.decode(),tableImage.decode(),foodImage.decode(),foodEmptyImage.decode(),drinkImage.decode(),drinkEmptyImage.decode(),walkImage.decode(),handsImage.decode(),takeawayImage.decode()]);
 function rect(c,x,y,w,h,color){c.fillStyle=color;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
 function poly(c,pts,color){c.fillStyle=color;c.beginPath();pts.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();}
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
-export function food(c,id,x,y,s=1,options={}){
+function portionCell(c,full,empty,sx,sy,sw,sh,dx,dy,w,h,remaining,drink=false,cold=false){
+ c.drawImage(remaining===3?full:empty,sx,sy,sw,sh,dx,dy,w,h);
+ if(remaining===3||remaining===0)return;
+ c.save();
+ if(drink){
+  const top=cold?(remaining===2?.36:.57):(remaining===2?.35:.44);
+  c.beginPath();c.rect(dx,dy+h*top,w,h*(1-top));c.clip();
+ }else{
+  // A single edge recedes across the serving: the next bite never restores food.
+  const edge=dx+w*(remaining===2?2/3:1/3),bite=w*.055;
+  c.beginPath();c.moveTo(dx,dy);c.lineTo(edge-bite,dy);
+  c.bezierCurveTo(edge+bite,dy+h*.12,edge-bite*1.4,dy+h*.23,edge,dy+h*.34);
+  c.bezierCurveTo(edge+bite*1.2,dy+h*.46,edge-bite*1.5,dy+h*.58,edge-bite*.2,dy+h*.70);
+  c.bezierCurveTo(edge+bite,dy+h*.82,edge-bite,dy+h*.92,edge,dy+h);
+  c.lineTo(dx,dy+h);c.closePath();c.clip();
+ }
+ c.drawImage(full,sx,sy,sw,sh,dx,dy,w,h);
+ c.restore();
+}
+export function food(c,id,x,y,s=1,options={},remaining=3){
  if(options.serving==='外賣'&&takeawayImage.complete&&takeawayImage.naturalWidth){
   const h=100*s,w=h*takeawayImage.naturalWidth/takeawayImage.naturalHeight;
   ellipse(c,x,y+3*s,25*s,6*s,'#241c2255');
   c.drawImage(takeawayImage,Math.round(x-w/2),Math.round(y-h*.89),Math.round(w),Math.round(h));return;
  }
  const drinkIndex=['drink-lemon-tea','drink-milk-tea','drink-yuanyang','drink-horlicks'].indexOf(id);
- if(drinkIndex>=0&&drinkImage.complete&&drinkImage.naturalWidth){const sw=drinkImage.naturalWidth/4,sh=drinkImage.naturalHeight/2,w=67*s,h=w*sh/sw;ellipse(c,x,y+3*s,21*s,5*s,'#241c2255');c.imageSmoothingEnabled=false;c.drawImage(drinkImage,drinkIndex*sw,options.temperature==='凍'?sh:0,sw,sh,Math.round(x-w/2),Math.round(y-h*.8),Math.round(w),Math.round(h));return;}
+ if(drinkIndex>=0&&drinkImage.complete&&drinkImage.naturalWidth){
+  const sw=drinkImage.naturalWidth/4,sh=drinkImage.naturalHeight/2,w=67*s,h=w*sh/sw;
+  const portions=drinkEmptyImage.complete&&drinkEmptyImage.naturalWidth?remaining:3;
+  ellipse(c,x,y+3*s,21*s,5*s,'#241c2255');c.imageSmoothingEnabled=false;
+  portionCell(c,drinkImage,drinkEmptyImage,drinkIndex*sw,options.temperature==='凍'?sh:0,sw,sh,Math.round(x-w/2),Math.round(y-h*.8),Math.round(w),Math.round(h),portions,true,options.temperature==='凍');return;
+ }
  const index=foodIds.indexOf(id);
- if(index>=0&&foodImage.complete&&foodImage.naturalWidth){const sw=foodImage.naturalWidth/5,sh=foodImage.naturalHeight/2;const w=72*s,h=w*sh/sw;ellipse(c,x,y+6*s,29*s,6*s,'#241c2255');c.imageSmoothingEnabled=false;c.drawImage(foodImage,index%5*sw,Math.floor(index/5)*sh,sw,sh,Math.round(x-w/2),Math.round(y-h*.76),Math.round(w),Math.round(h));return;}
+ if(index>=0&&foodImage.complete&&foodImage.naturalWidth){
+  const sw=foodImage.naturalWidth/5,sh=foodImage.naturalHeight/2,w=72*s,h=w*sh/sw;
+  const portions=foodEmptyImage.complete&&foodEmptyImage.naturalWidth?remaining:3;
+  ellipse(c,x,y+6*s,29*s,6*s,'#241c2255');c.imageSmoothingEnabled=false;
+  portionCell(c,foodImage,foodEmptyImage,index%5*sw,Math.floor(index/5)*sh,sw,sh,Math.round(x-w/2),Math.round(y-h*.76),Math.round(w),Math.round(h),portions);return;
+ }
  c.save();c.translate(x,y);c.scale(s,s);c.imageSmoothingEnabled=false;
  ellipse(c,0,14,26,7,'#211b2455');
  if(id.startsWith('drink')){const cold=options.temperature?options.temperature==='凍':id==='drink-lemon-tea';rect(c,-13,-29,26,40,'#d0c5a1');rect(c,-10,-26,20,34,cold?'#ad5f24':id==='drink-horlicks'?'#d4ba85':'#b28551');rect(c,-8,-23,3,29,'#ebcd8d');ellipse(c,0,-28,13,4,'#f4dfb4');ellipse(c,0,-28,10,3,'#99612b');rect(c,13,-20,7,3,'#efe3bf');rect(c,18,-18,3,15,'#efe3bf');rect(c,13,-5,7,3,'#efe3bf');rect(c,-11,9,22,3,'#776b51');if(cold){rect(c,4,-46,3,29,'#632f22');ellipse(c,-4,-23,7,3,'#e9c755');}else{rect(c,-3,-43,2,8,'#f9e8c77a');rect(c,3,-49,2,7,'#f9e8c75a');}}
@@ -231,7 +262,8 @@ export function draw(canvas,state,view){
  }
  if(down)table(c);
  else{
-  const {zoom,centerX,centerY}=shots[camera]||shots.room;
+  const shot=shots[camera]||shots.room;
+  const {zoom,centerY}=shot,centerX=camera==='window'&&sceneFit.offsetX < -150?170:shot.centerX;
   const x=centerX-W/(2*zoom),y=centerY-H/(2*zoom);
   const sx=interior.naturalWidth/W,sy=interior.naturalHeight/H;
   if(available(interior))backgroundImage(c,interior,x*sx,y*sy,W*sx/zoom,H*sy/zoom,0,0,W,H);
@@ -262,26 +294,7 @@ export function draw(canvas,state,view){
  const {span,scale}=tableGeometry(sceneFit),list=tableFoodSlots(state,view,span,scale);
  list.forEach(({item,x,y,size})=>{
   const remaining=view.diningPortions?.get(item.id)??3;
-  if(remaining===3||item.options.serving==='外賣'){
-   food(c,item.itemId,x,y,size,item.options);return;
-  }
-  if(item.itemId.startsWith('drink-')){
-   c.save();c.translate(x,y);c.scale(size,size);
-   ellipse(c,0,6,25,6,'#241c2255');
-   poly(c,[[-18,-43],[18,-43],[14,4],[-14,4]],'#dbd4bc');
-   ellipse(c,0,-43,18,5,'#e9e5cf');ellipse(c,0,-42,14,3,'#625644');
-   if(remaining){
-    const level=remaining===2?-27:-15;
-    const liquid=item.itemId==='drink-lemon-tea'?'#a75928':'#a47a4e';
-    poly(c,[[-14,level],[14,level],[12,2],[-12,2]],liquid);
-    ellipse(c,0,level,14,3,'#d2a575');
-   }
-   rect(c,-13,-35,2,30,'#fff4ce88');c.restore();return;
-  }
-  ellipse(c,x,y+3*size,31*size,13*size,'#a19b7d');
-  ellipse(c,x,y,30*size,11*size,'#f2e4bc');
-  ellipse(c,x,y,24*size,8*size,'#d4c9a9');
-  if(remaining)food(c,item.itemId,x,y-3*size,size*(remaining===2?.74:.48),item.options);
+  food(c,item.itemId,x,y,size,item.options,remaining);
  });
  if (Number.isFinite(elapsed) && (camera === 'table' || camera === 'room')) {
   const hotDrinks = list.filter(({item}) => item.itemId.startsWith('drink-') && item.options.temperature === '熱'

@@ -18,7 +18,7 @@ export function createAmbience({button = null, sound} = {}) {
 
  function label() {
   if (!button) return;
-  button.textContent = `背景音效：${snapshot.ambienceEnabled ? '開' : '關'}`;
+  button.textContent = `背景音效：${snapshot.ambienceEnabled ? '开' : '关'}`;
   button.setAttribute('aria-pressed', String(snapshot.ambienceEnabled));
  }
 
@@ -135,7 +135,7 @@ export function createAmbience({button = null, sound} = {}) {
    if (!ctx && !build()) {
     if (button) {
      button.disabled = true;
-     button.textContent = '此瀏覽器未支援背景音效';
+     button.textContent = '此浏览器不支持背景音效';
     }
     return;
    }
@@ -144,7 +144,7 @@ export function createAmbience({button = null, sound} = {}) {
    level();
    syncTimer();
   } catch {
-   if (!disposed && token === wakeVersion && button) button.textContent = '背景音效：點此重試';
+   if (!disposed && token === wakeVersion && button) button.textContent = '背景音效：点击重试';
   }
  }
 

@@ -190,18 +190,25 @@ function drawRain(ctx, elapsed) {
   ], 340, 780)(ctx));
   drawWetGround(ctx);
 
-  ctx.beginPath();
-  for (const drop of RAIN_DROPS) {
+  for (const [i,drop] of RAIN_DROPS.entries()) {
+    ctx.beginPath();
     const progress = wrap01(drop.phase + elapsed * drop.speed);
     const x = drop.x * WIDTH;
     const y = -24 + progress * (HEIGHT + 48);
     ctx.moveTo(x, y);
-    ctx.lineTo(x + drop.slant, y + drop.length);
+    ctx.lineTo(x + drop.slant*.35, y + drop.length*(i%3===0?.6:.35));
+    ctx.strokeStyle = `rgba(194, 220, 226, ${i%3===0?.23:.12})`;
+    ctx.lineWidth = i%3===0?.65:.45;
+    ctx.stroke();
   }
-  ctx.strokeStyle = 'rgba(194, 220, 226, 0.38)';
-  ctx.lineWidth = 0.8;
-  ctx.lineCap = 'round';
-  ctx.stroke();
+  // A few small ground ripples, clipped to pavement rather than furniture.
+  ctx.save();traceRegions(ctx,GROUND);ctx.clip();
+  for(let i=0;i<12;i++){
+    const phase=wrap01(elapsed/1400+i*.173),x=(i*179+73)%WIDTH,y=490+(i*37)%74;
+    ctx.beginPath();ctx.ellipse(x,y,1+phase*4,.4+phase*1.3,0,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(210,222,216,${(1-phase)*.18})`;ctx.lineWidth=.5;ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /**

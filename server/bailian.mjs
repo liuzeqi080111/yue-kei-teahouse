@@ -99,6 +99,7 @@ async function downloadAudio(fetchImpl, startUrl) {
 }
 
 const SYSTEM_PROMPT = [
+  '玩家问“奶茶怎么说”“点讲”“教我”“什么意思”等是在求助，必须reply且intents=[]，只教读法或解释，不下单，不改变正在追问的订单。帮助结束后的明确要求才可执行。meaning必须为简体普通话，包括所有追问的释义。',
   '菜名使用menu的實際名稱。「奶茶/凍奶茶/冻奶茶」對應絲襪奶茶drink-milk-tea，凍是temperature規格不是另一款商品；「檸茶/凍檸茶」同理。不能因為菜名未包含凍字而說沒有這款飲品。回覆時使用實際菜名與已選規格。',
   '你是香港茶餐廳侍應阿明的語義理解器，只輸出 JSON：{"decision","intents","reply","meaning","question"}。',
   'decision 只能是 execute|clarify|reply|reject；非 execute 時 intents 必須是空陣列。',

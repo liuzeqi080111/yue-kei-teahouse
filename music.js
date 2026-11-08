@@ -70,12 +70,12 @@ function createMusicBus() {
 // Official artist upload, played through the supported YouTube player (no copied MP3).
 export function mountMusic(host, {sound} = {}) {
  const title = document.createElement('p');
- title.textContent = '陳慧嫻 · 千千闋歌';
+ title.textContent = '陈慧娴 · 千千阙歌';
  const button = document.createElement('button');
  button.type = 'button';
  button.textContent = '播放香港老歌';
  const status = document.createElement('small');
- status.textContent = '官方線上音源，需要連網。';
+ status.textContent = '官方在线音源，需要联网。';
  status.setAttribute('role', 'status');
  let frame = document.createElement('div');
  frame.id = 'old-song-player';
@@ -83,19 +83,19 @@ export function mountMusic(host, {sound} = {}) {
  link.href = 'https://www.youtube.com/watch?v=d44u2W-votY';
  link.target = '_blank';
  link.rel = 'noopener noreferrer';
- link.textContent = '開啟官方音源';
+ link.textContent = '打开官方音源';
  const domestic = document.createElement('a');
  domestic.href = 'https://www.kugou.com/mixsong/zp4aa2a.html';
  domestic.target = '_blank';
  domestic.rel = 'noopener noreferrer';
- domestic.textContent = '國內平台試聽（酷狗）';
+ domestic.textContent = '国内平台试听（酷狗）';
 
  const fileLabel = document.createElement('label');
- fileLabel.textContent = '或選擇本機歌曲：';
+ fileLabel.textContent = '或选择本机歌曲：';
  const file = document.createElement('input');
  file.type = 'file';
  file.accept = 'audio/*';
- file.setAttribute('aria-label', '選擇本機背景歌曲');
+ file.setAttribute('aria-label', '选择本机背景歌曲');
  fileLabel.append(file);
  host.append(title, button, status, frame, link, domestic, fileLabel);
 
@@ -103,7 +103,7 @@ export function mountMusic(host, {sound} = {}) {
  const bedButton = document.createElement('button');
  bedButton.type = 'button';
  const bedNote = document.createElement('small');
- bedNote.textContent = '內置原創港風器樂 · 電鋼琴與貝斯；未播放線上／本機曲目時自動使用。此按鈕是所有背景音樂的總開關。';
+ bedNote.textContent = '内置原创港风器乐 · 电钢琴与贝斯；未播放在线或本机歌曲时自动使用。此按钮控制所有背景音乐。';
  host.prepend(bedButton, bedNote);
 
  const ownsSound = !sound;
@@ -127,11 +127,11 @@ export function mountMusic(host, {sound} = {}) {
  let unsubscribe = () => {};
 
  function updateLabels() {
-  bedButton.textContent = `背景音樂：${soundSnapshot.musicEnabled ? '開' : '關'}`;
+  bedButton.textContent = `背景音乐：${soundSnapshot.musicEnabled ? '开' : '关'}`;
   bedButton.setAttribute('aria-pressed', String(soundSnapshot.musicEnabled));
   button.textContent = source === 'youtube' && externalDesired
-   ? loading ? '正在連接香港老歌' : '暫停香港老歌'
-   : triedYouTube ? '重試香港老歌' : '播放香港老歌';
+   ? loading ? '正在连接香港老歌' : '暂停香港老歌'
+   : triedYouTube ? '重试香港老歌' : '播放香港老歌';
   button.disabled = loading || disposed;
  }
 
@@ -217,7 +217,7 @@ export function mountMusic(host, {sound} = {}) {
   source = 'builtin';
   externalDesired = false;
   triedYouTube = true;
-  status.textContent = '音源未能載入，已回退內置港風配樂；可點官方連結或選擇本機音檔。';
+  status.textContent = '音源加载失败，已恢复内置港风音乐；可以打开官方链接或选择本机音频。';
   updateLabels();
   syncPlayback();
  }
@@ -234,7 +234,7 @@ export function mountMusic(host, {sound} = {}) {
   loading = true;
   triedYouTube = true;
   const token = ++attempt;
-  status.textContent = '正在連接官方音源…';
+  status.textContent = '正在连接官方音源…';
   updateLabels();
   try {
    if (!window.YT?.Player) await new Promise((resolve, reject) => {
@@ -273,7 +273,7 @@ export function mountMusic(host, {sound} = {}) {
       }
       volume();
       try { player.playVideo(); } catch { youtubeFailure(); }
-      status.textContent = '若未自動播放，請點播放器的播放鍵。';
+      status.textContent = '若没有自动播放，请点击播放器的播放按钮。';
      },
      onStateChange: event => {
       if (disposed || token !== attempt) return;
@@ -283,7 +283,7 @@ export function mountMusic(host, {sound} = {}) {
       }
       youtubePlaying = event.data === 1;
       if (source === 'youtube' && youtubePlaying) {
-       status.textContent = '播放中 · 阿明說話及錄音時自動調整音量';
+       status.textContent = '播放中 · 阿明说话和录音时自动调整音量';
       }
       updateLabels();
       syncPlayback();
@@ -316,7 +316,7 @@ export function mountMusic(host, {sound} = {}) {
   source = 'builtin';
   externalDesired = false;
   stopLocal();
-  status.textContent = '本機音檔未能播放，已回退內置港風配樂。';
+  status.textContent = '本机音频播放失败，已恢复内置港风音乐。';
   updateLabels();
   syncPlayback();
  }
@@ -359,7 +359,7 @@ export function mountMusic(host, {sound} = {}) {
     try {
      const pending = offline.play();
      if (pending?.catch) pending.catch(() => {
-      bedNote.textContent = '點「背景音樂」重試內置配樂；線上／本機曲目仍可獨立選擇。';
+      bedNote.textContent = '点击“背景音乐”重试内置音乐；仍可选择在线或本机歌曲。';
      });
     } catch {}
    }
@@ -393,7 +393,7 @@ export function mountMusic(host, {sound} = {}) {
    youtubePlaying = false;
    if (loading) cancelYouTube();
    else if (ready) try { player.pauseVideo(); } catch {}
-   status.textContent = '已停用線上音源，播放內置港風配樂。';
+   status.textContent = '已停用在线音源，正在播放内置港风音乐。';
    updateLabels();
    syncPlayback();
    return;
@@ -429,7 +429,7 @@ export function mountMusic(host, {sound} = {}) {
     return;
    }
    localPlaying = true;
-   status.textContent = `本機播放：${selected.name}`;
+   status.textContent = `本机播放：${selected.name}`;
    syncPlayback();
   };
   audio.onpause = () => {

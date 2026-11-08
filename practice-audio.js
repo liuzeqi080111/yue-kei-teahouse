@@ -1,4 +1,5 @@
 import {voiceUrl} from './voice-endpoint.js';
+import {systemText} from './ui-language.js';
 
 const TIMEOUT_MS=30000,SLOW_RATE=0.65,CACHE_LIMIT=24;
 const clean=text=>String(text||'').trim().slice(0,500);
@@ -26,9 +27,9 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   window.dispatchEvent(new CustomEvent('practice-activity',{detail:{active,source:'practice'}}));
  }
  function blockedMessage(){
-  if(voiceState.npcActive)return '請等阿明講完，再按試聽。';
-  if(voiceState.recording)return '錄音期間不能播放示範；停止錄音後再試。';
-  if(voiceState.busy)return '語音處理中，完成後再試聽。';
+  if(voiceState.npcActive)return '请等阿明说完，再听示范。';
+  if(voiceState.recording)return '录音期间不能播放示范；停止录音后再试。';
+  if(voiceState.busy)return '语音处理中，完成后再试听。';
   return '';
  }
  function paint(){
@@ -39,9 +40,9 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
    guide.querySelectorAll('[data-practice-action]').forEach(button=>{
     const action=button.dataset.practiceAction;
     button.disabled=(action==='npc-slow'?!hasNpc:!hasExample);
-    if(action==='normal')button.textContent=follow?'正常分句':'試聽';
-    if(action==='slow')button.textContent=follow?'慢速分句':'慢速試聽';
-    if(action==='follow')button.textContent=follow?'從頭跟讀':'跟讀';
+    if(action==='normal')button.textContent=follow?'正常分句':'试听';
+    if(action==='slow')button.textContent=follow?'慢速分句':'慢速试听';
+    if(action==='follow')button.textContent=follow?'从頭跟读':'跟读';
     if(action==='next'){
      button.hidden=!follow;
      button.disabled=!follow||partIndex>=parts.length-1;
@@ -57,7 +58,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
    });
   });
   document.querySelectorAll('[data-practice-status]').forEach(result=>{
-   result.textContent=enabled?status:'';result.hidden=!enabled||!status;
+   result.textContent=enabled?systemText(status):'';result.hidden=!enabled||!status;
   });
  }
  function cleanup(){
@@ -75,8 +76,8 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   generation++;controller=null;cleanup();active=false;status=message;emit();paint();
  }
  function partStatus(prefix=''){
-  const next=partIndex<parts.length-1?'準備好再按「下一句」。':'可按「整句」再聽一次。';
-  return `${prefix}第 ${partIndex+1}/${parts.length} 句：「${parts[partIndex]}」。聽完可自行錄音，${next}`;
+  const next=partIndex<parts.length-1?'准备好再按「下一句」。':'可按「整句」再听一次。';
+  return `${prefix}第 ${partIndex+1}/${parts.length} 句：「${parts[partIndex]}」。听完可自行录音，${next}`;
  }
 
  async function playText(value,playbackRate){
@@ -86,8 +87,8 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   if(blocked){cancel({message:blocked});return;}
   cancel({keepFollow:true});
   const id=generation;
-  active=true;rate=playbackRate;status='準備示範音…';emit();paint();
-  deadline=setTimeout(()=>{controller?.abort();settle(id,'示範音逾時，請重試。');},TIMEOUT_MS);
+  active=true;rate=playbackRate;status='准备示范音…';emit();paint();
+  deadline=setTimeout(()=>{controller?.abort();settle(id,'示范音逾时，请重试。');},TIMEOUT_MS);
   try{
    let data=cache.get(text);
    if(!data){
@@ -108,14 +109,14 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
    audio=new Audio(url);
    audio.playbackRate=playbackRate;
    audio.preservesPitch=true;audio.mozPreservesPitch=true;audio.webkitPreservesPitch=true;
-   audio.onended=()=>settle(id,follow?partStatus():'試聽完成。');
-   audio.onerror=()=>settle(id,'示範音播放失敗，請重試。');
+   audio.onended=()=>settle(id,follow?partStatus():'试听完成。');
+   audio.onerror=()=>settle(id,'示范音播放失敗，请重试。');
    await audio.play();
    if(id!==generation)return;
-   status=follow?partStatus('正在播放：'):playbackRate<1?'正在慢速試聽。':'正在試聽。';paint();
+   status=follow?partStatus('正在播放：'):playbackRate<1?'正在慢速试听。':'正在试听。';paint();
   }catch(error){
    if(id!==generation)return;
-   const message=error?.name==='NotAllowedError'?'瀏覽器拒絕播放，請再按一次試聽。':'示範音連接或播放失敗，請檢查網絡後重試。';
+   const message=error?.name==='NotAllowedError'?'浏览器拒絕播放，请再按一次试听。':'示范音连接或播放失敗，请检查网絡后重试。';
    settle(id,message);
   }
  }
@@ -132,7 +133,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
  function handle(action,source){
   if(!enabled)return;
   const kind=source?.classList.contains('learning-guide-panel')?'panel':'scene';
-  if(action==='stop'){cancel({message:'已停止練習。'});return;}
+  if(action==='stop'){cancel({message:'已停止练习。'});return;}
   if(action==='npc-slow'){
    follow=false;parts=[];partIndex=0;fullText=clean(current.npcText);sourceKind=kind;
    playText(fullText,SLOW_RATE);return;
@@ -141,7 +142,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   if(action==='follow'){sourceKind=kind;startFollow();return;}
   if(action==='next'){
    if(!follow)return;
-   if(partIndex>=parts.length-1){status='已經係最後一句，可按「整句」再聽。';paint();return;}
+   if(partIndex>=parts.length-1){status='已经是最后一句，可以听完整句子。';paint();return;}
    partIndex++;sourceKind=kind;playPart(rate);return;
   }
   if(action==='whole'){
@@ -163,7 +164,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   const open=['menu','bill'].includes(snapshot?.view?.camera);
   const sourceGone=(sourceKind==='panel'&&!open)||(sourceKind==='scene'&&open);
   current={key:next.key||'',example:clean(next.example),parts:Array.isArray(next.parts)?next.parts.map(clean).filter(Boolean):[],npcText:clean(next.npcText)};
-  if((changed||sourceGone)&&(active||follow))cancel({message:'階段或面板已切換，練習已停止。'});
+  if((changed||sourceGone)&&(active||follow))cancel({message:'階段或面板已切换，练习已停止。'});
   else if(changed)status='';
   contextKey=nextKey;paint();
  }
@@ -171,7 +172,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   const detail=event.detail||{};if(detail.source==='practice')return;
   voiceState={active:Boolean(detail.active),npcActive:Boolean(detail.npcActive),recording:Boolean(detail.recording),busy:Boolean(detail.busy)};
   if((voiceState.npcActive||voiceState.recording||voiceState.busy)&&active){
-   const message=voiceState.npcActive?'阿明開始說話，練習已停止。':voiceState.recording?'錄音開始，示範已停止。':'語音處理開始，示範已停止。';
+   const message=voiceState.npcActive?'阿明开始说话，练习已停止。':voiceState.recording?'录音开始，示范已停止。':'语音处理开始，示范已停止。';
    cancel({message,keepFollow:follow});
   }else paint();
  }
@@ -186,7 +187,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
    follow=false;parts=[];partIndex=0;fullText=clean(text);sourceKind=source==='review'?'review':'scene';
    playText(fullText,1);
   },
-  stop:()=>cancel({message:'已停止練習。'}),
+  stop:()=>cancel({message:'已停止练习。'}),
   destroy(){window.removeEventListener('voice-activity',onVoice);window.removeEventListener('pagehide',onHide);cancel();},
   get active(){return active;}
  };

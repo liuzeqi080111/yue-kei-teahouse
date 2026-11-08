@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183e34"><title>唔該，開局！ · 粤语语音角色扮演游戏</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voice.css"><link rel="stylesheet" href="landing.css"><link rel="stylesheet" href="mobile-tray.css"></head>
+<html lang="zh-Hans"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183e34"><title>唔該，開局！ · 粤语语音角色扮演游戏</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voice.css"><link rel="stylesheet" href="landing.css"><link rel="stylesheet" href="immersive-hud.css"></head>
 <body>
 <main>
  <section id="game" class="game" aria-label="茶餐廳互動場景">
@@ -12,15 +12,15 @@
    <div class="landing-shade" aria-hidden="true"></div>
    <header class="landing-heading">
     <p class="landing-kicker"><span class="landing-kicker-line" aria-hidden="true"></span>粤语语音角色扮演游戏<span class="landing-kicker-line" aria-hidden="true"></span></p>
-    <h1>唔該，開局！</h1>
-    <p class="landing-tagline"><em>你講一句，故事繼續。</em></p>
+    <h1 lang="yue">唔該，開局！</h1>
+    <p class="landing-tagline"><em>你说一句，故事继续。</em></p>
    </header>
    <section class="landing-menu" aria-labelledby="landing-shop-name">
     <span class="landing-nail landing-nail-left" aria-hidden="true"></span>
     <span class="landing-nail landing-nail-right" aria-hidden="true"></span>
     <div class="landing-shop-heading">
      <h2 id="landing-shop-name">粵記茶餐廳</h2>
-     <p class="landing-shop-subtitle">茶香啱啱好，推門就係日常。</p>
+     <p class="landing-shop-subtitle">茶香正好，推门走进香港日常。</p>
     </div>
     <nav class="title-options landing-actions" aria-label="入場選項">
      <button class="primary landing-button landing-button-primary" type="button" data-action="ENTER"><span>開始遊戲</span><span class="landing-button-arrow" aria-hidden="true">→</span></button>
@@ -31,7 +31,7 @@
      </div>
     </nav>
    </section>
-   <small>入座後可講粵語或輸入文字 · 識別後先核對文字再發送</small>
+   <small>点击麦克风说话 · 停止录音后自动发送 · 按 H 打开帮助</small>
   </div>
   <details id="sound-controls"><summary>配樂</summary><div class="sound-control-panel"><button type="button" id="music-toggle">背景音樂：開</button><label for="music-volume">音樂音量</label><input type="range" id="music-volume" min="0" max="1" step="0.01" value="0.5"></div></details>
   <button id="pause" data-dialog="settings" aria-label="開啟設定">☰</button>
@@ -45,7 +45,7 @@
  </section>
  <p id="asset-status" class="asset-status" role="status" hidden>部分場景素材未能載入，仍然可以繼續練習。重新整理可再試一次。</p>
 </main>
-<dialog id="settings" aria-labelledby="settings-title"><h2 id="settings-title">歇一歇 · 設定</h2><div class="settings"><button id="translation" aria-pressed="true">普通話釋義</button><button type="button" data-learning-settings>學習模式：<span data-learning-mode-label>首次選擇</span></button><button id="pronunciation" aria-pressed="false">顯示粵拼</button><button id="ambience" aria-pressed="true">背景音效：開</button><button type="button" data-open-review aria-haspopup="dialog">回顧與短複習</button><button id="clear-review" type="button">清除學習記錄</button><button id="restart">返回準備畫面</button></div><div class="clear-review-wrap"><small id="clear-review-status" class="clear-review-status" role="status"></small></div><label class="scene-weather-label" for="scene-weather">場景天氣</label><select id="scene-weather"><option value="afternoon">午後</option><option value="dusk" selected>黃昏</option><option value="rain">雨夜</option></select><section id="music-settings" aria-label="香港老歌"></section><p>可以用情境选项、录音或打字和阿明交流。正常停止录音后会自动发送。</p><p>Tab 選擇 · Enter 確認 · Esc 合上餐牌／設定</p><small>对话录音会提交至阿里云识别。短复习评分仅在评测服务可用时提供。结账为游戏模拟。</small><button data-dismiss>返回</button></dialog>
+<dialog id="settings" aria-labelledby="settings-title"><h2 id="settings-title">歇一歇 · 設定</h2><div class="settings"><button id="translation" aria-pressed="true">普通话字幕</button><button type="button" data-learning-settings>學習模式：<span data-learning-mode-label>首次選擇</span></button><button id="pronunciation" hidden aria-pressed="false">顯示粵拼</button><button id="ambience" aria-pressed="true">背景音效：開</button><button type="button" data-open-review aria-haspopup="dialog">回顧與短複習</button><button id="clear-review" type="button">清除學習記錄</button><button id="restart">返回準備畫面</button></div><div class="clear-review-wrap"><small id="clear-review-status" class="clear-review-status" role="status"></small></div><label class="scene-weather-label" for="scene-weather">場景天氣</label><select id="scene-weather"><option value="afternoon">午後</option><option value="dusk" selected>黃昏</option><option value="rain">雨夜</option></select><section id="music-settings" aria-label="香港老歌"></section><p>可以用情境选项、录音或打字和阿明交流。正常停止录音后会自动发送。</p><p>Tab 選擇 · Enter 確認 · Esc 合上餐牌／設定</p><small>对话录音会提交至阿里云识别。短复习评分仅在评测服务可用时提供。结账为游戏模拟。</small><button data-dismiss>返回</button></dialog>
 <dialog id="review-dialog" aria-labelledby="review-title" aria-describedby="review-context"><h2 id="review-title">两句短复习</h2><p id="review-context"></p><p id="review-challenge-progress" class="review-challenge-progress" role="status"></p><div id="review-challenge-list" class="review-challenge-list"></div><p class="practice-status" data-practice-status role="status" hidden></p><small>粤拼用于核对参考读法。评测只用于本次练习。</small><div class="review-dialog-actions"><button type="button" class="primary" data-dismiss>回到游戏</button></div></dialog>
-<dialog id="learning-mode" aria-labelledby="learning-mode-title" aria-describedby="learning-mode-description"><h2 id="learning-mode-title">先选一个练习模式</h2><p id="learning-mode-description">之后可以在设置里随时切换。</p><div class="learning-mode-options"><button type="button" class="primary" data-learning-mode="beginner" aria-pressed="false">零基础<small>默认显示普通话释义和粤语示范。</small></button><button type="button" data-learning-mode="experienced" aria-pressed="false">已有基础<small>先试着回答，需要时可以查看示范。</small></button></div><button type="button" data-learning-cancel>返回</button></dialog>
+<dialog id="learning-mode" aria-labelledby="learning-mode-title" aria-describedby="learning-mode-description"><h2 id="learning-mode-title">先选一个练习模式</h2><p id="learning-mode-description">之后可以在设置里随时切换。</p><div class="learning-mode-options"><button type="button" class="primary" data-learning-mode="beginner" aria-pressed="false">零基础<small>默认显示普通话字幕，需要时再打开表达提示。</small></button><button type="button" data-learning-mode="experienced" aria-pressed="false">已有基础<small>先试着回答，需要时可以查看示范。</small></button></div><button type="button" data-learning-cancel>返回</button></dialog>
 <dialog id="chapters" aria-labelledby="chapters-title"><h2 id="chapters-title">揀一段日常</h2><button data-chapter="full">完整體驗 · 由門外開始</button><button data-chapter="order">點餐與改單 · 已入座，空白訂單</button><button data-chapter="service">用餐與服務 · 預設菠蘿油、凍檸茶</button><button data-chapter="bill">埋單離店 · 預設 HK$40 虛擬帳單</button><button data-dismiss>返回</button></dialog><script type="module" src="app.js"></script></body></html>
