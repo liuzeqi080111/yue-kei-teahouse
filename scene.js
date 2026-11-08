@@ -16,7 +16,10 @@ const walkImage = new Image();
 walkImage.src = 'assets/waiter-gait-v2.png';
 const handsImage=new Image();handsImage.src='assets/service-hands.png';
 const takeawayImage=new Image();takeawayImage.src='assets/takeaway-bun.png';
-export const ready=Promise.allSettled([interior.decode(),exterior.decode(),waiterImage.decode(),tableImage.decode(),foodImage.decode(),foodEmptyImage.decode(),drinkImage.decode(),drinkEmptyImage.decode(),walkImage.decode(),handsImage.decode(),takeawayImage.decode()]);
+const streetClean=new Image();streetClean.src='assets/window-street-clean-ux5.png';
+const streetTram=new Image();streetTram.src='assets/window-tram-ux5.png';
+const street={clean:streetClean,tram:streetTram,crop:{x:106,y:55,width:1440,height:856}};
+export const ready=Promise.allSettled([interior.decode(),exterior.decode(),waiterImage.decode(),tableImage.decode(),foodImage.decode(),foodEmptyImage.decode(),drinkImage.decode(),drinkEmptyImage.decode(),walkImage.decode(),handsImage.decode(),takeawayImage.decode(),streetClean.decode(),streetTram.decode()]);
 function rect(c,x,y,w,h,color){c.fillStyle=color;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
 function poly(c,pts,color){c.fillStyle=color;c.beginPath();pts.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();}
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
@@ -278,8 +281,8 @@ export function draw(canvas,state,view){
   else rect(c,0,0,W,H,'#38544a');
   if (available(interior)) {
    const atmosphere = {camera, elapsed, variant: weather, sourceX: x, sourceY: y, zoom};
+   if (Number.isFinite(elapsed)) drawSceneMotion(c, {...atmosphere,street});
    drawInteriorWeather(c, atmosphere);
-   if (Number.isFinite(elapsed)) drawSceneMotion(c, atmosphere);
   }
   if(state.waiterPresent||view.beat){
    service(c,view);

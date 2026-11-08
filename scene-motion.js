@@ -1,5 +1,5 @@
-// Independent environment-motion candidate for the existing Canvas scene.
-// No DOM, images, timers, network, random state, or scene/business imports.
+// Deterministic street-layer compositing and steam for the existing Canvas scene.
+// The caller owns decoded assets and the animation clock; no timers or network.
 
 const WIDTH = 1008;
 const HEIGHT = 567;
@@ -8,13 +8,19 @@ const IMAGE_HEIGHT = 941;
 const SCALE_X = WIDTH / IMAGE_WIDTH;
 const SCALE_Y = HEIGHT / IMAGE_HEIGHT;
 
-// Exactly the lower-left glass polygon in FEEDBACK-11 weather-layers.mjs.
-// All moving traffic pixels are clipped to this existing interior-furnished.png pane.
-const TRAFFIC_PANE = {
-  points: [[115, 366], [298, 386], [305, 474], [115, 492]],
-  minX: 115,
-  maxX: 305,
-};
+// Glass interiors measured in the original painting, inset from green mullions,
+// handles and the sill. One street continues behind the foreground window post.
+export const STREET_PANES = [
+ [[0,350],[48,357],[48,493],[0,504]],
+ [[122,375],[279,392],[280,460],[122,486]],
+];
+
+export function streetMotionAt(elapsed=0){
+ const phase=wrap01((elapsed+4000)/24000);
+ const x=330-phase*510;
+ const depth=1+(200-x)*.00045;
+ return {x,y:494-x*.12,width:138*depth,height:82*depth,phase};
+}
 
 // tableFoodLayout exposes at most six served items per page. Two wisps per drink
 // plus one window clip path keep the worst frame at thirteen simple paths.
@@ -29,62 +35,25 @@ function wrap01(value) {
   return wrapped < 0 ? wrapped + 1 : wrapped;
 }
 
-function mapX(imageX, sourceX, zoom) {
-  return (imageX * SCALE_X - sourceX) * zoom;
-}
-
-function mapY(imageY, sourceY, zoom) {
-  return (imageY * SCALE_Y - sourceY) * zoom;
-}
-
-function traceTrafficPane(ctx, sourceX, sourceY, zoom) {
-  const first = TRAFFIC_PANE.points[0];
-  ctx.beginPath();
-  ctx.moveTo(mapX(first[0], sourceX, zoom), mapY(first[1], sourceY, zoom));
-  for (let index = 1; index < TRAFFIC_PANE.points.length; index += 1) {
-    const point = TRAFFIC_PANE.points[index];
-    ctx.lineTo(mapX(point[0], sourceX, zoom), mapY(point[1], sourceY, zoom));
-  }
-  ctx.closePath();
-}
-
-function drawDistantTraffic(ctx, elapsed, sourceX, sourceY, zoom, variant) {
-  // One distant vehicle crosses every 32 seconds. It is fully outside the glass
-  // at both wrap endpoints, so the repeat never produces a visible jump/flash.
-  const phase = wrap01(elapsed / 24000 + 0.18);
-  const x = TRAFFIC_PANE.minX - 65
-    + phase * (TRAFFIC_PANE.maxX - TRAFFIC_PANE.minX + 130);
-  const y = 466 + (x - TRAFFIC_PANE.minX) * 0.018;
-
-  traceTrafficPane(ctx, sourceX, sourceY, zoom);
-  ctx.clip();
-
-  // Small painted minibus with windows, wheels and shaded body, behind the
-  // actual glass opening. Its entire body exits before the loop restarts.
-  ctx.save();
-  ctx.translate(mapX(x,sourceX,zoom),mapY(y,sourceY,zoom));
-  ctx.scale(SCALE_X*zoom,SCALE_Y*zoom);
-  ctx.globalAlpha=variant==='rain'?.72:.9;
-  ctx.fillStyle='#252e2b';ctx.fillRect(-27,-2,54,4);
-  ctx.fillStyle='#aa8c5a';ctx.fillRect(-27,-29,51,26);
-  ctx.fillStyle='#d6bc7d';ctx.fillRect(-26,-28,47,13);
-  ctx.fillStyle='#823d32';ctx.fillRect(-27,-31,46,4);
-  ctx.fillStyle='#384d48';for(let n=0;n<5;n++)ctx.fillRect(-23+n*8,-25,6,9);
-  ctx.fillStyle='#d4cbaa';ctx.fillRect(18,-25,6,12);
-  ctx.fillStyle='#33332a';ctx.fillRect(-19,-5,7,7);ctx.fillRect(13,-5,7,7);
-  ctx.fillStyle='#f3dc9e';ctx.fillRect(21,-8,4,3);
-  ctx.restore();
-
-  // A slower pedestrian gives the street another depth/speed cue.
-  const walkerX=TRAFFIC_PANE.maxX+12-wrap01(elapsed/41000+.59)*(TRAFFIC_PANE.maxX-TRAFFIC_PANE.minX+24);
-  const step=Math.sin(elapsed/220)*1.3;
-  ctx.save();ctx.translate(mapX(walkerX,sourceX,zoom),mapY(455,sourceY,zoom));ctx.scale(SCALE_X*zoom,SCALE_Y*zoom);
-  ctx.fillStyle='#ab8a67';ctx.fillRect(-2,-16,4,4);
-  ctx.fillStyle='#4e6151';ctx.fillRect(-3,-12,6,8);
-  ctx.fillStyle='#333b34';ctx.fillRect(-3+step,-4,2,5);ctx.fillRect(1-step,-4,2,5);
-  if(variant==='rain'){ctx.fillStyle='#7d5144';ctx.beginPath();ctx.moveTo(-10,-17);ctx.quadraticCurveTo(0,-29,10,-17);ctx.fill();ctx.fillRect(0,-17,1,9);}
-  ctx.restore();
-
+function drawDistantTraffic(ctx, elapsed, sourceX, sourceY, zoom, street) {
+ if(!street?.clean?.naturalWidth||!street?.tram?.naturalWidth)return;
+ ctx.save();
+ ctx.translate(-sourceX*zoom,-sourceY*zoom);
+ ctx.scale(SCALE_X*zoom,SCALE_Y*zoom);
+ ctx.beginPath();
+ for(const pane of STREET_PANES){pane.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}
+ ctx.clip();
+ // Replace only the street visible through glass. The rest of the original
+ // painting is never replaced, and its baked-in stationary tram is removed.
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+ ctx.drawImage(street.clean,0,0,IMAGE_WIDTH,IMAGE_HEIGHT);
+ const {x,y,width,height}=streetMotionAt(elapsed);
+ ctx.translate(x,y);ctx.rotate(-.045);
+ // Tight alpha bounds of the versioned sprite; keep transparent margins out of
+ // world-space sizing so wheels and road retain a stable contact anchor.
+ const crop=street.crop||{x:0,y:0,width:street.tram.naturalWidth,height:street.tram.naturalHeight};
+ ctx.drawImage(street.tram,crop.x,crop.y,crop.width,crop.height,0,-height,width,height);
+ ctx.restore();
 }
 
 function drawHotDrinkSteam(ctx, elapsed, hotDrinks, variant) {
@@ -126,7 +95,7 @@ function drawHotDrinkSteam(ctx, elapsed, hotDrinks, variant) {
 }
 
 /**
- * 为现有室内 Canvas 增加热饮蒸汽与玻璃内远街车灯；不创建动画循环。
+ * 为室内 Canvas 合成玻璃后面的街景、电车与热饮蒸汽；不创建动画循环。
  *
  * @param ctx 正式场景已设置好逻辑坐标变换的 2D context；状态会被完整恢复。
  * @param camera scene.js 的 view.camera。
@@ -138,9 +107,8 @@ function drawHotDrinkSteam(ctx, elapsed, hotDrinks, variant) {
  *   饮品锚点 [{x,y,size}]；缺省或不传时不画蒸汽，本模块不读取或猜测订单。
  * @param variant afternoon/dusk/rain，只调整局部配色，不添加全图滤镜。
  *
- * 正式接入建议（本候选不修改正式源）：在 scene.js 画完饮品后调用；房间镜头
- * 同时传入上述背景裁切参数。由现有帧循环提供 elapsed，并按当前天气传 variant。
- * 接入时再把本模块加入 server.mjs 与 scripts/build-pages.mjs 两个静态白名单。
+ * @param street scene.js 已解码的 clean/tram 图层与透明素材的 crop 边界。
+ * 街景在室内光照/天气之前绘制；饮品后另以 traffic:false 绘制蒸汽。
  */
 export function drawSceneMotion(
   ctx,
@@ -153,6 +121,7 @@ export function drawSceneMotion(
     hotDrinks = [],
     variant = 'dusk',
     traffic = true,
+    street,
   } = {},
 ) {
   if (!ctx) return;
@@ -173,7 +142,7 @@ export function drawSceneMotion(
     if (interiorCamera && traffic) {
       // This clip is removed by the same finally/restore that preserves all
       // other caller state; steam drawn above remains outside the glass clip.
-      drawDistantTraffic(ctx, time, cameraX, cameraY, cameraZoom, variant);
+      drawDistantTraffic(ctx, time, cameraX, cameraY, cameraZoom, street);
     }
   } finally {
     ctx.restore();

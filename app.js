@@ -774,7 +774,7 @@ function animate(now) {
  const {state, view} = game.snapshot();
  if (!motionNeeded(state, view)) return;
  const moving = view.beat && Date.now() < view.beat.start + view.beat.duration;
- if (moving || now - lastMotionTime >= 65) {
+ if (moving || view.camera==='window' || now - lastMotionTime >= 65) {
   draw($('#scene'), state, sceneView(state, view, measuredScene?.fit, now));
   lastMotionTime = now;
  }
