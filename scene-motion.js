@@ -22,6 +22,40 @@ export function streetMotionAt(elapsed=0){
  return {x,y:494-x*.12,width:138*depth,height:82*depth,phase};
 }
 
+// All positions use original painting pixels. Walkers are on the opposite
+// pavement, behind the tram; their periods differ so the street never marches
+// in sync. Both ends of each route are outside the visible glass.
+export function streetWalkersAt(elapsed=0){
+ return [
+  {row:0,direction:1,period:31000,offset:16000,height:36,cycle:1120,lane:0},
+  {row:1,direction:-1,period:37000,offset:10000,height:33,cycle:1280,lane:-3},
+  {row:0,direction:-1,period:43000,offset:3000,height:30,cycle:1250,lane:-6},
+ ].map(person=>{
+  const phase=wrap01((elapsed+person.offset)/person.period);
+  const x=person.direction===1?-65+430*phase:365-430*phase;
+  const depth=1+(200-x)*.00045;
+  const gait=wrap01(elapsed/person.cycle+person.row*.37);
+  return {...person,x,y:480-x*.12+person.lane,height:person.height*depth,frame:Math.floor(gait*8)};
+ });
+}
+
+function drawStreetWalkers(ctx,elapsed,sheet){
+ if(!sheet?.naturalWidth)return;
+ // Hip anchors were measured in the generated sheet, not estimated from the
+ // changing silhouette bounds; swinging legs must not move the body's pivot.
+ const hips=[118,343,560,783,1009,1230,1450,1671];
+ for(const person of streetWalkersAt(elapsed).sort((a,b)=>a.height-b.height)){
+  const hip=hips[person.frame],sx=Math.max(0,hip-120),sw=Math.min(sheet.naturalWidth-sx,240);
+  const scale=person.height/377;
+  ctx.save();ctx.translate(person.x,person.y);
+  ctx.fillStyle='rgba(46,39,29,.18)';ctx.beginPath();
+  ctx.ellipse(0,-.15,person.height*.17,person.height*.035,-.12,0,Math.PI*2);ctx.fill();
+  ctx.scale(person.direction,1);
+  ctx.drawImage(sheet,sx,person.row?470:24,sw,390,(sx-hip)*scale,-385*scale,sw*scale,390*scale);
+  ctx.restore();
+ }
+}
+
 // tableFoodLayout exposes at most six served items per page. Two wisps per drink
 // plus one window clip path keep the worst frame at thirteen simple paths.
 const MAX_STEAM_ANCHORS = 6;
@@ -47,6 +81,7 @@ function drawDistantTraffic(ctx, elapsed, sourceX, sourceY, zoom, street) {
  // painting is never replaced, and its baked-in stationary tram is removed.
  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
  ctx.drawImage(street.clean,0,0,IMAGE_WIDTH,IMAGE_HEIGHT);
+ drawStreetWalkers(ctx,elapsed,street.walkers);
  const {x,y,width,height}=streetMotionAt(elapsed);
  ctx.translate(x,y);ctx.rotate(-.045);
  // Tight alpha bounds of the versioned sprite; keep transparent margins out of
