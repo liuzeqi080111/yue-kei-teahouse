@@ -178,6 +178,12 @@ body[data-immersive] .conversation,body[data-immersive] #learning-guide{display:
 }
 /* View changes stay apart from the bottom microphone and subtitle controls. */
 body[data-immersive] #hotspots .look{position:fixed;left:16px;top:calc(16px + env(safe-area-inset-top));bottom:auto;transform:none;max-width:calc(100vw - 96px);font-size:var(--hud-ui-size)}
+/* Click the painted menu itself; no opaque label covers its artwork. */
+#hotspots .table-menu-hotspot{padding:0;min-width:44px;min-height:44px;transform:none;border:0;border-radius:8px;background:transparent;box-shadow:none}
+#hotspots .table-menu-hotspot:hover,#hotspots .table-menu-hotspot:focus-visible{background:#f5d58b15;box-shadow:inset 0 -3px 8px #efd28d55;outline:2px dotted #efd28d99;outline-offset:-2px}
+#hotspots .table-menu-hotspot:active{transform:none;background:#f5d58b25}
+#hotspots .table-menu-hotspot span{position:absolute;left:4px;bottom:100%;padding:3px 8px;border-radius:6px;background:#18392ee8;color:#fff1cd;white-space:nowrap;font-size:15px;opacity:0;pointer-events:none}
+#hotspots .table-menu-hotspot:hover span,#hotspots .table-menu-hotspot:focus-visible span{opacity:1}
 body[data-immersive] #game>#explore-note{position:absolute;z-index:13;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);width:max-content;max-width:min(720px,calc(100% - 32px));margin:0;padding:10px 16px;border-radius:12px;background:#142820e8;font-size:var(--hud-body-size);text-align:center;pointer-events:none}
 @media(max-height:520px) and (orientation:landscape){body[data-immersive] #game>#explore-note{bottom:130px}}
 

@@ -719,6 +719,22 @@ function sceneSpot(view, id, label, x, y) {
  const top = originY + fit.offsetY + y * fit.scaleY;
  return `<button type="button" class="spot explore-spot" data-explore="${id}" style="left:${left.toFixed(1)}px;top:${top.toFixed(1)}px">${label}</button>`;
 }
+function tableMenuHotspot(view){
+ if(!['room','table'].includes(view.camera))return '';
+ const {fit,originX,originY}=measureScene(view),canvas=$('#scene');
+ // Painted menu bounds in the shared 1008x567 scene space.
+ const [x,y,w,h]=view.camera==='room'?[22,489,164,73]:[3,265,190,197];
+ const left=originX+fit.offsetX+x*fit.scaleX,top=originY+fit.offsetY+y*fit.scaleY;
+ const right=left+w*fit.scaleX,bottom=top+h*fit.scaleY;
+ const visibleLeft=Math.max(originX,left),visibleTop=Math.max(originY,top);
+ const visibleRight=Math.min(originX+canvas.clientWidth,right),visibleBottom=Math.min(originY+canvas.clientHeight,bottom);
+ if(visibleRight-visibleLeft<8||visibleBottom-visibleTop<8)return '';
+ const width=Math.min(canvas.clientWidth,Math.max(44,visibleRight-visibleLeft));
+ const height=Math.min(canvas.clientHeight,Math.max(44,visibleBottom-visibleTop));
+ const px=Math.max(originX,Math.min((visibleLeft+visibleRight-width)/2,originX+canvas.clientWidth-width));
+ const py=Math.max(originY,Math.min((visibleTop+visibleBottom-height)/2,originY+canvas.clientHeight-height));
+ return `<button type="button" class="table-menu-hotspot" data-camera="menu" aria-label="打开桌上的菜单" title="打开桌上的菜单" style="left:${px.toFixed(1)}px;top:${py.toFixed(1)}px;width:${width.toFixed(1)}px;height:${height.toFixed(1)}px"><span>打开菜单</span></button>`;
+}
 function syncStage(state,view){
  const seated=[P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
  const down=view.camera==='table',open=['menu','bill'].includes(view.camera);
@@ -734,6 +750,7 @@ function syncStage(state,view){
   if(state.phase===P.BILLING)html=down?'<button class="spot menu-spot" data-camera="bill">拿起帳單</button><button class="look" data-camera="room">↑ 抬頭望吓</button>':'<button class="look" data-camera="bill">查看帳單</button>';
  }
  if(exploring)html='';
+ if([P.SEATED,P.ORDERING,P.DINING].includes(state.phase)&&!view.busy)html+=tableMenuHotspot(view);
  if (seated && !view.busy && !state.isPaid && view.camera === 'room') {
   html += sceneSpot(view, 'window', '窗邊', 306, 244);
   html += sceneSpot(view, 'cashier', '收銀處', 704, 252);
