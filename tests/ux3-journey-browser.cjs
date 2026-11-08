@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
 (async()=>{
  const {createServer}=await import('../server.mjs');
  const server=createServer({provider:{status:()=>({configured:false})}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
- const browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1366,height:768}});
+ const browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1366,height:768},hasTouch:true});
  const requests=[],errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{localStorage.setItem('yuekei-hud-intro-seen','1');localStorage.setItem('yuekei-learning-guide-v1',JSON.stringify({mode:'beginner',showMeaning:true}));});
  // Deliberately deterministic interpretation fixture; UI, queue, bridge and game are real.
@@ -51,13 +51,16 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   await page.locator('[data-explore="window"]').click();await page.waitForTimeout(600);assert.equal(await page.locator('#explore-note').isVisible(),true);
   await page.locator('.hud-return').click();await page.locator('#hotspots [data-camera="table"]').click();
   const itemIds=await page.locator('.table-inventory [data-dining-select]').evaluateAll(items=>items.map(el=>el.dataset.diningSelect));assert.equal(itemIds.length,2);
-  for(const id of itemIds){
-   await page.locator(`.table-inventory [data-dining-select="${id}"]`).click();
+  for(const [index,id] of itemIds.entries()){
+   if(index===1)await page.setViewportSize({width:390,height:844});
+   const activate=async locator=>{if(index===1)await locator.tap();else{await locator.focus();await page.keyboard.press('Enter');}};
+   await activate(page.locator(`.table-inventory [data-dining-select="${id}"]`));
    for(const remaining of [2,1,0]){
-    await page.locator('[data-dining-consume]').click();assert.match(await page.locator('.dining-remaining').innerText(),new RegExp(`${remaining} / 3`));
+    await activate(page.locator('[data-dining-consume]'));assert.match(await page.locator('.dining-remaining').innerText(),new RegExp(`${remaining} / 3`));
    }
    assert.equal(await page.locator('[data-dining-consume]').isDisabled(),true);await page.locator('[data-dining-close]').click();
   }
+  await page.setViewportSize({width:1366,height:768});
   await page.locator('#hotspots [data-camera="room"]').click();await fallback();await page.locator('#actions [data-action="REQUEST_BILL"]').click();
   await page.locator('#panel [data-action="PAY_BILL"]').waitFor();assert.match(await page.locator('.total').innerText(),/40\.00/);
   await page.locator('#panel [data-action="PAY_BILL"]').click();await page.locator('#ending').waitFor();

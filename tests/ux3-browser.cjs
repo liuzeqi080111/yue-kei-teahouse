@@ -77,6 +77,7 @@ const fs=require('node:fs/promises');
     await page.locator('[data-challenge-record]').scrollIntoViewIfNeeded();
     const bounds=await page.locator('[data-challenge-record]').boundingBox();
     assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=width&&bounds.y+bounds.height<=height,'stop recording is reachable');
+    assert.ok(await page.locator('[data-challenge-record]').evaluate(el=>{const r=el.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===el;}),'stop recording must not be covered by a footer');
    }
    if(width===320||height===390)await page.screenshot({path:`output/ux3/review-recording-${width}-${height}.png`});
   }
