@@ -17,7 +17,7 @@ const fs=require('node:fs/promises');
    await page.goto('http://127.0.0.1:'+server.address().port);
    await page.locator('#welcome [data-dialog="chapters"]').click();
    await page.locator('[data-chapter="service"]').click();
-   await page.locator('#hotspots [data-camera="room"]').click();
+   await page.locator('[data-hud-camera="room"]').click();
    const spot=page.locator('[data-explore="window"]');
    const bounds=await spot.boundingBox();
    assert.ok(bounds&&bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width&&bounds.y+bounds.height<=viewport.height,'window entrance must be in viewport');
@@ -36,7 +36,7 @@ const fs=require('node:fs/promises');
    await page.emulateMedia({reducedMotion:'reduce'});
    await page.waitForTimeout(150);
    const still=await page.locator('#scene').screenshot();await page.waitForTimeout(250);
-   assert.deepEqual(await page.locator('#scene').screenshot(),still,'reduced motion must stop scene motion');
+   assert.notDeepEqual(await page.locator('#scene').screenshot(),still,'explicitly looking outside keeps gentle traffic visible under reduced motion');
    if(viewport.width===390)await ret.tap();else {await ret.focus();await page.keyboard.press('Enter');}
    assert.equal(await page.getAttribute('body','data-camera'),'room');
    assert.equal(await page.locator('#explore-note').isVisible(),false);

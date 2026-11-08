@@ -9,6 +9,7 @@ const files=[
  'tests/ux3-hud-layout-browser.cjs','tests/ux3-review-progress-browser.cjs','tests/ux3-copy-browser.cjs',
  'tests/ux3-long-caption-browser.cjs','tests/ux3-exploration-browser.cjs','tests/ux3-browser.cjs',
  'tests/ux3-journey-browser.cjs','tests/ux3-static-browser.cjs','tests/music-browser.cjs','tests/ambient-browser.cjs',
+ 'tests/ux4-motion-browser.cjs','tests/ux4-dining-browser.cjs','tests/ux4-hud-browser.cjs',
 ];
 const report={commit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),
  started:new Date().toISOString(),workingTree:execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim(),

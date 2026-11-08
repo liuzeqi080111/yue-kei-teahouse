@@ -44,10 +44,14 @@ body[data-help-goal="true"] #hotspots button{outline:2px solid #e9cc82;outline-o
 #immersive-hud .hud-auto-setting{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:var(--hud-small-size);cursor:pointer}
 #immersive-hud .hud-auto-setting input{width:22px;height:22px;accent-color:#c3a461}
 #immersive-hud .hud-static-note{margin:8px 0 0;color:#ccd2c8;font-size:var(--hud-small-size)}
-#immersive-hud .hud-bottom{display:flex;align-items:center;justify-content:center;gap:16px;width:100%;pointer-events:none}
-#immersive-hud .hud-quiet{width:58px;min-height:46px;padding:4px 6px;border:1px solid #ffffff30;border-radius:24px;background:#1420239c;color:#fff9e6;font-size:15px;letter-spacing:1px;pointer-events:auto}
+#immersive-hud .hud-bottom{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:16px;width:100%;pointer-events:none}
+#immersive-hud .hud-view-controls{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;min-width:0;pointer-events:auto}
+#immersive-hud .hud-view-controls button{min-width:44px;min-height:44px;padding:5px 10px;border:1px solid #ffffff30;border-radius:22px;background:#1420239c;color:#fff9e6;font:inherit;font-size:var(--hud-ui-size);line-height:1.35;white-space:normal;cursor:pointer}
+#immersive-hud .hud-view-controls button:hover,#immersive-hud .hud-view-controls button:focus-visible{background:#263631;border-color:#e7ca88}
+#immersive-hud .hud-view-controls button[aria-pressed="true"]{background:#d9b86a24;color:#ffe3a0;border-color:#e7ca88}
+#immersive-hud .hud-quiet{flex:none;width:58px;min-height:46px;padding:4px 6px;border:1px solid #ffffff30;border-radius:24px;background:#1420239c;color:#fff9e6;font-size:15px;letter-spacing:1px;pointer-events:auto}
 #immersive-hud .hud-quiet:hover,#immersive-hud .hud-quiet:focus-visible{background:#263631;border-color:#e7ca88}
-#hud-voice{display:flex;justify-content:center;pointer-events:auto;min-width:72px}
+#hud-voice{display:flex;flex:none;justify-content:center;pointer-events:auto;min-width:72px}
 #hud-voice #voice-dock{padding:0;margin:0;width:auto;max-width:min(720px,calc(100vw - 150px));color:#fff;background:transparent}
 #hud-voice #voice-dock>.voice-summary{display:none}
 #hud-voice .voice-panel{position:static;display:flex;flex-direction:column;align-items:center;gap:7px;width:100%;padding:0;border:0;box-shadow:none;background:transparent}
@@ -99,6 +103,8 @@ body[data-mobile-keyboard="true"] #immersive-hud .hud-card{max-height:32dvh}
  body[data-font-size="large"]{--hud-subtitle-size:28px;--hud-body-size:20px;--hud-ui-size:18px;--hud-small-size:17px}
  body[data-font-size="xlarge"]{--hud-subtitle-size:31px;--hud-body-size:22px;--hud-ui-size:20px;--hud-small-size:18px}
  #immersive-hud .hud-bottom{gap:10px}
+ #immersive-hud .hud-view-controls{order:5;flex:1 0 100%;gap:6px}
+ #immersive-hud .hud-view-controls button{flex:1 1 88px}
  #immersive-hud .hud-quiet{width:50px;min-height:44px;padding:3px;font-size:14px}
  #immersive-hud .voice-mic{width:58px!important;height:58px!important}
  #hud-voice #voice-dock{max-width:calc(100vw - 128px)}
@@ -109,7 +115,7 @@ body[data-mobile-keyboard="true"] #immersive-hud .hud-card{max-height:32dvh}
  #immersive-hud .hud-more-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  #immersive-hud .hud-font-setting>span{flex-basis:100%;margin:0}
  #immersive-hud .hud-return{right:10px;bottom:64px}
- body[data-immersive] .paper{bottom:100px;max-height:calc(100dvh - 150px)}
+ body[data-immersive] .paper{bottom:170px;max-height:calc(100dvh - 220px)}
 }
 @media(max-width:650px) and (max-height:590px){
  #immersive-hud{gap:4px}
@@ -119,20 +125,20 @@ body[data-mobile-keyboard="true"] #immersive-hud .hud-card{max-height:32dvh}
  #immersive-hud .hud-bottom{gap:8px}
 }
 @media(max-height:520px) and (orientation:landscape){
- #immersive-hud{align-items:center;gap:4px;bottom:calc(5px + env(safe-area-inset-bottom));padding-inline:70px}
+ #immersive-hud{align-items:center;gap:4px;bottom:calc(5px + env(safe-area-inset-bottom));padding-inline:8px}
  #immersive-hud .hud-caption{width:min(760px,90%);max-height:25dvh;overflow:auto;padding:3px 14px}
  #immersive-hud .hud-subtitle{font-size:22px;line-height:1.4}
  #immersive-hud .hud-speaker{font-size:14px}
  #immersive-hud .voice-mic{width:52px!important;height:52px!important;font-size:21px!important}
  #immersive-hud .hud-quiet{min-height:44px;height:44px}
- #immersive-hud .hud-card{position:absolute;right:12px;bottom:62px;width:min(440px,calc(100vw - 24px));max-height:72dvh}
+ #immersive-hud .hud-card{position:absolute;right:12px;bottom:148px;width:min(440px,calc(100vw - 24px));max-height:calc(100dvh - 160px)}
  #immersive-hud:has(.hud-card:not([hidden])) .hud-caption{display:none}
  #immersive-hud .voice-text{width:min(520px,calc(100vw - 150px));min-height:48px;max-height:24dvh}
  #immersive-hud .voice-status{max-width:65vw;padding-block:2px}
  #immersive-hud .voice-monitor{height:20px}
  #immersive-hud .voice-monitor canvas{height:20px}
  #immersive-hud .hud-return{right:12px;bottom:58px}
- body[data-immersive] .paper{top:12px;bottom:76px;max-height:none}
+ body[data-immersive] .paper{top:12px;bottom:150px;max-height:none}
 }
 @media(prefers-reduced-motion:reduce){
  #immersive-hud *,#immersive-hud *::before,#immersive-hud *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
@@ -160,6 +166,13 @@ body[data-immersive] .conversation,body[data-immersive] #learning-guide{display:
 #immersive-hud .hud-card{position:relative;z-index:3;flex-shrink:0}
 @media(max-height:520px) and (orientation:landscape){#immersive-hud .hud-card{position:absolute}}
 #immersive-hud .hud-bottom{position:relative;z-index:1}
+#immersive-hud:has(.hud-card:not([hidden])) .hud-caption{display:none}
+#immersive-hud .voice-panel:has(.voice-mic[data-recording="true"]) .voice-retry{display:none}
+@media(max-width:650px){
+ #hud-voice{flex:0 1 calc(100% - 120px);width:calc(100% - 120px);min-width:0;max-width:calc(100% - 120px)}
+ #hud-voice #voice-dock{width:100%;max-width:100%}
+ #immersive-hud .mic-monitor{min-width:0;max-width:100%}
+}
 /* View changes stay apart from the bottom microphone and subtitle controls. */
 body[data-immersive] #hotspots .look{position:fixed;left:16px;top:calc(16px + env(safe-area-inset-top));bottom:auto;transform:none;max-width:calc(100vw - 96px);font-size:var(--hud-ui-size)}
 body[data-immersive] #game>#explore-note{position:absolute;z-index:13;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);width:max-content;max-width:min(720px,calc(100% - 32px));margin:0;padding:10px 16px;border-radius:12px;background:#142820e8;font-size:var(--hud-body-size);text-align:center;pointer-events:none}

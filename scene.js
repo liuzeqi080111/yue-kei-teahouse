@@ -155,7 +155,7 @@ export function serviceGeometry(view,now=Date.now()){
  const placing=beat?.pose==='place',withdrawing=beat?.pose==='withdraw';
  const active=['REQUEST_WATER','REQUEST_UTENSILS'].includes(beat?.kind)&&(placing||withdrawing);
  const t=beat?clamp((now-beat.start)/beat.duration):1;
- const reach=smooth(t/.32);
+ const reach=withdrawing?1:smooth(t/.32);
  const retreat=withdrawing?smooth(t):0;
  const offset={x:(1-reach+retreat)*260,y:-(1-reach+retreat)*75};
  const filling=active&&placing&&beat.kind==='REQUEST_WATER';
@@ -195,8 +195,12 @@ function tableService(c,view){
  // Looking away never replays or moves the committed props.
  if(!g.down||!g.active)return;
  if(view.beat.kind==='REQUEST_WATER'){
-  const width=240,h=width*handsImage.naturalHeight/handsImage.naturalWidth;
-  handCell(c,0,g.spout.x-width*.05,g.spout.y-h*.59,width);
+  const width=280,h=width*handsImage.naturalHeight/handsImage.naturalWidth;
+  // Pivot at the painted spout: tip towards the glass before the stream starts,
+  // straighten after it ends, and withdraw from exactly the last reach pose.
+  const tip=g.withdrawing?1:1-smooth((g.t-.15)/.17)+smooth((g.t-.87)/.13);
+  c.save();c.translate(g.spout.x,g.spout.y);c.rotate(.32*tip);
+  handCell(c,0,-width*.05,-h*.59,width);c.restore();
   if(g.stream){
    rect(c,g.spout.x-1,g.spout.y,3,g.waterLevel-g.spout.y,'#cee6dcbb');
    ellipse(c,cup.x,g.waterLevel,8,2,'#ecf2d8aa');
@@ -255,6 +259,10 @@ export function draw(canvas,state,view){
  c.imageSmoothingEnabled=false;c.clearRect(0,0,W,H);
  const {camera, weather = 'dusk', elapsed} = view;
  const down=['table','menu','bill'].includes(camera);
+ // A narrow cover crop hides the painted water glass on the right. During a
+ // table service shot, pan the whole painting and hand together, within bounds.
+ const closeService=down&&['REQUEST_WATER','REQUEST_UTENSILS'].includes(view.beat?.kind)&&['place','withdraw'].includes(view.beat?.pose);
+ if(closeService){const {span}=tableGeometry(sceneFit);c.translate(-Math.min(313,(W-span)/2),0);}
  if(camera==='outside'){
   if(available(exterior))backgroundImage(c,exterior,0,0,W,H);else rect(c,0,0,W,H,'#2a493b');
   drawOutdoorWeather(c, {variant: weather, elapsed});
@@ -307,7 +315,8 @@ export function draw(canvas,state,view){
   if(item&&item.status!=='served'){
    const slot=state.items.filter(i=>i.status==='served').length%6;
    const endX=W/2+span*(-.13+(slot%3)*.19),endY=477+Math.floor(slot/3)*45;
-   food(c,item.itemId,575+(endX-575)*t,355+(endY-355)*t,1.1,item.options);
+   const eased=smooth(t),row=Math.floor(slot/3),endSize=(row?1.05:.9)*scale;
+   food(c,item.itemId,575+(endX-575)*eased,355+(endY-355)*eased-24*Math.sin(Math.PI*t),1.1+(endSize-1.1)*eased,item.options);
   }
  }
  const x=Math.round(W/2+span*.34);

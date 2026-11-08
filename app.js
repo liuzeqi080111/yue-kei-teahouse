@@ -24,15 +24,25 @@ const roman={'food-pineapple-bun':'BO LO YAU','food-charsiu-rice':'CHAR SIU RICE
 const diningMeanings={'food-pineapple-bun':'菠蘿包夾牛油','food-charsiu-rice':'叉燒配白飯','food-wonton-noodle':'雲吞配竹昇麵','food-egg-sandwich':'雞蛋三文治','food-french-toast':'港式西多士','food-curry-fishball':'咖喱魚蛋','drink-lemon-tea':'檸檬紅茶','drink-milk-tea':'港式濃滑奶茶','drink-yuanyang':'咖啡混合奶茶','drink-horlicks':'麥芽奶飲品'};
 const diningFoodPhrases={'food-pineapple-bun':['菠蘿油，趁熱食，外脆內軟。','菠萝油要趁热吃，外脆内软。'],'food-charsiu-rice':['叉燒飯，叉燒配飯，慢慢食。','叉烧饭有叉烧和米饭，慢慢吃。'],'food-wonton-noodle':['雲吞麵，湯香麵爽，趁熱食。','云吞面汤香面爽，要趁热吃。'],'food-egg-sandwich':['蛋治，蛋香軟滑，啱啱好。','蛋治的鸡蛋香滑，刚刚好。'],'food-french-toast':['西多士，外脆內軟，加少少糖漿。','西多士外脆内软，配一点糖浆。'],'food-curry-fishball':['咖喱魚蛋，香辣彈牙，慢慢食。','咖喱鱼蛋香辣弹牙，慢慢吃。']};
 function diningPhrase(item,remaining=3){
- if(remaining===0)return item.itemId.startsWith('drink-')
-  ? {text:'我飲晒喇。',meaning:'我喝完了。'}
-  : {text:'我食完喇。',meaning:'我吃完了。'};
- if(remaining<3&&item.itemId.startsWith('food-'))return {text:'真係好好味！',meaning:'真的很好吃！'};
- if(remaining<3&&item.options.temperature==='熱')return {text:'有啲熱，我慢慢飲。',meaning:'有点烫，我慢慢喝。'};
- if(diningFoodPhrases[item.itemId]){const [text,meaning]=diningFoodPhrases[item.itemId];return {text,meaning};}
+ if(remaining===0||remaining<3&&item.itemId.startsWith('food-')){
+  const phrase=getPhrase(remaining===0?(item.itemId.startsWith('drink-')?'finished-drinking':'finished-eating'):'delicious');
+  return {text:phrase.cantonese,meaning:phrase.meaning,jyutping:phrase.jyutping};
+ }
+ if(remaining<3&&item.options.temperature==='熱')return {text:'有啲熱，我慢慢飲。',meaning:'有点烫，我慢慢喝。',jyutping:'jau5 di1 jit6, ngo5 maan6 maan6 jam2.'};
+ const foodJyutping={
+  'food-pineapple-bun':'bo1 lo4 jau4, can3 jit6 sik6, ngoi6 ceoi3 noi6 jyun5.',
+  'food-charsiu-rice':'caa1 siu1 faan6, caa1 siu1 pui3 faan6, maan6 maan6 sik6.',
+  'food-wonton-noodle':'wan4 tan1 min6, tong1 hoeng1 min6 song2, can3 jit6 sik6.',
+  'food-egg-sandwich':'daan2 zi6, daan2 hoeng1 jyun5 waat6, aam1 aam1 hou2.',
+  'food-french-toast':'sai1 do1 si6, ngoi6 ceoi3 noi6 jyun5, gaa1 siu2 siu2 tong4 zoeng1.',
+  'food-curry-fishball':'gaa3 lei1 jyu4 daan2, hoeng1 laat6 daan6 ngaa4, maan6 maan6 sik6.'
+ };
+ if(diningFoodPhrases[item.itemId]){const [text,meaning]=diningFoodPhrases[item.itemId];return {text,meaning,jyutping:foodJyutping[item.itemId]};}
  const cold=item.options.temperature==='凍',base={'drink-lemon-tea':'檸茶','drink-milk-tea':'奶茶','drink-yuanyang':'鴛鴦','drink-horlicks':'好立克'}[item.itemId]||item.name;
  const name=`${cold?'凍':'熱'}${base}`,sweet=item.options.sweetness?`，${item.options.sweetness}`:'';
- return {text:`${name}${sweet}，${cold?'冰涼解渴':'小心熱，慢慢飲'}。`,meaning:`${cold?'冰':'热'}${base}${sweet}，${cold?'冰凉解渴':'小心烫，慢慢喝'}。`};
+ const baseJyutping={'drink-lemon-tea':'ning4 caa4','drink-milk-tea':'naai5 caa4','drink-yuanyang':'jyun1 joeng1','drink-horlicks':'hou2 lap6 hak1'}[item.itemId];
+ const sweetJyutping={'正常甜':'zing3 soeng4 tim4','少甜':'siu2 tim4','走甜':'zau2 tim4'}[item.options.sweetness];
+ return {text:`${name}${sweet}，${cold?'冰涼解渴':'小心熱，慢慢飲'}。`,meaning:`${cold?'冰':'热'}${base}${sweet}，${cold?'冰凉解渴':'小心烫，慢慢喝'}。`,jyutping:`${cold?'dung3':'jit6'} ${baseJyutping}${sweetJyutping?', '+sweetJyutping:''}, ${cold?'bing1 loeng4 gaai2 hot3':'siu2 sam1 jit6, maan6 maan6 jam2'}.`};
 }
 const stageNames={[P.OUTSIDE]:'01 / 抵達',[P.GREETING]:'02 / 迎接',[P.SEATING]:'03 / 帶位',[P.SEATED]:'04 / 落座',[P.ORDERING]:'05 / 點餐',[P.DINING]:'06 / 用餐',[P.BILLING]:'07 / 埋單',[P.FINISHED]:'08 / 再會'};
 const locationNames={outside:'街邊 · 粵記門外',entrance:'門口 · 侍應迎接',walk:'走道 · 跟隨帶位',room:'窗邊卡座 · 03 號枱',table:'03 號枱 · 桌面',menu:'03 號枱 · 餐牌',bill:'03 號枱 · 帳單',window:'窗边',cashier:'收银处'};
@@ -384,7 +394,7 @@ function diningService(item,details,view){
 }
 function diningDetail(item,view){
  const details=dining.inspect(item.id),phrase=diningPhrase(item,details.remaining),verb=details.isDrink?'飲':'食';
- return `<section class="dining-detail" aria-label="${esc(item.name)}詳情"><button class="dining-detail-close" data-dining-close aria-label="關閉餐點詳情">✕</button><strong>${esc(item.name)}</strong><small>${roman[item.itemId]||''}</small><p>${esc(diningMeanings[item.itemId]||item.name)} · ${Object.values(item.options).map(esc).join(' / ')}</p><p class="dining-phrase">${esc(phrase.meaning)}</p><p class="dining-remaining${details.remaining<3?' changed':''}" role="status">剩餘 ${details.remaining} / 3 啖</p><div class="dining-detail-actions"><button data-dining-preview="${esc(item.id)}" ${practiceAudio?'':'hidden'}>听用餐短句</button><button type="button" data-dining-preview="${esc(item.id)}" data-dining-name ${practiceAudio?'':'hidden'}>听名称</button><button class="primary" data-dining-consume="${esc(item.id)}" ${details.canConsume?'':'disabled'}>${details.remaining?`${verb}一啖`:`已${verb}晒`}</button></div>${diningService(item,details,view)}${practiceAudio?'':'<small>靜態試玩版未開放語音試聽。</small>'}</section>`;
+ return `<section class="dining-detail" aria-label="${esc(item.name)}詳情"><button class="dining-detail-close" data-dining-close aria-label="關閉餐點詳情">✕</button><strong>${esc(item.name)}</strong><small>${roman[item.itemId]||''}</small><p>${esc(diningMeanings[item.itemId]||item.name)} · ${Object.values(item.options).map(esc).join(' / ')}</p><div class="dining-phrase"><span class="dining-cantonese" lang="yue">${esc(phrase.text)}</span><span class="dining-jyutping">粤拼：${esc(phrase.jyutping)}</span><span>普通话：${esc(phrase.meaning)}</span></div><p class="dining-remaining${details.remaining<3?' changed':''}" role="status">剩餘 ${details.remaining} / 3 啖</p><div class="dining-detail-actions"><button data-dining-preview="${esc(item.id)}" ${practiceAudio?'':'hidden'}>听这句</button><button type="button" data-dining-preview="${esc(item.id)}" data-dining-name ${practiceAudio?'':'hidden'}>听名称</button><button class="primary" data-dining-consume="${esc(item.id)}" ${details.canConsume?'':'disabled'}>${details.remaining?`${verb}一啖`:`已${verb}晒`}</button></div>${diningService(item,details,view)}${practiceAudio?'':'<small>靜態試玩版未開放語音試聽。</small>'}</section>`;
 }
 let measuredScene;
 function measureScene(view){
@@ -627,6 +637,7 @@ document.addEventListener('click',e=>{
  if(b.dataset.diningConsume){
   const snapshot=game.snapshot(),item=snapshot.state.items.find(i=>i.id===b.dataset.diningConsume),result=dining.takeBite(b.dataset.diningConsume,snapshot.state.round);
   if(!result.ok){game.notify(diningReason(result));return;}
+  if(practiceAudio?.active)practiceAudio.stop();
   playDiningSound(result.isDrink);
   const verb=result.isDrink?'喝':'吃';
   game.notify(result.remaining?`${verb}了一口${systemText(item.name)}，还剩 ${result.remaining} 口。`:`${systemText(item.name)}已经${verb}完了。`);return;
@@ -719,7 +730,7 @@ function syncStage(state,view){
  const hot=$('#hotspots');
  let html='';
  if(seated&&!open&&!view.busy){
-  html=down?`<button class="spot menu-spot" data-camera="menu">拿起餐牌</button><button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button><button class="look" data-camera="room">↑ 抬頭望吓</button>`:`${state.waiterPresent?'':'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明</button>'}<button class="look" data-camera="table">↓ 低頭睇枱面</button>`;
+  html=down?`<button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button>`:`${state.waiterPresent?'':'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明</button>'}`;
   if(state.phase===P.BILLING)html=down?'<button class="spot menu-spot" data-camera="bill">拿起帳單</button><button class="look" data-camera="room">↑ 抬頭望吓</button>':'<button class="look" data-camera="bill">查看帳單</button>';
  }
  if(exploring)html='';
@@ -738,12 +749,17 @@ function diningPortions(state){
  return new Map(state.items.filter(item=>item.status==='served').map(item=>[item.id,dining.inspect(item.id).remaining]));
 }
 function sceneView(state, view, sceneFit, elapsed) {
- return {...view, tablePage, sceneFit, weather, elapsed, finishedDrinks: finishedDrinks(state),diningPortions:diningPortions(state)};
+ const ambientTime=matchMedia('(prefers-reduced-motion: reduce)').matches&&view.camera!=='window'?0:elapsed;
+ return {...view, tablePage, sceneFit, weather, elapsed:ambientTime, finishedDrinks: finishedDrinks(state),diningPortions:diningPortions(state)};
 }
 function motionNeeded(state, view) {
- if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches || document.querySelector('dialog[open]') ||
+ if (document.hidden || document.querySelector('dialog[open]') ||
   ['menu', 'bill'].includes(view.camera) || selectedDining) return false;
+ // Service motion conveys an action's progress. Never leave its timers running
+ // while suppressing every intermediate frame (which makes the waiter teleport).
  if (view.beat && Date.now() < view.beat.start + view.beat.duration) return true;
+ if (view.camera === 'window') return true;
+ if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
  if (['room','window','cashier'].includes(view.camera)) return true;
  if (view.camera !== 'table') return false;
  return state.items.some(item => item.status === 'served' && item.itemId.startsWith('drink-') &&
@@ -772,6 +788,7 @@ $('#scene-weather').addEventListener('change', event => {
  render(game.snapshot());
 });
 document.addEventListener('close', scheduleSceneFrame, true);
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', scheduleSceneFrame);
 document.addEventListener('visibilitychange', () => {
  document.body.toggleAttribute('data-page-hidden', document.hidden);
  if (document.hidden) { cancelAnimationFrame(frame); frame = 0; }

@@ -49,7 +49,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   assert.equal(requests.at(-1).context.state.items.length,2);
   await page.locator('.voice-text-close').click();
   await page.locator('[data-explore="window"]').click();await page.waitForTimeout(600);assert.equal(await page.locator('#explore-note').isVisible(),true);
-  await page.locator('.hud-return').click();await page.locator('#hotspots [data-camera="table"]').click();
+  await page.locator('.hud-return').click();await page.locator('[data-hud-camera="table"]').click();
   const itemIds=await page.locator('.table-inventory [data-dining-select]').evaluateAll(items=>items.map(el=>el.dataset.diningSelect));assert.equal(itemIds.length,2);
   for(const [index,id] of itemIds.entries()){
    if(index===1)await page.setViewportSize({width:390,height:844});
@@ -61,7 +61,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
    assert.equal(await page.locator('[data-dining-consume]').isDisabled(),true);await page.locator('[data-dining-close]').click();
   }
   await page.setViewportSize({width:1366,height:768});
-  await page.locator('#hotspots [data-camera="room"]').click();await fallback();await page.locator('#actions [data-action="REQUEST_BILL"]').click();
+  await page.locator('[data-hud-camera="room"]').click();await fallback();await page.locator('#actions [data-action="REQUEST_BILL"]').click();
   await page.locator('#panel [data-action="PAY_BILL"]').waitFor();assert.match(await page.locator('.total').innerText(),/40\.00/);
   await page.locator('#panel [data-action="PAY_BILL"]').click();await page.locator('#ending').waitFor();
   assert.match(await page.locator('#summary').innerText(),/柠茶已喝完/);assert.match(await page.locator('#summary').innerText(),/菠萝油已吃完/);

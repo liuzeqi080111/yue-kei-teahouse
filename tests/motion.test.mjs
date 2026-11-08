@@ -34,5 +34,12 @@ for(const camera of ['table','room']){
  const utensils=serviceGeometry({camera,beat:{pose:'place',kind:'REQUEST_UTENSILS',start:0,duration:3200}},2000);
  assert.equal(utensils.offset.x,0);assert.equal(utensils.grip.x,utensils.utensils.x+25);
  const committed=serviceGeometry({camera,water:true},0);assert.equal(committed.fill,1);
+ const withdrawal=serviceGeometry({camera,water:true,beat:{pose:'withdraw',kind:'REQUEST_WATER',start:0,duration:1200}},0);
+ assert.deepEqual(withdrawal.offset,end.offset,'withdrawal starts exactly at the final pouring pose');
+ let previousX=0;
+ for(let ms=0;ms<=1200;ms+=50){
+  const next=serviceGeometry({camera,water:true,beat:{pose:'withdraw',kind:'REQUEST_WATER',start:0,duration:1200}},ms);
+  assert.ok(next.offset.x>=previousX,'arm withdraws continuously without snapping away then returning');previousX=next.offset.x;
+ }
 }
 console.log('PASS service geometry: water starts after reach, stream ends at cup, fill persists, utensil grip matches landing');

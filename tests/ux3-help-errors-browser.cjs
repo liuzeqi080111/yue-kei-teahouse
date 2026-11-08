@@ -20,12 +20,12 @@ const assert=require('node:assert/strict');
  try{
   await page.goto('http://127.0.0.1:'+server.address().port);await page.locator('[data-action="ENTER"]').click();await page.waitForTimeout(16000);
   assert.equal(await page.locator('#hud-idle-hint').isVisible(),true,'idle hint after NPC finished');
-  await page.locator('#hud-idle-hint').click();assert.equal(await page.locator('.hud-example').count(),0,'no full answer on first help');
+  await page.locator('#hud-idle-hint').click();assert.equal(await page.locator('.hud-example').count(),1,'expression help immediately provides the complete example');
   await page.locator('[data-hud="close"]').click();await page.waitForTimeout(15000);assert.equal(await page.locator('#hud-idle-hint').isVisible(),false,'only once per line');
   await page.keyboard.press('h');assert.equal(await page.locator('#hud-help').isVisible(),true);
   await page.locator('[data-hud="pin"]').click();await page.locator('.voice-mic').click();await page.waitForTimeout(200);assert.equal(await page.locator('#hud-help').isVisible(),true,'pinned help survives recording');
   await page.getByRole('button',{name:'取消本次语音'}).click();await page.locator('[data-hud="close"]').click();
-  await page.keyboard.press('h');await page.locator('.voice-mic').click();await page.waitForTimeout(200);assert.equal(await page.locator('#hud-help').isVisible(),false,'unpinned help closes on recording');
+  await page.keyboard.press('h');await page.locator('.voice-mic').click();await page.waitForTimeout(200);assert.equal(await page.locator('#hud-help').isVisible(),true,'unpinned help remains visible while recording');assert.equal(await page.locator('.hud-jyutping').isVisible(),true);
   await page.getByRole('button',{name:'取消本次语音'}).click();
   await page.locator('[data-hud="more"]').click();await page.locator('[data-hud="type"]').click();await page.locator('.voice-text').fill('h');await page.keyboard.press('h');assert.equal(await page.locator('#hud-help').isVisible(),false);
   fail=true;await page.locator('.voice-text').fill('我想问个问题');await page.locator('.voice-send').click();await page.getByRole('button',{name:'重试这句话',exact:true}).waitFor();

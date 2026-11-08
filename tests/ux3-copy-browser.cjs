@@ -40,7 +40,7 @@ const assert=require('node:assert/strict');const fs=require('node:fs/promises');
   assert.equal(await page.locator('select[name="temperature"]').inputValue(),'凍','localization must not rewrite business values');
   await page.locator('#pause').click();await capture('settings');await page.locator('#restart').click();
   await page.locator('#welcome [data-dialog="chapters"]').click();await capture('chapters');await page.locator('[data-chapter="service"]').click();
-  await page.locator('#hotspots [data-camera="room"]').click();await capture('service chapter');
+  await page.locator('[data-hud-camera="room"]').click();await capture('service chapter');
   assert.match(await page.locator('.hud-subtitle').innerText(),/菠萝油和冰柠檬茶已经上桌/);
   await fs.mkdir('output/ux3',{recursive:true});await fs.writeFile('output/ux3/ui-copy.json',JSON.stringify(rows,null,2));
   console.log('PASS Mandarin system captions/help/menu/settings/chapters; Cantonese original and business option values preserved.');

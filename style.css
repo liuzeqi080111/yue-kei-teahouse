@@ -138,8 +138,11 @@ body{background:#132c25;color:#f3e5c6;overflow:hidden}main{padding:0;max-width:n
 .reply-choice{display:inline-flex;gap:4px;max-width:100%;align-items:stretch}.reply-choice [data-practice-choice]{flex:0 0 auto;padding-inline:10px;font-size:12px}
 
 /* Dining: HTML targets share the Canvas slot geometry; text controls remain keyboard reachable. */
-#hotspots .dining-food-spot{padding:0;min-width:44px;border:1px dashed #e7cf9466;background:#e7cf940d;box-shadow:none}
-#hotspots .dining-food-spot:hover,#hotspots .dining-food-spot:focus-visible,#hotspots .dining-food-spot.selected{border:2px solid #f3d58e;background:#e7cf9426;box-shadow:0 0 0 3px #17382e66}
+#hotspots .dining-food-spot{padding:0;min-width:44px;border:0;border-radius:50%;background:transparent;box-shadow:none}
+#hotspots .dining-food-spot::after{content:'';position:absolute;left:9%;right:9%;bottom:3%;height:22%;border-radius:50%;background:radial-gradient(ellipse,#f9d78855,transparent 70%);opacity:0;pointer-events:none;transition:opacity .18s}
+#hotspots .dining-food-spot:hover,#hotspots .dining-food-spot:focus-visible,#hotspots .dining-food-spot.selected{border:0;background:transparent;box-shadow:none}
+#hotspots .dining-food-spot:hover::after,#hotspots .dining-food-spot:focus-visible::after,#hotspots .dining-food-spot.selected::after{opacity:1;border-bottom:2px solid #f3d58e99;filter:drop-shadow(0 0 5px #f3d58e66)}
+#hotspots .dining-food-spot:focus-visible{outline:2px dotted #f3d58ecc;outline-offset:3px}
 .table-inventory .dining-text-entry{display:block;width:100%;padding:5px 7px;min-height:32px;text-align:left;font-size:10px;line-height:1.35;color:#f8edcf;border-color:#bcaa7c55}
 .table-inventory .dining-text-entry[aria-pressed=true]{background:#e7ce94;color:#253a2e}
 .table-inventory .dining-takeaway{display:block;padding:4px 0;color:#d7c9a7;font-size:10px}
@@ -192,7 +195,16 @@ body.show-jyutping .learning-jyutping{display:block}
 .practice-progress{margin:7px 0;padding-top:7px;border-top:1px dashed #bcaa7c66;color:#e9d8b3;font-size:10px;line-height:1.5}
 .learning-guide-panel .practice-progress{border-color:#c2af89;color:#6b4a2d}
 #ending .practice-progress{color:inherit;font-size:12px}
-body:not([data-learning-hint="full"]) .dining-detail .dining-phrase{display:none}
+.dining-detail .dining-phrase{display:block;font-size:18px;line-height:1.65;border-radius:12px}
+.dining-detail .dining-phrase span{display:block;overflow-wrap:anywhere}
+.dining-detail .dining-jyutping{font-size:18px;color:#675139;margin-block:6px}
+#game:has(.dining-detail) #immersive-hud .hud-caption{display:none}
+.game .dining-detail{top:72px;transform:translateX(-50%);max-height:calc(100% - var(--hud-dock-height,150px) - 100px);border-radius:16px;box-shadow:0 10px 30px #0c201b66;scroll-padding-top:44px}
+.game .dining-detail .dining-detail-close{position:sticky;float:right;top:0;background:#f3ebd8;z-index:1;border-radius:50%;min-height:44px;min-width:44px}
+@media(max-height:500px) and (min-width:650px){
+ .game .dining-detail{left:16px;top:72px;transform:none;width:calc(50% - 32px);max-height:calc(100% - 86px)}
+ #game:has(.dining-detail) #immersive-hud{left:52%;right:8px;padding-inline:8px}
+}
 
 @media(max-width:650px){body[data-camera=table] #learning-guide{max-height:max(56px,calc((100dvh - 100vw * 9 / 16)/2 - 72px));overflow:auto;overscroll-behavior:contain}}
 
