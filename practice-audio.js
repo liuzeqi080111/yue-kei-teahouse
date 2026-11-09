@@ -1,4 +1,4 @@
-import {voiceUrl} from './voice-endpoint.js';
+import {loadVoiceClip} from './voice-clips.js';
 import {systemText} from './ui-language.js';
 
 const TIMEOUT_MS=30000,SLOW_RATE=0.65,CACHE_LIMIT=24;
@@ -90,32 +90,27 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   active=true;rate=playbackRate;status='准备示范音…';emit();paint();
   deadline=setTimeout(()=>{controller?.abort();settle(id,'示范音逾时，请重试。');},TIMEOUT_MS);
   try{
-   let data=cache.get(text);
-   if(!data){
+   let clip=cache.get(text);
+   if(!clip){
     const ctrl=new AbortController();controller=ctrl;
-    const response=await fetch(voiceUrl('/api/voice/speak'),{
-     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text}),signal:ctrl.signal
-    });
-    if(!response.ok)throw Error('tts');
-    data=await response.json();
+    clip=await loadVoiceClip(text,{signal:ctrl.signal});
     if(id!==generation)return;
-    if(!data||typeof data.audioBase64!=='string'||!data.audioBase64)throw Error('audio');
-    cache.set(text,data);if(cache.size>CACHE_LIMIT)cache.delete(cache.keys().next().value);
+    cache.set(text,clip);if(cache.size>CACHE_LIMIT)cache.delete(cache.keys().next().value);
    }
    controller=null;
-   const bytes=Uint8Array.from(atob(data.audioBase64),char=>char.charCodeAt(0));
    if(id!==generation)return;
-   url=URL.createObjectURL(new Blob([bytes],{type:data.mimeType||'audio/wav'}));
+   url=URL.createObjectURL(clip);
    audio=new Audio(url);
    audio.playbackRate=playbackRate;
    audio.preservesPitch=true;audio.mozPreservesPitch=true;audio.webkitPreservesPitch=true;
    audio.onended=()=>settle(id,follow?partStatus():'试听完成。');
-   audio.onerror=()=>settle(id,'示范音播放失敗，请重试。');
+   audio.onerror=()=>{if(id!==generation)return;cache.delete(text);settle(id,'示范音播放失败，请重试。');};
    await audio.play();
    if(id!==generation)return;
    status=follow?partStatus('正在播放：'):playbackRate<1?'正在慢速试听。':'正在试听。';paint();
   }catch(error){
    if(id!==generation)return;
+   cache.delete(text);
    const message=error?.name==='NotAllowedError'?'浏览器拒絕播放，请再按一次试听。':'示范音连接或播放失敗，请检查网絡后重试。';
    settle(id,message);
   }

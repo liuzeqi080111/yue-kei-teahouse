@@ -5,6 +5,7 @@
 import {createVoiceBridge} from './voice-bridge.js';
 import {preparePcm,encodeVoiceWav,recordingMimeType} from './voice-capture.js';
 import {createNpcSpeech} from './npc-speech.js';
+import {hasLocalVoice} from './voice-clips.js';
 import {voiceUrl} from './voice-endpoint.js';
 import {localizeUi,systemText} from './ui-language.js';
 
@@ -335,14 +336,14 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
     const key=snapshot.state.round+':'+text;
     if(key===lastNpcLine)return;
 
-    if(configured&&!muteBox.checked&&snapshot.view.beat?.kind==='farewell'){
+    if((configured||hasLocalVoice(text))&&!muteBox.checked&&snapshot.view.beat?.kind==='farewell'){
       speech.stop();farewellText=text;releaseFarewell=game.holdFarewell?.(snapshot.state.round)||null;
     }
     // A voice-triggered service already has a verified spoken acknowledgement.
     // Its completion/follow-up is still spoken when busy ends.
 
     if(text===lastReply&&speech.active)return;
-    if(!configured||working||applying||suppressLine||muteBox.checked)return;
+    if((!configured&&!hasLocalVoice(text))||working||applying||suppressLine||muteBox.checked)return;
     if(snapshot.state.phase==='结束'&&lastReply.includes('慢行'))return;
     lastNpcLine=key;
     clearTimeout(lineTimer);
