@@ -207,3 +207,50 @@ body[data-immersive] #ending small,body[data-immersive] #ending .eyebrow{font-si
  #review-dialog .review-recording-monitor{margin:4px 0}
  #review-dialog .review-recording-monitor meter{height:14px}
 }
+/* UX9: the menu owns one scroll area; the conversation dock reserves real space. */
+#immersive-hud .hud-direct{max-width:min(650px,100%);padding:8px 12px;border-radius:12px;background:#192b25ed;pointer-events:auto}
+#immersive-hud .hud-direct-note{margin:0 0 6px;font-size:var(--hud-small-size);text-align:center}
+#immersive-hud .hud-direct-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+#immersive-hud .hud-direct button{color:#fff0cd;border:1px solid #c9ad72;border-radius:9px;padding:6px 12px;font-size:var(--hud-ui-size)}
+#immersive-hud .hud-direct button:active{transform:none}
+#immersive-hud:has(.hud-card:not([hidden])) .hud-direct{display:none}
+#immersive-hud:has(.hud-direct:not([hidden])) #hud-intro,#immersive-hud:has(.hud-direct:not([hidden])) #hud-idle-hint{display:none}
+body[data-immersive] #game #panel.paper{top:64px;bottom:calc(var(--hud-dock-height,100px) + 26px + var(--mobile-bottom-inset,0px));max-height:none}
+body[data-immersive] #game #panel.paper .learning-guide-panel{margin:0 0 10px;padding:8px 0;background:transparent;border:0;max-height:none;overflow:visible}
+body[data-immersive] #game #panel.paper .paper-head{padding:8px 14px}
+body[data-immersive] #game #panel.paper .paper-head h2{font-size:22px}
+body[data-immersive] #game #panel.paper .paper-head small{display:none}
+body[data-immersive] #game #panel.paper .paper-tabs{padding:0 14px}
+body[data-immersive] #game #panel.paper .paper-body{padding:8px 14px 16px;min-height:0}
+body[data-immersive] #game #panel.paper .paper-foot{padding:6px 12px;flex-wrap:wrap}
+body[data-immersive] #game #panel.paper button{min-height:44px}
+#immersive-hud[data-panel="true"] .hud-view-controls{display:none}
+#immersive-hud[data-panel="true"] .voice-status{font-size:14px;line-height:20px;padding:0 6px;max-height:40px;overflow:auto}
+@media(max-width:650px){
+ body[data-immersive] #game #panel.paper{left:8px;right:8px;width:auto;top:60px}
+ body[data-immersive] #game #panel.paper .paper-foot{font-size:14px}
+ body[data-immersive] #game #panel.paper .menu-row{gap:6px}
+ body[data-immersive] #game #panel.paper .food-icon{width:38px}
+ body[data-immersive] #game #panel.paper .menu-row small{font-size:12px;letter-spacing:0}
+ #immersive-hud[data-panel="true"] #hud-voice{flex:1;min-width:0;max-width:calc(100% - 136px)}
+}
+@media(max-height:520px) and (orientation:landscape){
+ body[data-immersive] #game #panel.paper{top:8px;left:8px;right:8px;width:auto}
+ body[data-immersive] #game #panel.paper .paper-head{padding:2px 12px}
+ body[data-immersive] #game #panel.paper .paper-tabs button{padding-block:3px}
+}
+@media(max-height:520px) and (orientation:landscape){
+ body[data-immersive] #game #panel.paper{right:254px;bottom:8px}
+ #immersive-hud[data-panel="true"]{left:auto;right:8px;width:238px;padding:0}
+ #immersive-hud[data-panel="true"] #hud-voice{flex:1 1 100%;max-width:100%;width:100%}
+ #immersive-hud[data-panel="true"] .hud-bottom{gap:6px}
+ #immersive-hud[data-panel="true"] .voice-status{max-width:230px}
+}
+body[data-immersive] #panel .bill-practice{border-top:1px dashed #ad9870;margin-top:16px;padding-top:8px}
+body[data-immersive] #panel .bill-practice small{display:block;margin-top:6px}
+/* A portrait crop gives the restaurant actual screen space, with shared hit geometry. */
+@media(max-width:650px) and (orientation:portrait){
+ body[data-immersive]:not(.at-title) #scene{top:60px;height:max(calc(100vw * .5625 + 40px),calc(100% - var(--hud-dock-height,150px) - 180px));object-fit:cover!important}
+ body[data-immersive]:not(.at-title) #hotspots{top:0;bottom:0;height:100%}
+ body[data-immersive]:not(.at-title) .scene-shade{top:60px;height:max(calc(100vw * .5625 + 40px),calc(100% - var(--hud-dock-height,150px) - 180px))}
+}

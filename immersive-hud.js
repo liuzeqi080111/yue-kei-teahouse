@@ -10,6 +10,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
  const root=document.createElement('section');root.id='immersive-hud';root.hidden=true;
  root.setAttribute('aria-label','对话与求助');
  root.innerHTML=`<div class="hud-caption" aria-live="polite"><span class="hud-speaker"></span><p class="hud-subtitle"></p><p class="hud-notice" role="status"></p><button type="button" class="hud-subtitle-toggle" data-hud="subtitle" hidden>展开字幕</button></div>
+ <section class="hud-direct" aria-label="当前回应" hidden><p class="hud-direct-note"></p><div class="hud-direct-actions"></div></section>
  <section class="hud-card" id="hud-help" aria-label="对话帮助" hidden>
   <header><strong>需要一点提示？</strong><button type="button" data-hud="pin" aria-pressed="false">固定</button><button type="button" data-hud="close" aria-label="关闭帮助">×</button></header>
   <nav class="hud-help-tabs" aria-label="帮助方向"><button type="button" data-help="goal" aria-pressed="true">我能做什么</button><button type="button" data-help="expression" aria-pressed="false">教我怎么说</button><button type="button" data-help="meaning" aria-pressed="false">解释上一句</button></nav>
@@ -116,6 +117,16 @@ export function createImmersiveHud({game,guide,voice,preview}){
   const audio=viewingPrevious?previousNpc:currentNpc;
   $('[data-hud="replay"]').disabled=!audio||(!voice&&!preview);$('[data-hud="slow"]').disabled=!audio||!voice;
  }
+ function renderDirect(){
+  const {state,view}=snapshot,box=$('.hud-direct'),buttons=$('.hud-direct-actions');
+  const review=view.orderReview&&!readingPanel(),greeting=state.phase===P.GREETING;
+  box.hidden=!(review||greeting)||view.busy||!card.hidden||!more.hidden;
+  const key=review?'review':greeting?'greeting':'';
+  if(box.dataset.kind===key)return;box.dataset.kind=key;buttons.replaceChildren();
+  write($('.hud-direct-note'),review?'餐点尚未下单，请核对后确认。':greeting?'第一次来？可以先看说法，也可以直接选择人数。':'');
+  if(review)buttons.append(makeButton('继续选餐',{action:'CONTINUE_ORDER'}),makeButton('就这些，下单',{action:'FINISH_ORDER'}));
+  if(greeting)buttons.append(makeButton('教我回答',{hud:'first-answer'}),makeButton('一位',{action:'START_SEATING'}),makeButton('两位',{action:'START_SEATING',partySize:'2'}));
+ }
  function renderHistory(){
   const box=$('.hud-history');box.replaceChildren();
   if(!history.length){const empty=document.createElement('p');empty.textContent='本局还没有对话。';box.append(empty);return;}
@@ -148,7 +159,8 @@ export function createImmersiveHud({game,guide,voice,preview}){
  }
  function sync(next){
   if(destroyed||!next)return;
-  const previousRound=snapshot?.state?.round;snapshot=next;const {state,view}=next,active=pageActive();
+  const previousRound=snapshot?.state?.round,wasPanel=readingPanel();snapshot=next;const {state,view}=next,active=pageActive();
+  if(readingPanel()&&!wasPanel)voice?.setTextMode(false);
   root.hidden=!active;$('.hud-return').hidden=!exploring();root.dataset.exploring=String(exploring());root.dataset.panel=String(readingPanel());root.dataset.voiceError=String(voiceError);document.body.dataset.immersive='true';
   const viewControls=$('.hud-view-controls'),canLook=[P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
   viewControls.hidden=!canLook||exploring();
@@ -178,7 +190,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
    }
   }
   if(exploring()||readingPanel()){clearHint();hideIdle();closeHelp(true);showMore(false);}
-  renderCaption();if(!card.hidden)renderHelp();scheduleHint();maybeShowIntro();
+  renderCaption();if(!card.hidden)renderHelp();renderDirect();scheduleHint();maybeShowIntro();
  }
  function playLine(line,rate=1){
   if(!line)return;
@@ -196,7 +208,8 @@ export function createImmersiveHud({game,guide,voice,preview}){
    case 'pin':pinned=!pinned;button.setAttribute('aria-pressed',String(pinned));button.textContent=pinned?'已固定':'固定';break;
    case 'more':showMore(more.hidden);break;
    case 'close-more':showMore(false);$('[data-hud="more"]').focus({preventScroll:true});scheduleHint();break;
-   case 'type':voice?.setTextMode(true);showMore(false);scheduleHint();break;
+   case 'first-answer':kind='expression';guide.noteHint('full');showHelp(true,true);renderDirect();break;
+   case 'type':if(readingPanel())game.camera('room');voice?.setTextMode(true);showMore(false);scheduleHint();break;
    case 'transcript':voice?.toggleTranscript();renderMore();break;
    case 'original':{const original=$('.hud-original');original.hidden=!original.hidden;button.setAttribute('aria-pressed',String(!original.hidden));break;}
    case 'previous':viewingPrevious=!viewingPrevious&&Boolean(previousNpc);subtitleExpanded=false;renderCaption();break;
@@ -211,12 +224,13 @@ export function createImmersiveHud({game,guide,voice,preview}){
    case 'npc-replay':playLine((currentNpc||previousNpc)?.text,1);break;
    case 'npc-slow':playLine((currentNpc||previousNpc)?.text,.72);break;
   }
+  renderDirect();
  }
  function onKeydown(event){
   const target=event.target;
   if(event.isComposing||event.keyCode===229||event.ctrlKey||event.metaKey||event.altKey||target?.closest?.('input,textarea,select,[contenteditable="true"]')||document.querySelector('dialog[open]'))return;
   if(event.key.toLowerCase()==='h'&&!root.hidden){event.preventDefault();kind='goal';showHelp(card.hidden,true);}
-  if(event.key==='Escape'&&(!card.hidden||!more.hidden)){event.preventDefault();closeHelp(true);showMore(false);voice?.setTextMode(false);$('[data-hud="help"]').focus({preventScroll:true});scheduleHint();}
+  if(event.key==='Escape'&&(!card.hidden||!more.hidden)){event.preventDefault();closeHelp(true);showMore(false);voice?.setTextMode(false);$('[data-hud="help"]').focus({preventScroll:true});renderDirect();scheduleHint();}
  }
  function interacted(event){lastActivity=performance.now();if(event?.target?.closest?.('#hud-idle-hint,#hud-intro'))return;hideIdle();hideIntro();scheduleHint();}
  function onVoiceActivity(event){

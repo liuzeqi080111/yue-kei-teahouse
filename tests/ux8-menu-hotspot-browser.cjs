@@ -24,7 +24,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
    await page.locator('#welcome [data-dialog="chapters"]').click();await page.locator('[data-chapter="service"]').click();
    for(const camera of ['room','table']){
     if(await page.getAttribute('body','data-camera')!==camera)await page.locator(`[data-hud-camera="${camera}"]`).click();
-    const menu=page.locator('.table-menu-hotspot'),rect=await menu.boundingBox();
+    const menu=page.locator('.table-menu-hotspot');
+    if(!await menu.count()){
+     // UX9 portrait cover can crop the painted book completely. No phantom target.
+     const paintedRight=await page.locator('#scene').evaluate((c,camera)=>{const r=c.getBoundingClientRect(),s=Math.max(r.width/1008,r.height/567);return (r.width-1008*s)/2+(camera==='room'?186:193)*s;},camera);
+     assert.ok(paintedRight<8,'only omit a genuinely cropped book');
+     await page.locator('[data-hud-camera="menu"]').click();assert.equal(await page.getAttribute('body','data-camera'),'menu');
+     await page.locator('#panel [data-close]').click();results.push({viewport,camera,cropped:true,toolbarOpened:true});continue;
+    }
+    const rect=await menu.boundingBox();
     assert.ok(rect&&rect.width>=44&&rect.height>=44);
     // An independent point on the painted menu, transformed from scene space.
     const point=await page.locator('#scene').evaluate((canvas,camera)=>{

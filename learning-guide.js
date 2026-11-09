@@ -37,7 +37,7 @@ function goalFor({state,view},menuContext={}){
   if(menuContext.tab==='order'){
    const pending=state.items.filter(i=>i.status==='pending').length;
    return pending
-    ? target(`核对 ${pending} 项待确认餐点，按「確認落單」，再回答阿明的确认问题。`,phrase('confirm-order'),[{type:'CONFIRM_ORDER'}])
+    ? target(`核对 ${pending} 项待确认餐点，按「请阿明核对」，再选择「就这些，下单」。`,phrase('confirm-order'),[{type:'CONFIRM_ORDER'}])
     : target('目前没有待确认的餐点。可以返回菜单继续选。',phrase('read-menu'));
   }
   if(menuContext.tab==='drink'){
@@ -57,7 +57,7 @@ function goalFor({state,view},menuContext={}){
  const goals={
   [P.GREETING]:target('告诉阿明，有几位客人一起用餐。',phrase('one-person'),[{type:'START_SEATING'}]),
   [P.SEATING]:target('跟阿明到窗边，等他带你入座。',phrase('follow-seat')),
-  [P.SEATED]:target('请阿明给你菜单，再决定吃什么。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
+  [P.SEATED]:target('直接点桌上菜单，看看想吃什么。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
   [P.ORDERING]:target('打开菜单选餐。阿明会再问一次，确认后才会下单。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
   [P.DINING]:target('用餐时可以请阿明加水或拿餐具，也可以请他结账。',phrase('request-water'),[{type:'REQUEST_WATER'}]),
   [P.BILLING]:state.isPaid

@@ -16,7 +16,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
    await page.locator('[data-hud-camera="room"]').click();
    assert.equal(await page.locator('#hotspots [data-action="CALL_WAITER"]').isVisible(),true,'menu available while waiter absent');
    await page.locator('[data-hud-camera="menu"]').click();assert.equal(await page.locator('#panel').isVisible(),true);
-   await page.locator('[data-hud-camera="table"]').click();assert.equal(await page.getAttribute('body','data-camera'),'table');
+   await page.locator('#panel [data-close]').click();await page.locator('[data-hud-camera="table"]').click();assert.equal(await page.getAttribute('body','data-camera'),'table');
    assert.equal(await page.locator('#hotspots .look').count(),0,'old corner look button removed');
    for(const selector of ['[data-hud-camera="room"]','[data-hud-camera="menu"]','.voice-mic']){
     const e=page.locator(selector);assert.ok(await e.evaluate(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44&&r.x>=0&&r.y>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===el;}),'dock controls visible and unobstructed '+selector);

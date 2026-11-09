@@ -151,9 +151,13 @@ function roundReviewMarkup(state){
  const snapshot=practiceLog.snapshot(state.round);
  const completed=snapshot.attempts.find(attempt=>attempt.mode==='voice'&&attempt.matched);
  const phrase=resolveReviewPhrase(completed?.phraseId)||challengeCandidates(state)[0];
- const source=completed?'本次用语音完成了一项粤语任务。':'你完成了这次茶餐厅体验。';
- const practice=phrase?`<p><strong>记住一句</strong> <span lang="yue">${esc(phrase.cantonese)}</span><br><small>${esc(phrase.meaning)}</small></p>`:'';
- return `<h3>本次成果小票</h3><p>${source}</p>${practice}<p><strong>下次试试</strong> 先开口说一句，再用选项继续。</p>`;
+ const independent=snapshot.totals.independentAttemptCount;
+ const source=independent?'本局有未看提示且意思匹配的语音表达。':completed?'本局借助提示，用语音完成了交流。':snapshot.totals.byMode.voice?'本局尝试过语音，尚未记录到匹配目标的表达。':'你完成了这次茶餐厅体验，本局尚未尝试语音表达。';
+ const viewed=snapshot.phrases.some(p=>p.hintKinds.some(k=>k==='full'||k==='frame'));
+ const listened=snapshot.phrases.some(p=>p.hintKinds.includes('audio'));
+ const evidence=[viewed?'看过表达提示':'',listened?'听过示范':''].filter(Boolean).join(' · ');
+ const practice=phrase?`<p><strong>可以再练的一句</strong> <span lang="yue">${esc(phrase.cantonese)}</span><br><small>${esc(phrase.meaning)}</small></p>`:'';
+ return `<h3>本次成果小票</h3><p>${source}</p>${evidence?`<p>${evidence}</p>`:''}<p class="note">以上记录不代表已掌握，也不评价发音。</p>${practice}<p><strong>下次试试</strong> 先开口说一句，再用选项继续。</p>`;
 }
 function renderRoundReview(state){
  const host=$('#round-review');if(!host)return;
@@ -171,7 +175,7 @@ function referenceJyutpingMarkup(phrase){
 function renderReview(focusSelector=''){
  const dialog=$('#review-dialog');if(!dialog)return;
  const item=reviewChallenges[reviewIndex];
- updateText($('#review-context'),'跟读粤语句子，核对参考粤拼。你可以跳过任意一句。');
+ updateText($('#review-context'),'先回想这句话怎么说；需要时看完整示范。可以录音、回听或跳过。');
  updateText($('#review-challenge-progress'),item?`第 ${reviewIndex+1} / ${reviewChallenges.length} 句`:`已评分 ${reviewChallenges.filter(entry=>entry.result).length} 句`);
  let markup='<p>短复习结束。你可以回到游戏，继续下一次茶餐厅体验。</p>';
  if(item){
@@ -212,9 +216,9 @@ function updateReviewProgress({seconds=0,level=0}={}){
  const meter=dialog.querySelector('[data-review-recording-level]');
  if(meter)meter.value=Math.max(0,Math.min(1,level));
 }
-function openReview(){
+function openReview(recall=false){
  const snapshot=game.snapshot();settlePracticeReview(snapshot.state);practiceAudio?.stop();voice?.suspend(true);
- reviewChallenges=challengeCandidates(snapshot.state).map(phrase=>({phrase,revealed:false,hinted:false,result:null,audio:null}));
+ reviewChallenges=(recall?[getPhrase('request-bill')]:challengeCandidates(snapshot.state)).map(phrase=>({phrase,revealed:false,hinted:false,result:null,audio:null}));
  const session=++reviewSession;reviewIndex=0;reviewReady=false;reviewState='';
  reviewMessage=STATIC_PREVIEW?'可以录音并回听。发音评分需要连接评测服务。':'可以先录音；正在检查评分服务…';
  renderReview();const dialog=$('#review-dialog');if(!dialog.open)dialog.showModal();
@@ -437,6 +441,7 @@ function panel(state,view){const el=$('#panel');const visible=['menu','bill'].in
  if(view.camera==='bill'){
   title='埋單 · 多謝';const bill=state.bill;
   body=bill?`<div class="receipt"><h3>粵記茶餐廳</h3><p class="note" style="text-align:center">03 號枱 · HKD · 虛擬帳單</p>${bill.lines.map(l=>`<div class="bill-line"><span>${esc(l.name)} × ${l.qty}<small>${Object.values(l.options).map(esc).join(' · ')}</small></span><span>${money(l.lineTotal)}</span></div>`).join('')}<div class="total"><span>合計</span><strong>${money(bill.totalCents)}</strong></div>${state.isPaid?'<div class="paid">已完成虛擬結帳</div>':''}<p class="note">所有金額均為演示數據，不會扣取任何款項。</p></div>`:'<p>帳單尚未準備好。</p>';
+  if(!state.isPaid)body+=`<aside class="bill-practice"><p>还记得怎样用粤语请人结账吗？</p><button type="button" data-open-review data-recall-review>试着说一句</button><small>自愿练习，也可直接确认虚拟结账。</small></aside>`;
   foot=state.isPaid?'<span>已結帳 · 即將完成這一局</span>':`<span>只作練習，不會收款</span>${button('PAY_BILL',view.busy?'帳單送緊嚟…':'確認虛擬結帳',true,view.busy)}`;
  }else if(editing){
   const line=editing.lineId?state.items.find(i=>i.id===editing.lineId):null;
@@ -450,10 +455,10 @@ function panel(state,view){const el=$('#panel');const visible=['menu','bill'].in
   if(tab==='order')body=state.items.length?state.items.map(i=>`<div class="order-line"><div><p>${esc(i.name)} <span class="tag tag-${i.status}">${itemStatus(i)}</span></p><small>${Object.values(i.options).map(esc).join(' · ')} · 單價 ${money(i.unitPrice)}</small></div><button data-edit="${i.id}" aria-label="${i.status==='served'?'點解唔可以改':'修改'}${esc(i.name)} · ${Object.values(i.options).map(esc).join('、')}" ${view.busy&&i.status!=='served'?'disabled':''}>${i.status==='served'?'修改說明':'修改'}</button></div>`).join(''):'<p class="empty">仲未揀好？<br>去餐牌睇吓，菠蘿油配奶茶就啱晒。</p>';
   else body=MENU.filter(i=>i.category===tab).map(i=>`<div class="menu-row"><canvas class="food-icon" data-food="${i.id}" width="100" height="80"></canvas><div class="menu-info"><strong>${i.name}</strong><small>${roman[i.id]}</small></div><span class="price">${money(i.price)}</span><button data-item="${i.id}" aria-label="${i.name} ${i.available?'選擇':'今日售罄'}" ${view.busy&&i.available?'disabled':''}>${!i.available?'售罄':state.items.some(l=>l.itemId===i.id)?'已選 · 查看':'選擇 ＋'}</button></div>`).join('');
   const pending=state.items.filter(i=>i.status==='pending').length;
-  foot=`<span>${view.busy?'侍應忙緊，請稍等':pending?`${pending} 項待確認`:'即點即製 · 慢慢揀'}</span>${button('CONFIRM_ORDER','確認落單 →',true,view.busy||!pending)}`;
+  foot=`<span>${view.busy?'侍應忙緊，請稍等':pending?`${pending} 項待確認`:'即點即製 · 慢慢揀'}</span>${button('CONFIRM_ORDER','请阿明核对 →',true,view.busy||!pending)}`;
  }
-  const guideMarkup=`<section class="learning-guide learning-guide-panel" data-learning-guide aria-label="阶段练习"><span class="learning-guide-kicker">本阶段目标</span><strong data-learning-goal></strong><details class="panel-lesson-details" ${mobileTray.mobile?'':'open'}><summary>展开本步练习</summary><div class="learning-hint-actions" aria-label="分级提示"><button type="button" data-guide-hint="goal" aria-pressed="false">普通话目标</button><button type="button" data-guide-hint="frame" aria-pressed="false">句框</button><button type="button" data-guide-hint="full" aria-pressed="false">完整句</button></div><p class="learning-frame" data-learning-frame hidden></p><div class="learning-example"><p class="learning-cantonese">可以说：<span data-learning-example></span></p><p class="learning-jyutping">粤拼：<span data-learning-jyutping></span></p><p class="learning-translation" data-learning-translation></p><p class="learning-parts">分句：<span data-learning-parts></span></p><details class="learning-word-details"><summary>拆开学</summary><div class="learning-words" data-learning-words></div></details></div><div class="practice-controls" data-practice-controls hidden aria-label="示范音和跟读"><button type="button" data-practice-action="normal">试听</button><button type="button" data-practice-action="slow">慢速试听</button><button type="button" data-practice-action="follow">跟读</button><button type="button" data-practice-action="next" hidden>下一句</button><button type="button" data-practice-action="whole" hidden>整句</button><button type="button" data-practice-action="npc-slow">阿明慢速</button><button type="button" data-practice-action="stop" hidden>停止</button></div><details class="jyutping-intro"><summary>粤拼入门 · 字母与 1–6 声调</summary><p>粤拼用字母写出粤语读音，音节末尾的 1–6 标示六个声调；例如 jat1 的 1 是第 1 声，wai2 的 2 是第 2 声。字母不按英语读，有语音时可配合上方「试听」和「慢速试听」模仿。</p><p><b>唔該 m4 goi1</b>：请人帮忙、点餐或礼貌引起注意时用，也可回应日常小帮助；<b>多謝 do1 ze6</b>：收到礼物或表达较重谢意时常用。本局点单说「唔該」，结账道别说「多謝晒」。</p><p><b>畀 bei2</b>：给；<b>凍 dung3</b>：冰的，用于饮品温度。</p></details><p class="practice-progress" data-practice-progress role="status"></p><p class="practice-status" data-practice-status role="status" hidden></p><div class="learning-help-actions" aria-label="随时求助"><button type="button" data-guide-help="meaning">这句什么意思</button><button type="button" data-guide-help="answer">教我怎么答</button><button type="button" data-guide-help="slower">请说慢一点</button></div><p class="learning-help-result" data-learning-result role="status" hidden></p></details></section>`;
- const markup=`<div class="paper-head"><div><h2>${title}</h2><small>YUE KEI · SINCE 1986</small></div><button data-close aria-label="合上餐牌或帳單">✕</button></div>${tabs}${guideMarkup}<div class="paper-body" tabindex="0" aria-label="${title}內容">${body}</div><p class="paper-message" role="status" hidden></p><div class="paper-foot">${foot}</div>`;
+  const guideMarkup=`<section class="learning-guide learning-guide-panel" data-learning-guide aria-label="阶段练习"><span class="learning-guide-kicker">本阶段目标</span><strong data-learning-goal></strong><details class="panel-lesson-details" ><summary>展开本步练习</summary><div class="learning-hint-actions" aria-label="分级提示"><button type="button" data-guide-hint="goal" aria-pressed="false">普通话目标</button><button type="button" data-guide-hint="frame" aria-pressed="false">句框</button><button type="button" data-guide-hint="full" aria-pressed="false">完整句</button></div><p class="learning-frame" data-learning-frame hidden></p><div class="learning-example"><p class="learning-cantonese">可以说：<span data-learning-example></span></p><p class="learning-jyutping">粤拼：<span data-learning-jyutping></span></p><p class="learning-translation" data-learning-translation></p><p class="learning-parts">分句：<span data-learning-parts></span></p><details class="learning-word-details"><summary>拆开学</summary><div class="learning-words" data-learning-words></div></details></div><div class="practice-controls" data-practice-controls hidden aria-label="示范音和跟读"><button type="button" data-practice-action="normal">试听</button><button type="button" data-practice-action="slow">慢速试听</button><button type="button" data-practice-action="follow">跟读</button><button type="button" data-practice-action="next" hidden>下一句</button><button type="button" data-practice-action="whole" hidden>整句</button><button type="button" data-practice-action="npc-slow">阿明慢速</button><button type="button" data-practice-action="stop" hidden>停止</button></div><details class="jyutping-intro"><summary>粤拼入门 · 字母与 1–6 声调</summary><p>粤拼用字母写出粤语读音，音节末尾的 1–6 标示六个声调；例如 jat1 的 1 是第 1 声，wai2 的 2 是第 2 声。字母不按英语读，有语音时可配合上方「试听」和「慢速试听」模仿。</p><p><b>唔該 m4 goi1</b>：请人帮忙、点餐或礼貌引起注意时用，也可回应日常小帮助；<b>多謝 do1 ze6</b>：收到礼物或表达较重谢意时常用。本局点单说「唔該」，结账道别说「多謝晒」。</p><p><b>畀 bei2</b>：给；<b>凍 dung3</b>：冰的，用于饮品温度。</p></details><p class="practice-progress" data-practice-progress role="status"></p><p class="practice-status" data-practice-status role="status" hidden></p><div class="learning-help-actions" aria-label="随时求助"><button type="button" data-guide-help="meaning">这句什么意思</button><button type="button" data-guide-help="answer">教我怎么答</button><button type="button" data-guide-help="slower">请说慢一点</button></div><p class="learning-help-result" data-learning-result role="status" hidden></p></details></section>`;
+ const markup=`<div class="paper-head"><div><h2>${title}</h2><small>YUE KEI · SINCE 1986</small></div><button data-close aria-label="合上餐牌或帳單">✕</button></div>${tabs}<div class="paper-body" tabindex="0" aria-label="${title}內容">${guideMarkup}${body}</div><p class="paper-message" role="status" hidden></p><div class="paper-foot">${foot}</div>`;
  if(markup!==panelMarkup){
   const changedView=key!==panelKey;
   el.innerHTML=panelMarkup=markup;
@@ -576,7 +581,7 @@ document.addEventListener('click',e=>{
  if(b.dataset.practiceChoice){noteModelAudio(b.dataset.practiceChoice,replyText[b.dataset.practiceChoice]);practiceAudio?.preview(replyText[b.dataset.practiceChoice]);return;}
  if(b.dataset.practiceAction){if(['normal','slow','follow','next','whole'].includes(b.dataset.practiceAction))noteModelAudio();practiceAudio?.handle(b.dataset.practiceAction,b.closest('[data-learning-guide]'));return;}
  if(b.dataset.guideHelp){learningGuide.help(b.dataset.guideHelp);if(b.dataset.guideHelp==='slower')practiceAudio?.handle('npc-slow',b.closest('[data-learning-guide]'));return;}
- if(b.hasAttribute('data-open-review')){const origin=b.closest('dialog');if(origin?.open)origin.close();openReview();return;}
+ if(b.hasAttribute('data-open-review')){const origin=b.closest('dialog');if(origin?.open)origin.close();openReview(b.hasAttribute('data-recall-review'));return;}
  if(b.dataset.challengeReveal!==undefined){
   const index=Number(b.dataset.challengeReveal),item=reviewChallenges[index];if(!item)return;
   item.revealed=!item.revealed;if(item.revealed)item.hinted=true;else practiceAudio?.stop();
@@ -592,7 +597,7 @@ document.addEventListener('click',e=>{
   practiceAudio?.stop();stopReviewPlayback();voice?.suspend(true);
   const callbacks={score:reviewReady,onProgress:updateReviewProgress,
    onRecorded(audio){item.audio=audio;item.result=null;},
-   onState(state){reviewState=state;reviewMessage=state==='recording'?'请读完后停止，最长录音 15 秒。':state==='recorded'?'录音已保留在本次复习中，可回听和核对参考粤拼。':'';renderReview('[data-challenge-record]');},
+   onState(state){if(state==='recording'){item.revealed=true;item.hinted=true;}reviewState=state;reviewMessage=state==='recording'?'请读完后停止，最长录音 15 秒。':state==='recorded'?'录音已保留在本次复习中，可回听和核对参考粤拼。':'';renderReview('[data-challenge-record]');},
    onResult(result,audio){
     item.result=result;item.audio=audio;item.revealed=true;reviewState='';reviewMessage='';
     reviewStore.noteReview(item.phrase.id,{hinted:item.hinted});renderReview('[data-challenge-record]');
@@ -711,7 +716,8 @@ render(game.snapshot());ready.then(results=>{
  if(results.some(r=>r.status==='rejected'))$('#asset-status').hidden=false;
 });
 
-new ResizeObserver(()=>render(game.snapshot())).observe($('#game'));
+const sceneLayoutObserver=new ResizeObserver(()=>render(game.snapshot()));
+sceneLayoutObserver.observe($('#game'));sceneLayoutObserver.observe($('#scene'));
 
 function sceneSpot(view, id, label, x, y) {
  const {fit, originX, originY} = measureScene(view);
