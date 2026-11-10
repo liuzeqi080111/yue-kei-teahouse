@@ -1,0 +1,30 @@
+name: 试玩问题
+description: 告诉我们在哪里卡住、听不懂或发生错误
+title: "[试玩] "
+body:
+  - type: input
+    id: device
+    attributes:
+      label: 设备和入口
+      description: 型号、系统、浏览器或微信版本
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 操作步骤
+      description: 从哪里开始、点了什么、说了什么；不必提供私人录音
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期与实际结果
+      description: 可附截图；请勿上传密钥或个人敏感信息
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本与复现情况
+      description: 可填写 version.json 中的 commit，是否每次出现、刷新是否恢复

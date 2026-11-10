@@ -1,0 +1,17 @@
+name: Validate game
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm test
+      - run: npm run test:voice
+      - run: node tests/voice-capture.test.mjs
+      - run: node tests/voice-endpoint.test.mjs
+      - run: npm run build:pages

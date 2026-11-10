@@ -6,6 +6,7 @@
     "start": "node server.mjs",
     "test": "node tests/run.mjs",
     "test:voice": "node tests/run-voice.mjs",
+    "test:ux3": "node tests/run-ux3.mjs",
     "build:pages": "node scripts/build-pages.mjs"
   }
 }

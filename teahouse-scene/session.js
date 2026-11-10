@@ -69,6 +69,7 @@ function createInitialState() {
     bill: null, // { lines, totalCents, currency }，REQUEST_BILL 时按实际订单计算
     isPaid: false, // 虚拟结账是否已完成
     waiterPresent: false, // 服务员是否在场（供镜头 / 人物动画使用）
+    partySize: null,
     hasFoodOnTable: false, // 桌面是否已有食物（由已上菜订单项派生）
     billPresented: false, // 是否已出示账单
     round: 0, // 第几局，RESTART 后 +1
@@ -197,10 +198,13 @@ export function createSession({maxPerItem=Infinity}={}) {
       }
 
       case 'START_SEATING': {
+        const partySize = action.partySize ?? 1;
+        if (partySize !== 1 && partySize !== 2) return fail(state, '目前只安排一至两位的座位。');
         const err = transition(state, P.SEATING, events);
         if (err) return err;
+        state.partySize = partySize;
         state.waiterPresent = true;
-        events.push({ type: 'WAITER_LEADS_TO_TABLE' });
+        events.push({ type: 'WAITER_LEADS_TO_TABLE', partySize });
         return ok(state, events);
       }
 

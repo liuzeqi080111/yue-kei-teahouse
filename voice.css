@@ -127,3 +127,14 @@ body.at-title #voice-dock,
  .voice-panel{gap:10px;}
  #voice-host{-webkit-overflow-scrolling:touch;}
 }
+
+@media(min-width:651px){
+ .conversation #voice-dock{position:static;width:100%;border:0;box-shadow:none;background:transparent}
+ .conversation #voice-dock > summary{min-height:36px;padding:7px 0}
+ .conversation #voice-host{max-height:none;overflow:visible}
+ .conversation .voice-panel{padding:0}
+ .conversation .voice-controls{justify-content:flex-start}
+ .conversation .voice-controls button{flex:0 0 auto}
+ body:is([data-camera="menu"],[data-camera="bill"]) .conversation{left:2vw;bottom:24px;transform:none;width:min(29vw,420px)}
+ body:is([data-camera="menu"],[data-camera="bill"]) .conversation > :is(.speaker,.dialogue,#actions){display:none}
+}

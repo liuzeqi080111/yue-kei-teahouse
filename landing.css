@@ -1,0 +1,430 @@
+@charset "UTF-8";
+
+body[data-weather="afternoon"] #welcome .landing-scene::after,
+/* Fine, irregular rain at two depths, behind all interface content. */
+body[data-weather="rain"] #welcome .landing-scene::before,
+body[data-weather="rain"] #welcome .landing-scene::after {
+ content: ""; position: absolute; inset: 0; pointer-events: none;
+}
+body[data-weather="rain"] #welcome .landing-scene::before {
+ background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22640%22%3E%3Cg%20stroke%3D%22%23c4d6df%22%20stroke-width%3D%221%22%20stroke-opacity%3D%220.19%22%3E%3Cpath%20d%3D%22M339%20528l-0.9%206.1%22%20opacity%3D%220.36%22%2F%3E%3Cpath%20d%3D%22M166%20212l-0.6%204.3%22%20opacity%3D%220.48%22%2F%3E%3Cpath%20d%3D%22M64%20616l-0.6%204.0%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M547%20382l-1.1%207.7%22%20opacity%3D%220.65%22%2F%3E%3Cpath%20d%3D%22M141%20365l-0.9%206.2%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M629%2039l-0.7%204.9%22%20opacity%3D%220.73%22%2F%3E%3Cpath%20d%3D%22M160%20337l-1.1%207.4%22%20opacity%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M107%2029l-0.6%204.2%22%20opacity%3D%220.45%22%2F%3E%3Cpath%20d%3D%22M260%20532l-0.7%204.8%22%20opacity%3D%220.73%22%2F%3E%3Cpath%20d%3D%22M265%20367l-0.6%204.0%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M107%20263l-0.5%203.5%22%20opacity%3D%220.44%22%2F%3E%3Cpath%20d%3D%22M497%20513l-1.0%206.9%22%20opacity%3D%220.74%22%2F%3E%3Cpath%20d%3D%22M374%20310l-1.2%207.8%22%20opacity%3D%220.48%22%2F%3E%3Cpath%20d%3D%22M229%20172l-0.9%205.9%22%20opacity%3D%220.66%22%2F%3E%3Cpath%20d%3D%22M336%20274l-0.5%203.5%22%20opacity%3D%220.84%22%2F%3E%3Cpath%20d%3D%22M272%2033l-0.5%203.2%22%20opacity%3D%220.47%22%2F%3E%3Cpath%20d%3D%22M491%20341l-1.0%206.5%22%20opacity%3D%220.68%22%2F%3E%3Cpath%20d%3D%22M525%20322l-1.2%207.8%22%20opacity%3D%220.53%22%2F%3E%3Cpath%20d%3D%22M153%2062l-0.8%205.5%22%20opacity%3D%220.65%22%2F%3E%3Cpath%20d%3D%22M139%20623l-0.5%203.5%22%20opacity%3D%221.00%22%2F%3E%3Cpath%20d%3D%22M459%20293l-1.1%207.1%22%20opacity%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M272%20327l-0.7%204.9%22%20opacity%3D%220.82%22%2F%3E%3Cpath%20d%3D%22M505%20571l-1.1%207.3%22%20opacity%3D%220.67%22%2F%3E%3Cpath%20d%3D%22M425%20229l-0.8%205.3%22%20opacity%3D%220.77%22%2F%3E%3Cpath%20d%3D%22M521%20305l-1.0%206.4%22%20opacity%3D%220.38%22%2F%3E%3Cpath%20d%3D%22M443%2073l-0.7%204.6%22%20opacity%3D%220.57%22%2F%3E%3Cpath%20d%3D%22M163%20465l-1.0%206.4%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M360%20615l-0.8%205.4%22%20opacity%3D%220.54%22%2F%3E%3Cpath%20d%3D%22M112%20589l-0.9%205.7%22%20opacity%3D%220.76%22%2F%3E%3Cpath%20d%3D%22M322%20571l-0.8%205.6%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M30%20283l-0.7%204.9%22%20opacity%3D%220.62%22%2F%3E%3Cpath%20d%3D%22M266%20380l-1.2%207.9%22%20opacity%3D%220.42%22%2F%3E%3Cpath%20d%3D%22M468%20628l-0.8%205.3%22%20opacity%3D%220.83%22%2F%3E%3Cpath%20d%3D%22M268%20517l-0.6%203.8%22%20opacity%3D%220.83%22%2F%3E%3Cpath%20d%3D%22M597%20455l-0.7%205.0%22%20opacity%3D%220.64%22%2F%3E%3Cpath%20d%3D%22M518%20469l-0.5%203.6%22%20opacity%3D%220.89%22%2F%3E%3Cpath%20d%3D%22M71%20589l-0.5%203.4%22%20opacity%3D%220.94%22%2F%3E%3Cpath%20d%3D%22M470%20250l-0.6%203.7%22%20opacity%3D%220.93%22%2F%3E%3Cpath%20d%3D%22M202%20472l-1.0%206.8%22%20opacity%3D%220.59%22%2F%3E%3Cpath%20d%3D%22M19%20501l-1.1%207.5%22%20opacity%3D%220.44%22%2F%3E%3Cpath%20d%3D%22M166%2017l-1.2%207.8%22%20opacity%3D%220.66%22%2F%3E%3Cpath%20d%3D%22M12%2036l-0.5%203.3%22%20opacity%3D%220.92%22%2F%3E%3Cpath%20d%3D%22M118%20287l-1.1%207.4%22%20opacity%3D%220.91%22%2F%3E%3Cpath%20d%3D%22M276%20580l-1.1%207.7%22%20opacity%3D%220.88%22%2F%3E%3Cpath%20d%3D%22M26%20271l-0.7%204.8%22%20opacity%3D%220.53%22%2F%3E%3Cpath%20d%3D%22M624%20556l-0.8%205.2%22%20opacity%3D%220.90%22%2F%3E%3Cpath%20d%3D%22M68%20300l-0.7%204.9%22%20opacity%3D%220.72%22%2F%3E%3Cpath%20d%3D%22M609%20308l-1.0%206.8%22%20opacity%3D%220.39%22%2F%3E%3Cpath%20d%3D%22M272%20243l-0.7%204.7%22%20opacity%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M321%20219l-0.7%204.7%22%20opacity%3D%220.74%22%2F%3E%3Cpath%20d%3D%22M77%20278l-1.1%207.5%22%20opacity%3D%220.69%22%2F%3E%3Cpath%20d%3D%22M225%20415l-0.9%205.8%22%20opacity%3D%220.42%22%2F%3E%3Cpath%20d%3D%22M306%20461l-1.1%207.0%22%20opacity%3D%220.97%22%2F%3E%3Cpath%20d%3D%22M593%20566l-0.9%206.1%22%20opacity%3D%220.67%22%2F%3E%3Cpath%20d%3D%22M537%20578l-1.2%207.7%22%20opacity%3D%220.83%22%2F%3E%3Cpath%20d%3D%22M446%20267l-0.7%204.4%22%20opacity%3D%220.83%22%2F%3E%3Cpath%20d%3D%22M174%20295l-0.7%205.0%22%20opacity%3D%220.41%22%2F%3E%3Cpath%20d%3D%22M204%20559l-0.5%203.5%22%20opacity%3D%220.42%22%2F%3E%3Cpath%20d%3D%22M101%20145l-0.9%206.3%22%20opacity%3D%220.69%22%2F%3E%3Cpath%20d%3D%22M204%20194l-0.9%206.1%22%20opacity%3D%220.49%22%2F%3E%3Cpath%20d%3D%22M79%20209l-1.1%207.3%22%20opacity%3D%220.58%22%2F%3E%3Cpath%20d%3D%22M503%2054l-0.9%205.8%22%20opacity%3D%220.60%22%2F%3E%3Cpath%20d%3D%22M70%20420l-0.7%204.9%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M289%20259l-1.1%207.6%22%20opacity%3D%220.65%22%2F%3E%3Cpath%20d%3D%22M623%20499l-0.9%205.9%22%20opacity%3D%220.41%22%2F%3E%3Cpath%20d%3D%22M349%20212l-0.9%205.9%22%20opacity%3D%220.51%22%2F%3E%3Cpath%20d%3D%22M177%20306l-0.6%203.9%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M456%20443l-1.1%207.2%22%20opacity%3D%220.92%22%2F%3E%3Cpath%20d%3D%22M529%20594l-0.8%205.5%22%20opacity%3D%220.97%22%2F%3E%3Cpath%20d%3D%22M189%20178l-1.1%207.1%22%20opacity%3D%220.91%22%2F%3E%3Cpath%20d%3D%22M354%20384l-1.1%207.3%22%20opacity%3D%220.54%22%2F%3E%3Cpath%20d%3D%22M183%20322l-1.2%207.8%22%20opacity%3D%220.95%22%2F%3E%3Cpath%20d%3D%22M44%20269l-0.5%203.0%22%20opacity%3D%220.80%22%2F%3E%3Cpath%20d%3D%22M291%20600l-1.2%207.7%22%20opacity%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M565%20463l-0.6%204.0%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M568%2025l-1.1%207.4%22%20opacity%3D%220.95%22%2F%3E%3Cpath%20d%3D%22M558%2065l-0.8%205.4%22%20opacity%3D%220.64%22%2F%3E%3Cpath%20d%3D%22M494%20616l-0.9%206.2%22%20opacity%3D%220.68%22%2F%3E%3Cpath%20d%3D%22M466%20439l-1.0%206.5%22%20opacity%3D%220.40%22%2F%3E%3Cpath%20d%3D%22M387%2040l-0.7%204.6%22%20opacity%3D%220.99%22%2F%3E%3Cpath%20d%3D%22M112%20101l-1.1%207.6%22%20opacity%3D%220.40%22%2F%3E%3Cpath%20d%3D%22M116%20215l-0.7%204.5%22%20opacity%3D%220.60%22%2F%3E%3Cpath%20d%3D%22M166%20260l-0.7%204.8%22%20opacity%3D%220.66%22%2F%3E%3Cpath%20d%3D%22M256%2031l-1.1%207.4%22%20opacity%3D%220.98%22%2F%3E%3Cpath%20d%3D%22M196%20284l-0.8%205.1%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M75%2095l-1.1%207.3%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M218%20480l-0.8%205.6%22%20opacity%3D%220.84%22%2F%3E%3Cpath%20d%3D%22M179%2089l-1.0%206.7%22%20opacity%3D%220.75%22%2F%3E%3Cpath%20d%3D%22M543%20580l-1.1%207.2%22%20opacity%3D%220.58%22%2F%3E%3Cpath%20d%3D%22M379%20526l-0.5%203.6%22%20opacity%3D%220.46%22%2F%3E%3Cpath%20d%3D%22M333%20511l-0.5%203.5%22%20opacity%3D%220.68%22%2F%3E%3Cpath%20d%3D%22M61%20233l-1.2%207.7%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M535%20162l-1.1%207.6%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M201%20236l-1.2%208.0%22%20opacity%3D%220.87%22%2F%3E%3Cpath%20d%3D%22M620%20192l-1.2%207.9%22%20opacity%3D%220.78%22%2F%3E%3Cpath%20d%3D%22M279%20411l-0.6%203.7%22%20opacity%3D%220.86%22%2F%3E%3Cpath%20d%3D%22M206%20395l-0.8%205.1%22%20opacity%3D%220.83%22%2F%3E%3Cpath%20d%3D%22M461%20429l-1.0%206.9%22%20opacity%3D%220.69%22%2F%3E%3Cpath%20d%3D%22M318%20336l-0.5%203.1%22%20opacity%3D%220.83%22%2F%3E%3Cpath%20d%3D%22M381%20476l-0.8%205.1%22%20opacity%3D%220.37%22%2F%3E%3Cpath%20d%3D%22M337%20264l-1.0%206.5%22%20opacity%3D%220.99%22%2F%3E%3Cpath%20d%3D%22M285%20366l-1.1%207.4%22%20opacity%3D%220.94%22%2F%3E%3Cpath%20d%3D%22M425%20246l-0.5%203.3%22%20opacity%3D%220.39%22%2F%3E%3Cpath%20d%3D%22M249%20233l-1.1%207.2%22%20opacity%3D%220.44%22%2F%3E%3Cpath%20d%3D%22M538%20210l-1.2%207.8%22%20opacity%3D%220.61%22%2F%3E%3Cpath%20d%3D%22M622%20610l-0.8%205.6%22%20opacity%3D%220.68%22%2F%3E%3Cpath%20d%3D%22M552%20602l-1.1%207.4%22%20opacity%3D%220.95%22%2F%3E%3Cpath%20d%3D%22M77%20627l-1.0%207.0%22%20opacity%3D%220.94%22%2F%3E%3Cpath%20d%3D%22M136%20240l-1.0%206.9%22%20opacity%3D%220.45%22%2F%3E%3Cpath%20d%3D%22M264%20418l-1.0%206.6%22%20opacity%3D%220.61%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"), linear-gradient(180deg, #101e3799, #14283933 55%, #0c1d2e55);
+ background-size: 640px 640px, 100% 100%;
+ animation: landing-rain-far 3.2s linear infinite;
+}
+body[data-weather="rain"] #welcome .landing-scene::after {
+ background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22640%22%3E%3Cg%20stroke%3D%22%23c4d6df%22%20stroke-width%3D%221%22%20stroke-opacity%3D%220.28%22%3E%3Cpath%20d%3D%22M439%20536l-2.1%2014.1%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M610%20280l-2.4%2016.2%22%20opacity%3D%220.98%22%2F%3E%3Cpath%20d%3D%22M104%20591l-2.1%2013.7%22%20opacity%3D%220.45%22%2F%3E%3Cpath%20d%3D%22M87%20594l-2.3%2015.0%22%20opacity%3D%220.57%22%2F%3E%3Cpath%20d%3D%22M52%2034l-2.2%2014.8%22%20opacity%3D%220.76%22%2F%3E%3Cpath%20d%3D%22M176%20603l-1.6%2010.4%22%20opacity%3D%220.75%22%2F%3E%3Cpath%20d%3D%22M429%20502l-2.4%2015.7%22%20opacity%3D%220.86%22%2F%3E%3Cpath%20d%3D%22M129%20166l-2.4%2016.1%22%20opacity%3D%220.39%22%2F%3E%3Cpath%20d%3D%22M379%20429l-1.4%209.3%22%20opacity%3D%220.94%22%2F%3E%3Cpath%20d%3D%22M191%20232l-2.2%2014.3%22%20opacity%3D%220.98%22%2F%3E%3Cpath%20d%3D%22M630%20153l-2.0%2013.3%22%20opacity%3D%220.35%22%2F%3E%3Cpath%20d%3D%22M301%20304l-1.7%2011.6%22%20opacity%3D%221.00%22%2F%3E%3Cpath%20d%3D%22M109%20591l-2.1%2013.8%22%20opacity%3D%220.57%22%2F%3E%3Cpath%20d%3D%22M150%20630l-2.2%2014.4%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M82%20103l-2.6%2017.6%22%20opacity%3D%220.82%22%2F%3E%3Cpath%20d%3D%22M515%20509l-1.6%2010.4%22%20opacity%3D%220.99%22%2F%3E%3Cpath%20d%3D%22M150%20383l-1.6%2011.0%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M505%20227l-1.6%2010.7%22%20opacity%3D%220.56%22%2F%3E%3Cpath%20d%3D%22M54%2083l-1.5%2010.3%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M370%20506l-2.3%2015.1%22%20opacity%3D%220.88%22%2F%3E%3Cpath%20d%3D%22M196%20527l-1.8%2012.0%22%20opacity%3D%220.70%22%2F%3E%3Cpath%20d%3D%22M114%2033l-2.3%2015.2%22%20opacity%3D%220.42%22%2F%3E%3Cpath%20d%3D%22M423%20569l-1.6%2010.7%22%20opacity%3D%220.89%22%2F%3E%3Cpath%20d%3D%22M235%20380l-2.0%2013.2%22%20opacity%3D%220.71%22%2F%3E%3Cpath%20d%3D%22M327%20183l-2.3%2015.5%22%20opacity%3D%220.87%22%2F%3E%3Cpath%20d%3D%22M426%20619l-1.9%2012.5%22%20opacity%3D%220.70%22%2F%3E%3Cpath%20d%3D%22M605%20471l-1.4%209.6%22%20opacity%3D%220.70%22%2F%3E%3Cpath%20d%3D%22M354%20197l-1.8%2012.0%22%20opacity%3D%220.47%22%2F%3E%3Cpath%20d%3D%22M542%20416l-1.4%209.3%22%20opacity%3D%220.41%22%2F%3E%3Cpath%20d%3D%22M321%20416l-1.4%209.0%22%20opacity%3D%220.91%22%2F%3E%3Cpath%20d%3D%22M207%20583l-1.5%2010.2%22%20opacity%3D%220.78%22%2F%3E%3Cpath%20d%3D%22M619%2078l-2.6%2017.3%22%20opacity%3D%220.88%22%2F%3E%3Cpath%20d%3D%22M453%20352l-2.3%2015.2%22%20opacity%3D%220.97%22%2F%3E%3Cpath%20d%3D%22M409%20327l-2.4%2016.3%22%20opacity%3D%220.43%22%2F%3E%3Cpath%20d%3D%22M531%20369l-1.8%2011.7%22%20opacity%3D%220.75%22%2F%3E%3Cpath%20d%3D%22M571%2017l-2.1%2014.3%22%20opacity%3D%220.82%22%2F%3E%3Cpath%20d%3D%22M560%20250l-1.8%2011.8%22%20opacity%3D%220.80%22%2F%3E%3Cpath%20d%3D%22M336%20595l-2.5%2016.9%22%20opacity%3D%220.47%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"), radial-gradient(ellipse at 32% 100%, #e9b96338, transparent 30%), radial-gradient(ellipse at 80% 100%, #8daec628, transparent 24%);
+ background-size: 640px 640px, 100% 100%, 100% 100%;
+ animation: landing-rain-near 1.65s linear infinite;
+}
+@keyframes landing-rain-far { to { background-position: -96px 640px, 0 0; } }
+@keyframes landing-rain-near { to { background-position: -96px 640px, 0 0, 0 0; } }
+body[data-page-hidden] #welcome .landing-scene::before,
+body[data-page-hidden] #welcome .landing-scene::after,
+body:has(dialog[open]) #welcome .landing-scene::before,
+body:has(dialog[open]) #welcome .landing-scene::after { animation-play-state: paused; }
+@media(prefers-reduced-motion: reduce) {
+ body[data-weather="rain"] #welcome .landing-scene::before,
+ body[data-weather="rain"] #welcome .landing-scene::after { animation: none; }
+}
+
+#welcome.landing-stage {
+ --landing-night: #142f28;
+ --landing-jade: #214a3d;
+ --landing-cream: #fff0c9;
+ --landing-paper: #f4e2b8;
+ --landing-wood-dark: #2e1d14;
+ --landing-ink: #24392e;
+ position: absolute;
+ inset: 0;
+ z-index: 20;
+ isolation: isolate;
+ display: block;
+ width: 100%;
+ height: 100%;
+ max-width: none;
+ min-height: 0;
+ margin: 0;
+ padding: 0;
+ overflow: hidden;
+ border: 0;
+ border-radius: 0;
+ outline: 0;
+ background: #17372e;
+ box-shadow: none;
+ color: var(--landing-cream);
+ font-family: "Microsoft JhengHei", "PingFang TC", "Heiti TC", system-ui, sans-serif;
+ text-align: initial;
+ transform: none;
+}
+
+#welcome.landing-stage[hidden] { display: none !important; }
+
+#welcome.landing-stage *,
+#welcome.landing-stage *::before,
+#welcome.landing-stage *::after { box-sizing: border-box; }
+
+#welcome.landing-stage .landing-scene {
+ position: absolute;
+ inset: 0;
+ z-index: 0;
+ pointer-events: none;
+ background-color: #375a48;
+ background-image: url('./assets/hongkong-arrival.png');
+ background-position: center center;
+ background-repeat: no-repeat;
+ background-size: cover;
+ image-rendering: pixelated;
+}
+
+#welcome.landing-stage .landing-shade {
+ position: absolute;
+ inset: 0;
+ z-index: 1;
+ pointer-events: none;
+ background:
+  linear-gradient(90deg, rgba(10, 28, 22, 0.04) 0%, rgba(10, 28, 22, 0.02) 39%, rgba(12, 29, 23, 0.3) 55%, rgba(12, 27, 22, 0.76) 100%),
+  linear-gradient(0deg, rgba(9, 25, 20, 0.5) 0%, transparent 24%, transparent 79%, rgba(12, 27, 22, 0.24) 100%);
+}
+
+#welcome.landing-stage .landing-heading {
+ position: absolute;
+ z-index: 2;
+ top: 7%;
+ left: 58%;
+ width: 35%;
+ margin: 0;
+ text-align: center;
+ text-shadow: 3px 3px 0 rgba(20, 39, 31, 0.88), 0 2px 12px rgba(8, 23, 18, 0.72);
+}
+
+#welcome.landing-stage .landing-kicker {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: 10px;
+ margin: 0;
+ color: #f5dfa9;
+ font-size: clamp(10px, 0.85vw, 13px);
+ font-weight: 700;
+ letter-spacing: 0.22em;
+ line-height: 1.5;
+}
+
+#welcome.landing-stage .landing-kicker-line {
+ width: clamp(16px, 2vw, 34px);
+ height: 1px;
+ flex: none;
+ background: #d5b679;
+ box-shadow: 0 2px 0 #244437;
+}
+
+#welcome.landing-stage .landing-heading h1 {
+ margin: 12px 0 10px;
+ color: #fff1ca;
+ font-family: "PMingLiU", "Microsoft JhengHei", serif;
+ font-size: clamp(42px, 4.25vw, 72px);
+ font-weight: 700;
+ letter-spacing: 0.11em;
+ line-height: 1.12;
+ white-space: nowrap;
+}
+
+#welcome.landing-stage .landing-tagline {
+ display: block;
+ margin: 0;
+ color: #fff0cf;
+ font-size: clamp(14px, 1.25vw, 19px);
+ letter-spacing: 0.08em;
+ line-height: 1.75;
+}
+
+#welcome.landing-stage .landing-menu {
+ position: absolute;
+ z-index: 2;
+ top: 37%;
+ left: 58%;
+ width: 35%;
+ margin: 0;
+ padding: 25px clamp(18px, 2vw, 32px) 23px;
+ border: 4px solid var(--landing-wood-dark);
+ outline: 2px solid #c59654;
+ outline-offset: 5px;
+ border-radius: 2px;
+ background:
+  repeating-linear-gradient(0deg, rgba(43, 24, 14, 0.2) 0, rgba(43, 24, 14, 0.2) 2px, transparent 2px, transparent 19px),
+  repeating-linear-gradient(90deg, transparent 0, transparent 43px, rgba(255, 222, 157, 0.035) 43px, rgba(255, 222, 157, 0.035) 45px),
+  linear-gradient(100deg, #76502d 0%, #5b381f 48%, #704727 100%);
+ box-shadow:
+  inset 0 0 0 2px rgba(236, 190, 112, 0.3),
+  inset 0 12px 0 rgba(255, 222, 157, 0.045),
+  0 0 0 8px rgba(46, 29, 20, 0.82),
+  11px 13px 0 rgba(8, 22, 17, 0.48);
+}
+
+#welcome.landing-stage .landing-menu::before {
+ content: "";
+ position: absolute;
+ inset: 7px;
+ border: 1px solid rgba(245, 211, 145, 0.46);
+ pointer-events: none;
+}
+
+#welcome.landing-stage .landing-nail {
+ position: absolute;
+ z-index: 2;
+ top: 12px;
+ width: 8px;
+ height: 8px;
+ border: 2px solid #3b281b;
+ background: #d8b778;
+ box-shadow: inset 1px 1px 0 #ffe3a6, 1px 1px 0 rgba(32, 19, 12, 0.65);
+}
+
+#welcome.landing-stage .landing-nail-left { left: 13px; }
+#welcome.landing-stage .landing-nail-right { right: 13px; }
+
+#welcome.landing-stage .landing-shop-heading {
+ position: relative;
+ z-index: 1;
+ margin: 0;
+ padding: 3px 7px 15px;
+ border-bottom: 1px solid #d1a563;
+ box-shadow: 0 1px 0 rgba(48, 28, 17, 0.9);
+ text-align: center;
+}
+
+#welcome.landing-stage .landing-shop-heading h2 {
+ margin: 0;
+ color: #fff0c8;
+ font-family: "PMingLiU", "Microsoft JhengHei", serif;
+ font-size: clamp(24px, 2.15vw, 35px);
+ letter-spacing: 0.12em;
+ line-height: 1.3;
+ text-shadow: 2px 2px 0 #382216;
+}
+
+#welcome.landing-stage .landing-shop-subtitle {
+ display: block;
+ margin: 7px 0 0;
+ color: #f2dfb6;
+ font-size: clamp(10px, 0.85vw, 13px);
+ letter-spacing: 0.08em;
+ line-height: 1.55;
+}
+
+#welcome.landing-stage .landing-actions {
+ position: relative;
+ z-index: 1;
+ display: grid;
+ gap: 10px;
+ margin: 16px 0 0;
+}
+
+#welcome.landing-stage .landing-button {
+ min-height: 48px;
+ margin: 0;
+ border-radius: 0;
+ cursor: pointer;
+ font: inherit;
+ letter-spacing: 0.1em;
+ text-align: center;
+ transform: none;
+ transition: none;
+}
+
+#welcome.landing-stage .landing-button:focus-visible {
+ outline: 3px solid #ffe5a1;
+ outline-offset: 4px;
+}
+
+#welcome.landing-stage .landing-button-primary {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ width: 100%;
+ padding: 12px 17px;
+ border: 2px solid #2b1c13;
+ background: var(--landing-paper);
+ color: var(--landing-ink);
+ box-shadow: inset 0 0 0 2px #fff3d0, 3px 3px 0 #2b1a12;
+ font-size: clamp(15px, 1.2vw, 19px);
+ font-weight: 700;
+}
+
+#welcome.landing-stage .landing-button-primary:hover { background: #fff0c9; }
+#welcome.landing-stage .landing-button-primary:active { background: #e7ce98; transform: none; }
+
+#welcome.landing-stage .landing-button-arrow {
+ font-family: system-ui, sans-serif;
+ font-size: 1.3em;
+ line-height: 1;
+}
+
+#welcome.landing-stage .landing-secondary-actions {
+ display: grid;
+ grid-template-columns: repeat(2, minmax(0, 1fr));
+ gap: 10px;
+}
+
+#welcome.landing-stage .landing-button-secondary {
+ width: 100%;
+ padding: 10px 8px;
+ border: 1px solid #c79d60;
+ background: rgba(43, 27, 18, 0.68);
+ color: #ffedc4;
+ box-shadow: inset 0 0 0 1px rgba(255, 226, 166, 0.1);
+ font-size: clamp(12px, 0.95vw, 15px);
+}
+
+#welcome.landing-stage .landing-button-secondary:hover {
+ background: #f0d9a9;
+ color: #293a2e;
+}
+
+#welcome.landing-stage .landing-button-secondary:active {
+ background: #d8ba82;
+ transform: none;
+}
+
+#welcome.landing-stage > small {
+ position: absolute;
+ z-index: 2;
+ right: 7%;
+ bottom: 3%;
+ left: 58%;
+ display: block;
+ width: 35%;
+ margin: 0;
+ color: #f5dfb3;
+ font-size: clamp(9px, 0.72vw, 11px);
+ letter-spacing: 0.04em;
+ line-height: 1.6;
+ text-align: center;
+ text-shadow: 2px 2px 0 #17382d, 0 2px 8px rgba(9, 25, 19, 0.8);
+}
+
+@media (max-width: 800px) {
+ #welcome.landing-stage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: #17372e;
+ }
+
+ #welcome.landing-stage .landing-heading,
+ #welcome.landing-stage .landing-scene,
+ #welcome.landing-stage .landing-menu,
+ #welcome.landing-stage > small { flex: none; }
+
+ #welcome.landing-stage .landing-scene {
+  position: relative;
+  inset: auto;
+  order: 2;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-top: 3px solid #bd9458;
+  border-bottom: 3px solid #bd9458;
+  background-position: center center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 2px rgba(26, 49, 39, 0.45);
+ }
+
+ #welcome.landing-stage .landing-shade { display: none; }
+
+ #welcome.landing-stage .landing-heading {
+  position: relative;
+  inset: auto;
+  order: 1;
+  width: 100%;
+  padding: 28px 20px 25px;
+  background:
+   linear-gradient(90deg, transparent, rgba(213, 170, 101, 0.12), transparent) bottom center / 72% 1px no-repeat,
+   #17372e;
+  text-shadow: 2px 2px 0 #0d251d;
+ }
+
+ #welcome.landing-stage .landing-kicker { font-size: 10px; }
+
+ #welcome.landing-stage .landing-heading h1 {
+  margin: 10px 0 9px;
+  font-size: clamp(38px, 10vw, 54px);
+  letter-spacing: 0.09em;
+  white-space: normal;
+ }
+
+ #welcome.landing-stage .landing-tagline {
+  font-size: 15px;
+  line-height: 1.7;
+ }
+
+ #welcome.landing-stage .landing-tagline br { display: none; }
+
+ #welcome.landing-stage .landing-menu {
+  position: relative;
+  inset: auto;
+  order: 3;
+  width: calc(100% - 32px);
+  max-width: 520px;
+  margin: 25px auto 24px;
+  padding: 25px clamp(18px, 6vw, 30px) 23px;
+ }
+
+ #welcome.landing-stage .landing-shop-heading h2 { font-size: clamp(25px, 7vw, 32px); }
+ #welcome.landing-stage .landing-shop-subtitle { font-size: 11px; }
+ #welcome.landing-stage .landing-button-primary { font-size: 17px; }
+ #welcome.landing-stage .landing-button-secondary { font-size: 14px; }
+
+ #welcome.landing-stage > small {
+  position: relative;
+  inset: auto;
+  order: 4;
+  width: calc(100% - 40px);
+  max-width: 480px;
+  margin: 0 auto 25px;
+  padding: 0;
+  font-size: 11px;
+  text-shadow: 1px 1px 0 #0d251d;
+ }
+}
+
+@media (max-width: 380px) {
+ #welcome.landing-stage .landing-heading { padding: 24px 14px 21px; }
+ #welcome.landing-stage .landing-kicker { gap: 7px; letter-spacing: 0.16em; }
+ #welcome.landing-stage .landing-menu { width: calc(100% - 28px); padding: 24px 17px 21px; }
+ #welcome.landing-stage .landing-secondary-actions { gap: 8px; }
+ #welcome.landing-stage .landing-button-secondary { padding-inline: 5px; font-size: 13px; }
+}
+
+@media (min-width: 801px) and (max-height: 700px) {
+ #welcome.landing-stage .landing-heading { top: 4%; }
+ #welcome.landing-stage .landing-heading h1 { margin-block: 8px; font-size: clamp(36px, 4vw, 55px); }
+ #welcome.landing-stage .landing-tagline { font-size: 14px; line-height: 1.55; }
+ #welcome.landing-stage .landing-menu { top: 32%; padding-top: 21px; padding-bottom: 18px; }
+ #welcome.landing-stage .landing-shop-heading { padding-bottom: 10px; }
+ #welcome.landing-stage .landing-shop-subtitle { margin-top: 4px; }
+ #welcome.landing-stage .landing-actions { margin-top: 12px; gap: 8px; }
+ #welcome.landing-stage .landing-button { min-height: 43px; }
+ #welcome.landing-stage .landing-button-primary { padding-block: 9px; }
+ #welcome.landing-stage .landing-secondary-actions { gap: 8px; }
+}
+
+@media (min-width: 801px) and (max-height: 560px) {
+ #welcome.landing-stage .landing-heading { top: 3%; }
+ #welcome.landing-stage .landing-heading h1 { margin-block: 6px; font-size: 34px; }
+ #welcome.landing-stage .landing-tagline { font-size: 12px; line-height: 1.45; }
+ #welcome.landing-stage .landing-menu { top: 31%; padding: 16px 18px 14px; }
+ #welcome.landing-stage .landing-shop-heading { padding: 0 5px 8px; }
+ #welcome.landing-stage .landing-shop-heading h2 { font-size: 22px; }
+ #welcome.landing-stage .landing-shop-subtitle { display: none; }
+ #welcome.landing-stage .landing-actions { margin-top: 9px; gap: 7px; }
+ #welcome.landing-stage .landing-button { min-height: 40px; }
+ #welcome.landing-stage .landing-button-primary { padding-block: 7px; }
+ #welcome.landing-stage .landing-secondary-actions { gap: 7px; }
+ #welcome.landing-stage > small { bottom: 2%; font-size: 9px; }
+}

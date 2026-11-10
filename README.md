@@ -4,8 +4,10 @@
 
 ## 在线试玩版
 
+**[打开游戏](https://liuzeqi080111.github.io/yue-kei-teahouse/) · [试玩说明](TESTING.md) · [电脑验收记录](ACCEPTANCE.md)**
+
 GitHub Pages 发布版本支持完整按钮流程、粤语字幕、普通话释义、粤拼、背景器乐和手机布局。
-公开版接入独立云端语音后端，支持粤语识别、AI 文字对话和 NPC 配音。点击「开始说话」时允许麦克风权限，停止录音后核对文字，再按「发送」。
+公开版接入独立云端语音后端，支持粤语识别、AI 文字对话和 NPC 配音。本机候选版点击「开始说话」后允许麦克风权限，正常停止录音会自动发送。可切换「显示识别文字」。
 只有主动录音或检测麦克风时才请求权限；录音提交至阿里云识别，游戏后端不保存录音。真人设备兼容性仍需测试；输入音量不动时，可使用「检测咪高峰」并选择正确输入设备。
 人物嘴部保持静止。所有账单及付款都是游戏模拟，不会收款。刷新页面会开始新一局。
 
@@ -28,9 +30,14 @@ node server.mjs
 ```
 
 打开 http://127.0.0.1:4173/ 。通过环境变量 PORT 可改端口。
-需要语音时，把 `.env.example` 复制为 `.env`，在本机填写自己的百炼密钥及工作空间地址。
+主线阿明的 26 段固定台词已保存到 assets，合计约 3.47 MB，优先本地播放；重播和慢速使用相同音频。台词与文件对应见 npc-voice-manifest.js。需要更新录音时，可在配置好现有后端环境后显式运行 `node scripts/cache-npc-voice.mjs`，已有有效文件会复用。
+需要在线识别、自由对话及动态配音时，把 `.env.example` 复制为 `.env`，在本机填写自己的百炼密钥及工作空间地址。
 `.env` 不提交、不发布。后端仅监听本机，不适合直接作为公网语音服务。
 真人录音兼容性仍在排查；本机面板提供输入设备选择、音量条及本地麦克风检测。
+
+本机候选版的两句短复习可独立录音、停止、回听、重录和跳过，显示录音计时及实际声音强弱。可配置 Azure Speech：将 `AZURE_SPEECH_KEY` 与 `AZURE_SPEECH_REGION` 填入后端使用的本机 `.env`，重启后端。参考粤拼来自题库；服务可用时的评分来自 `zh-HK` 发音评测，不提供声调或实际发音粤拼推断。配置缺失不影响本地录音回听，也不会显示分数。
+
+默认使用麦克风与紧凑普通话字幕；帮助按需展开，文字输入、原句、设备及字号在“更多”中。点击场景观察，使用餐品动作吃喝。本次为测试者试玩发布，尚未完成所有目标设备和真人验收。
 
 ## 开发及部署
 
@@ -38,13 +45,15 @@ node server.mjs
 npm test
 npm run test:voice
 npm run build:pages
+npm run test:ux3
 ```
 
-Pages 构建仅复制明确列出的前端文件到 `dist/`；部署流程以 `VOICE_API_ORIGIN` 指定 HTTPS 语音服务地址。未设置时构建无语音的静态试玩版。
+Pages 构建仅复制明确列出的前端文件到 `dist/`；部署流程以 `VOICE_API_ORIGIN` 指定 HTTPS 语音服务地址。未设置时构建不含在线语音服务的静态试玩版，本地短复习录音回听仍可用。
+`test:ux3` 运行本地自动验收，需要可用的 Playwright 与 Edge（可用 `PLAYWRIGHT_MODULE` 指定现有模块）。逐项日志及固定提交信息写入被 Git 忽略的 `output/ux3/verification.json`。它不调用真实模型或评测服务；合成音频、接口替身及软键盘几何模拟不代表真人或真机验证。
 源码中的本机模式保持启用，不影响本机语音测试。所有资源使用相对路径，支持 GitHub 项目子目录。
-GitHub 仓库 Settings → Pages 选择 GitHub Actions；推送 main 分支后自动验证并部署。
+GitHub 仓库 Settings → Pages 使用 GitHub Actions。推送及 PR 只运行验证；发布时手动运行 “Publish game to GitHub Pages”，使用 main 分支的已验收提交。构建同时生成 version.json 供反馈定位版本。
 
-主要文件：`app.js` 页面交互、`controller.js` 演出、`scene.js` 场景绘制、`teahouse-scene/` 业务规则、`voice.js` 浏览器录音、`voice-endpoint.js` 后端地址路由、`server/bailian.mjs` 语音服务。云端后端独立部署至 Sites，密钥仅通过服务器运行环境配置。
+主要文件：`app.js` 页面交互、`controller.js` 演出、`scene.js` 场景绘制、`teahouse-scene/` 业务规则、`voice.js` 浏览器录音、`voice-endpoint.js` 后端地址路由、`server/bailian.mjs` 语音服务。公开版使用既有阿里云函数计算后端，密钥仅在服务器环境配置。本机服务不直接暴露到公网。
 
 ## 音乐与素材
 

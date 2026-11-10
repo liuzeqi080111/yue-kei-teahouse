@@ -1,0 +1,256 @@
+/* FEEDBACK-08-CORE 候选：在 style.css、voice.css、landing.css 后加载。
+   移动端结构约定：.conversation 保留 speaker/dialogue/#actions，并加入
+   .mobile-tray-nav 与 .mobile-tray-panels；两个既有面板移入后者。 */
+:root {
+  --mobile-available-height: 100dvh;
+  --mobile-bottom-inset: 0px;
+}
+
+@media (max-width: 650px), (max-width: 950px) and (orientation: landscape) and (max-height: 520px) {
+  .conversation {
+    bottom: calc(8px + var(--mobile-bottom-inset) + env(safe-area-inset-bottom, 0px));
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 6px;
+    width: min(620px, calc(100vw - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    max-width: 100%;
+    max-height: min(45dvh, calc(var(--mobile-available-height) - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    padding: 8px 10px;
+    overflow: hidden;
+  }
+
+  body[data-mobile-tray] .conversation {
+    max-height: min(58dvh, calc(var(--mobile-available-height) - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  }
+
+  .conversation > * { min-width: 0; }
+  .conversation > .speaker { grid-column: 1 / 4; grid-row: 1; align-self: center; padding: 0; }
+  .conversation > .speaker small { display: none; }
+  .conversation > .dialogue {
+    grid-column: 4 / 13;
+    grid-row: 1;
+    min-height: 0;
+    max-height: 104px;
+    padding: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  body[data-mobile-tray] .conversation > .dialogue { max-height: 72px; }
+  .conversation > .dialogue p { margin-block: 2px; }
+  .conversation > .dialogue #dialogue { font-size: 16px; line-height: 1.35; }
+  .conversation > .dialogue #jyutping,
+  .conversation > .dialogue #meaning,
+  .conversation > .dialogue #notice { font-size: 11px; line-height: 1.4; }
+
+  .conversation > #actions {
+    grid-column: 1 / 8;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 6px;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .conversation > #actions button { flex: 0 0 auto; min-height: 44px; padding: 7px 9px; }
+  .conversation > #actions .primary { order: -1; }
+  .conversation > #actions .learning-click-fallback { flex: 1 0 100%; }
+  .conversation > #actions .learning-click-options { flex-wrap: nowrap; overflow-x: auto; }
+
+  .mobile-tray-nav {
+    grid-column: 8 / 13;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    align-self: stretch;
+  }
+  .mobile-tray-nav > button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px;
+    border-color: #bcaa7c99;
+    background: #173c32;
+    color: #f7e9c8;
+    font-size: 11px;
+    line-height: 1.3;
+    touch-action: manipulation;
+  }
+  .mobile-tray-nav > button[aria-expanded="true"],
+  body[data-mobile-tray="voice"] .mobile-tray-nav > [data-mobile-tray-target="voice"],
+  body[data-mobile-tray="learn"] .mobile-tray-nav > [data-mobile-tray-target="learn"] {
+    border-color: #e9bd72;
+    background: #e9bd72;
+    color: #183e34;
+  }
+  .mobile-tray-nav > button:focus-visible { outline: 3px solid #ffd98f; outline-offset: 2px; }
+
+  .mobile-tray-panels { display: none; }
+  body[data-mobile-tray="voice"] .mobile-tray-panels,
+  body[data-mobile-tray="learn"] .mobile-tray-panels {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: block;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid #d6b77b66;
+    background: #102d26;
+    color: #f7e9c8;
+  }
+  .mobile-tray-panels > #voice-dock,
+  .mobile-tray-panels > #learning-guide { display: none; }
+
+  body[data-mobile-tray="voice"] .mobile-tray-panels > #voice-dock {
+    position: static;
+    display: block;
+    width: auto;
+    max-width: none;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .mobile-tray-panels > #voice-dock > summary { min-height: 44px; padding: 10px 12px; }
+  .mobile-tray-panels #voice-host { max-height: none; overflow: visible; }
+  .mobile-tray-panels .voice-panel { padding: 0 10px 10px; }
+
+  body[data-mobile-tray="learn"] .mobile-tray-panels > #learning-guide {
+    position: static;
+    display: block;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    padding: 9px 11px;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .mobile-tray-panels :is(button, select) { min-height: 44px; touch-action: manipulation; }
+  .mobile-tray-panels summary { min-height: 44px; padding-block: 10px; touch-action: manipulation; }
+  .mobile-tray-panels :is(.learning-hint-actions, .practice-controls) { gap: 6px; }
+  .mobile-tray-panels :is(.learning-hint-actions, .practice-controls) > button { padding: 7px 8px; font-size: 11px; }
+
+  body.at-title .mobile-tray-nav,
+  body.at-title .mobile-tray-panels,
+  .game.is-finished .mobile-tray-nav,
+  .game.is-finished .mobile-tray-panels { display: none; }
+
+}
+
+/* The visible height already excludes the keyboard. Keep primary controls in view. */
+@media (max-width: 650px), (max-width: 950px) and (orientation: landscape) and (max-height: 520px) {
+  body[data-mobile-layout] #pause {
+    top: max(10px, env(safe-area-inset-top, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+  }
+  body[data-mobile-layout] .conversation {
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    max-height: min(36dvh, max(106px, calc(var(--mobile-available-height) - 24px)));
+    padding: 8px 10px;
+  }
+  body[data-mobile-layout][data-mobile-tray] .conversation {
+    max-height: min(62dvh, max(106px, calc(var(--mobile-available-height) - 24px)));
+  }
+  .conversation > .dialogue { max-height: 58px; }
+  .conversation > .mobile-tray-goal {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+    color: #efcd8f;
+    font-size: 11px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .conversation > #actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    flex-wrap: wrap;
+    overflow: auto;
+    max-height: min(126px, 27dvh);
+    align-content: start;
+  }
+  .conversation > #actions > :is(button,.reply-choice) { min-width: 0; }
+  .mobile-secondary-actions { min-width: 0; font-size: 11px; }
+  .mobile-secondary-actions[open] { flex: 1 1 100%; order: 3; }
+  .mobile-secondary-actions > summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 6px 9px;
+    border: 1px solid #bcaa7c99;
+    background: #173c32;
+    cursor: pointer;
+  }
+  .mobile-secondary-actions > summary::before { content: "＋"; margin-inline-end: 3px; }
+  .mobile-secondary-actions[open] > summary::before { content: "−"; }
+  .mobile-secondary-options { display: flex; flex-wrap: wrap; gap: 6px; padding-block-start: 6px; }
+  .mobile-tray-nav { grid-column: 1 / -1; grid-row: 4; }
+  .mobile-tray-nav:has(> [hidden]) { grid-template-columns: minmax(0,1fr); }
+  body[data-mobile-tray] .mobile-tray-panels { grid-row: 5; }
+  .mobile-tray-panels > #voice-dock > summary { display: none; }
+  .mobile-tray-panels .voice-panel { padding: 2px 8px 8px; }
+  .mobile-tray-panels .voice-status { background: #102d26; }
+  .voice-devices > summary { color: #edcb88; cursor: pointer; }
+  .voice-devices[open] > .mic-device { margin-block: 2px 6px; }
+  body[data-mobile-keyboard][data-mobile-tray="voice"] .conversation {
+    max-height: max(104px,calc(var(--mobile-available-height) - 22px));
+  }
+  body[data-mobile-keyboard][data-mobile-tray="voice"] .conversation > :is(.speaker,.dialogue,#actions,.mobile-tray-goal) {
+    display: none;
+  }
+  body[data-mobile-layout] :is(#panel .paper-tabs button,#panel [data-close],#panel select,#ending button) { min-height: 44px; }
+  body[data-mobile-layout] .panel-lesson-details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+  body[data-mobile-layout] .panel-lesson-details > summary::before { content: "＋"; margin-inline-end: .4em; }
+  body[data-mobile-layout] .panel-lesson-details[open] > summary::before { content: "−"; }
+  body[data-mobile-layout] .dining-detail-actions > button { min-height: 44px; }
+  body[data-mobile-layout] .dining-detail { max-height: min(71dvh, calc(100% - 36px)); }
+  body[data-mobile-layout][data-camera="table"] .dining-detail { overflow: auto; overscroll-behavior: contain; }
+  body[data-mobile-layout] .dining-service { border-top: 1px solid #a99a72; margin-top: 8px; padding-top: 8px; }
+}
+@media (max-width: 650px) and (orientation: portrait) {
+  body[data-mobile-layout][data-camera="table"]:not([data-mobile-tray]) .conversation { max-height: min(36dvh, 208px); }
+}
+@media (max-width: 950px) and (orientation: landscape) and (max-height: 520px) {
+  body[data-mobile-layout] .game { --mobile-side-width: min(42vw, 340px); }
+  body[data-mobile-layout]:not(.at-title) .game:not(.is-finished) #scene {
+    width: calc(100% - var(--mobile-side-width));
+    object-fit: contain;
+  }
+  body[data-mobile-layout] .conversation {
+    right: max(8px, env(safe-area-inset-right, 0px));
+    left: auto;
+    transform: none;
+    width: calc(var(--mobile-side-width) - 14px);
+    max-height: calc(var(--mobile-available-height) - 58px);
+  }
+  body[data-mobile-layout][data-mobile-tray] .conversation {
+    max-height: calc(var(--mobile-available-height) - 58px);
+  }
+  body[data-mobile-layout][data-mobile-keyboard][data-mobile-tray="voice"] .conversation {
+    width: min(620px,calc(100% - 20px));
+    max-height: max(104px,calc(var(--mobile-available-height) - 22px));
+  }
+  body[data-mobile-layout] #hotspots .look { left: calc((100% - var(--mobile-side-width)) / 2); bottom: 9px; }
+  body[data-mobile-layout] #hotspots .menu-spot { left: 13%; }
+  body[data-mobile-layout] #hotspots .water-spot { left: 50%; }
+  body[data-mobile-layout] #hotspots .waiter-spot { left: 34%; }
+  body[data-mobile-layout] .dining-detail {
+    left: calc((100% - var(--mobile-side-width)) / 2);
+    max-width: calc(100% - var(--mobile-side-width) - 16px);
+  }
+}
+body:not([data-mobile-layout]) .panel-lesson-details > summary { display: none; }
+@media (max-width: 650px) and (orientation: portrait) {
+  body[data-mobile-layout] .game:has(.dining-detail) .conversation { visibility: hidden; }
+  body[data-mobile-layout]:not([data-mobile-tray]) .conversation:has(.mobile-secondary-actions[open]) {
+    max-height: min(53dvh, 290px);
+  }
+}

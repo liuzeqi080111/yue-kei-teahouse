@@ -21,6 +21,54 @@ const REPLIES = {
   CONFIRM_ORDER: ['仲要唔要啲嘢？齊嘅話，我就幫你落單。', '还要别的吗？选好了我就帮你下单。'],
   FINISH_ORDER: ['好，而家幫你落單，請稍等。', '好，现在帮你下单，请稍等。'],
 };
+const COMPLIMENTS = new Set(['好好味', '真係好好味', '真系好好味', '好味', '真係好味', '真系好味', '好好飲', '真係好好飲', '好好吃', '真好吃']);
+const SLOWER_REQUESTS = new Set(['講慢啲', '講慢少少', '可唔可以講慢啲', '可唔可以講慢少少', '講慢點', '說慢一點', '說慢點', '说慢一点', '说慢点', '讲慢一点', '讲慢点']);
+const UNCLEAR_REQUESTS = new Set(['聽唔明', '我聽唔明', '聽唔懂', '我聽唔懂', '唔明', '我唔明', '聽不懂', '我聽不懂', '听不懂', '我听不懂', '聽不明白', '我聽不明白', '聽唔明白', '我聽唔明白', '听不明白', '我听不明白']);
+function normalizeConversation(value) {
+  return String(value || '').trim().replace(/[\s，。！？!?,.、~～呀啊喇啦吖]/g, '').replace(/^(?:唔該你|唔該|唔该你|唔该|請你|請|请你|请)+/, '').replace(/(?:唔該晒|唔该晒|唔該|唔该)$/, '');
+}
+function stageHint(state, view) {
+  if (view.orderReview) return ['齊嘅話就話「落單」，想加嘢就話「繼續揀」。', '选好了就说“下单”，想加菜就说“继续选”。'];
+  const hints = {
+    [P.OUTSIDE]: ['想入嚟食嘢，就話「入嚟」。', '想进来吃饭，就说“进来”。'],
+    [P.GREETING]: ['一位嘅話，就話「一位呀」。', '一位的话，就说“一位呀”。'],
+    [P.SEATING]: ['跟住阿明去窗口位就得喇。', '跟着阿明到靠窗座位就可以。'],
+    [P.SEATED]: ['想睇餐牌，就話「睇餐牌」。', '想看菜单，就说“看菜单”。'],
+    [P.ORDERING]: ['可以話我知想食咩，齊咗就話「確認落單」。', '可以告诉我吃什么，选好了就说“确认下单”。'],
+    [P.DINING]: ['可以話「加水」、「攞餐具」或者「埋單」。', '可以说“加水”、“拿餐具”或者“结账”。'],
+    [P.BILLING]: [state.billPresented ? '睇完張單，確認虛擬付款先話我知。' : '想睇張單，就話「埋單」。', state.billPresented ? '看完账单，确认虚拟付款再告诉我。' : '想看账单，就说“结账”。'],
+    [P.FINISHED]: ['今餐已經完成，多謝晒。', '这一餐已经完成，谢谢。'],
+  };
+  return hints[state.phase] || ['你睇住而家嘅提示，再話我知。', '你看着当前提示，再告诉我。'];
+}
+function conversationReply(playerText, state, view) {
+  playerText=String(playerText||'').split('\n').map(line=>line.trim()).filter(Boolean).at(-1)||'';
+  const normalized = normalizeConversation(playerText);
+  if(/你刚才问什么|你剛才問什麼|解释上一句|解釋上一句/.test(playerText))return {reply:view.line?.[1]||'你可以睇吓提示。',meaning:view.line?.[3]||'可以打开帮助查看当前问题。',teaching:true};
+  // Teaching a phrase is never an order, even if an upstream model proposes one.
+  // Preserve the clarification already in progress so the next real answer works.
+  if(/怎么说|怎麼說|怎么讲|怎麼講|点讲|點講|點樣講|点样讲|教我|不会说|不會說|唔識講|不知道怎么表达|不知道怎麼表達|我能做什么|我能做什麼|什么意思|什麼意思|咩意思/.test(playerText)){
+    const teaching=String(playerText).match(/奶茶|加水|两位|兩位|菠萝油|菠蘿油|结账|結賬|埋單|买单/);
+    const examples={奶茶:['奶茶，naai5 caa4。想點一杯，可以講「唔該，我要一杯奶茶」。','奶茶读作 naai5 caa4。要点一杯，可以说“唔該，我要一杯奶茶”。'],加水:['可以講「唔該，幫我加啲水」。','可以说“唔該，幫我加啲水”，意思是麻烦帮我加点水。'],两位:['可以講「兩位呀，唔該」。','可以说“兩位呀，唔該”，意思是两位，麻烦你。']};
+    examples['菠萝油']=['可以講「唔該，我要一個菠蘿油」。','可以说“唔該，我要一個菠蘿油”，意思是麻烦给我一个菠萝油。'];
+    examples['结账']=['可以講「唔該，埋單」。','可以说“唔該，埋單”，意思是麻烦结账。'];
+    const word=teaching?.[0].replace('兩位','两位').replace('菠蘿油','菠萝油').replace(/結賬|埋單|买单/,'结账');
+    const [reply,meaning]=examples[word]||stageHint(state,view);
+    return {reply,meaning,teaching:true,helpRequested:!teaching};
+  }
+  if (COMPLIMENTS.has(normalized)) {
+    const served = [P.ORDERING, P.DINING].includes(state.phase) && state.items.some((item) => item.status === 'served');
+    return served
+      ? { reply: '多謝晒！聽到你咁講真係開心，慢慢享用。', meaning: '谢谢！听你这么说很开心，请慢慢享用。' }
+      : { reply: '多謝晒！聽到你咁講真係開心。', meaning: '谢谢！听你这么说很开心。' };
+  }
+  const slower = SLOWER_REQUESTS.has(normalized), unclear = UNCLEAR_REQUESTS.has(normalized);
+  if (!slower && !unclear) return null;
+  const [hint, hintMeaning] = stageHint(state, view);
+  return slower
+    ? { reply: `好，我講慢啲。${view.line?.[0]?.startsWith('阿明')?view.line[1]:hint}`, meaning: `好，我说慢一点。${view.line?.[3]||hintMeaning}`, playbackRate: 0.72,teaching:true }
+    : { reply: `唔緊要，我講簡單啲。${hint}`, meaning: `没关系，我说简单一点。${hintMeaning}`,teaching:true };
+}
 
 export function createVoiceBridge({ game } = {}) {
   if (!game || typeof game.snapshot !== 'function' || typeof game.action !== 'function') {
@@ -36,10 +84,22 @@ export function createVoiceBridge({ game } = {}) {
     const { state, view } = snap();
     return JSON.stringify([state, view.orderReview, view.busy]);
   }
-  let memoryToken=token();
+  // Presentation (waiter presence / animation) cannot erase a clarification.
+  // Execution still uses the original strict token above.
+  function dialogueMemoryKey(){
+    const {state,view}=snap();
+    return JSON.stringify([state.round,state.phase,state.items,view.orderReview,state.bill,state.billPresented,state.isPaid,state.partySize]);
+  }
+  function historyLifecycleKey(){
+    const {state}=snap();
+    return JSON.stringify([state.round,state.phase===P.FINISHED]);
+  }
+  let memoryKey=dialogueMemoryKey(),historyKey=historyLifecycleKey();
   function refreshMemory(){
-    const current=token();
-    if(current!==memoryToken){pendingQuestion=null;history=[];memoryToken=current;}
+    const currentHistoryKey=historyLifecycleKey();
+    if(currentHistoryKey!==historyKey){history=[];historyKey=currentHistoryKey;}
+    const current=dialogueMemoryKey();
+    if(current!==memoryKey){pendingQuestion=null;memoryKey=current;}
   }
 
   /** 阶段合法动作表，与 session.ACTION_PHASES 及 controller 两步落单一致；billing 不能加水/餐具。 */
@@ -52,7 +112,7 @@ export function createVoiceBridge({ game } = {}) {
       case P.GREETING: return ['START_SEATING'];
       case P.SEATING: return [];
       case P.SEATED:
-        return ['OPEN_MENU', 'CALL_WAITER', 'REQUEST_WATER', 'REQUEST_UTENSILS', 'WAITER_LEAVE'];
+        return ['OPEN_MENU', 'ADD_ITEM', 'CALL_WAITER', 'REQUEST_WATER', 'REQUEST_UTENSILS', 'WAITER_LEAVE'];
       case P.ORDERING: case P.DINING: {
         if (view.orderReview) return ['FINISH_ORDER', 'CONTINUE_ORDER'];
         const list = ['OPEN_MENU', 'CALL_WAITER', 'REQUEST_WATER', 'REQUEST_UTENSILS', 'WAITER_LEAVE', 'ADD_ITEM'];
@@ -117,22 +177,46 @@ export function createVoiceBridge({ game } = {}) {
     if (typeof tk !== 'string' || tk !== token()) return bad('啱啱狀態有更新，麻煩再講一次。');
     if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return bad('提案格式唔啱，請再試一次。');
     if (!DECISIONS.has(proposal.decision)) return bad('提案決策唔合法，請再試一次。');
-    const intents = proposal.intents === undefined ? [] : proposal.intents;
+    let intents = proposal.intents === undefined ? [] : proposal.intents;
     if (!Array.isArray(intents) || intents.length > 4) return bad('提案意圖數量唔合法。');
+    // The existing hosted API used qty for seating. Interpret it only for this
+    // action; ordinary menu quantities retain their existing validation.
+    intents=intents.map(it=>it?.type==='START_SEATING'&&it.partySize===undefined&&it.qty!==undefined?{...it,partySize:it.qty}:it);
+    // A different menu item is a replacement, not an options-only update. Expand
+    // it before the existing atomic precheck so a failed replacement changes nothing.
+    intents=intents.flatMap(it=>{
+      if(it?.type!=='UPDATE_ITEM'||!it.itemId)return [it];
+      const old=state.items.find(line=>line.id===it.orderItemId);
+      if(old&&old.itemId===it.itemId)return [it];
+      return [{type:'CANCEL_ITEM',orderItemId:it.orderItemId},{type:'ADD_ITEM',itemId:it.itemId,options:it.options,qty:it.qty}];
+    });
+    if(intents.length>4)return bad('一次改动较多，请分开说明。');
     const record = (npcText) => {
       if (text(proposal.playerText)) history.push({ role: 'player', text: text(proposal.playerText) });
       history.push({ role: 'npc', text: npcText });
       history = history.slice(-6);
     };
+    let conversational = conversationReply(text(proposal.playerText), state, view);
+    // Keep the no-order teaching guard, but preserve a model's contextual example
+    // for compound requests instead of replacing it with a generic single word.
+    if(conversational?.teaching&&proposal.decision==='reply'&&text(proposal.reply)&&/冻|凍|少甜|走甜|普通话|普通話/.test(text(proposal.playerText))){
+      conversational={...conversational,reply:text(proposal.reply),meaning:text(proposal.meaning)||conversational.meaning};
+    }
+    const replyOnly = ({ reply, meaning, playbackRate, teaching,helpRequested }) => {
+      if(!teaching)pendingQuestion = null; record(reply); memoryKey = dialogueMemoryKey();
+      return { ok: true, reply, meaning, executed: [], executedIntents: [], ...(playbackRate ? { playbackRate } : {}),...(helpRequested?{helpRequested:true}:{}) };
+    };
 
     if (proposal.decision !== 'execute') {
       if (intents.length) return bad('非執行決策唔可以帶動作。');
+      if (conversational) return replyOnly(conversational);
       const reply = text(proposal.reply) || (proposal.decision === 'clarify' ? text(proposal.question) : '') || '唔好意思，可唔可以再講一次？';
       pendingQuestion = proposal.decision === 'clarify' ? { question: text(proposal.question) || reply } : null;
       record(reply);
-      return { ok: true, reply, meaning: text(proposal.meaning), executed: [] };
+      return { ok: true, reply, meaning: text(proposal.meaning), executed: [], executedIntents: [] };
     }
 
+    if (conversational) return replyOnly(conversational);
     if (!intents.length) return bad('冇可執行嘅動作。');
     const allowed = new Set(allowedActions(state, view));
     const isOrderBatch = intents.every((it) => it && ORDER_TYPES.has(it.type));
@@ -149,13 +233,16 @@ export function createVoiceBridge({ game } = {}) {
       if (failure) return failure; // 整批不执行，状态不变
     } else {
       const it = intents[0];
+      if (it.type === 'START_SEATING' && it.partySize !== undefined && ![1, 2].includes(it.partySize)) return bad('而家可以安排一位或者兩位。');
       if (it.type === 'CONFIRM_ORDER' && (view.orderReview || !state.items.some((i) => i.status === 'pending'))) return bad('而家未有需要確認嘅餐點。');
       if ((it.type === 'FINISH_ORDER' || it.type === 'CONTINUE_ORDER') && !view.orderReview) return bad('要先用「確認落單」問過阿明先。');
       if (it.type === 'REQUEST_BILL' && state.items.some((i) => i.status === 'pending')) return bad('仲有餐點未確認，落單或取消之後先可以埋單。');
       if (it.type === 'PAY_BILL' && (!state.billPresented || state.isPaid || !state.bill)) return bad('而家未可以付款，請先核對帳單。');
     }
 
-    const executed = [], names = [];
+    const memoryBefore=dialogueMemoryKey();
+    if (state.phase === P.SEATED && isOrderBatch && !game.action('OPEN_MENU')?.ok) return bad('而家未能開始點餐，請稍後再試。');
+    const executed = [], executedIntents = [], names = [], cancelledNames=[];
     let reply = '', meaning = '';
     for (const it of intents) {
       let r;
@@ -163,6 +250,7 @@ export function createVoiceBridge({ game } = {}) {
         game.camera('menu'); r = { ok: true, events: [] }; // 已打开过菜单：仅视图切换
       } else {
         const extra = {};
+        if (it.type === 'START_SEATING') extra.partySize = it.partySize;
         if (it.type === 'ADD_ITEM') { extra.itemId = it.itemId; extra.qty = 1; extra.options = it.options ?? {}; }
         if (it.type === 'UPDATE_ITEM') { extra.orderItemId = it.orderItemId; extra.qty = 1; extra.options = it.options ?? {}; }
         if (it.type === 'CANCEL_ITEM') extra.orderItemId = it.orderItemId;
@@ -171,9 +259,23 @@ export function createVoiceBridge({ game } = {}) {
       }
       if (!r || !r.ok) return bad('而家做唔到呢個操作，請檢查訂單再試一次。');
       executed.push(it.type);
+      const noop=r.events?.some((event)=>event.type.endsWith('_NOOP'));
+      if(!noop){
+       const actual={type:it.type};
+       if(it.type==='ADD_ITEM'||it.type==='UPDATE_ITEM'){
+        const actualLine=it.type==='ADD_ITEM'?r.state?.items?.find((item)=>item.itemId===it.itemId):r.state?.items?.find((item)=>item.id===it.orderItemId);
+        if(actualLine){
+         if(it.type==='ADD_ITEM')actual.itemId=actualLine.itemId;else actual.orderItemId=actualLine.id;
+         actual.options={...actualLine.options};
+        }else{
+         if(it.itemId)actual.itemId=it.itemId;if(it.orderItemId)actual.orderItemId=it.orderItemId;
+        }
+       }else if(it.orderItemId)actual.orderItemId=it.orderItemId;
+       executedIntents.push(actual);
+      }
       const line = it.orderItemId ? state.items.find((l) => l.id === it.orderItemId) : null;
       const menuItem = it.itemId ? getMenuItem(it.itemId) : null;
-      if (menuItem || line) names.push((menuItem || line).name);
+      if (menuItem || line) (it.type==='CANCEL_ITEM'?cancelledNames:names).push((menuItem || line).name);
       if (REPLIES[it.type]) [reply, meaning] = REPLIES[it.type];
       if (it.type === 'REQUEST_BILL' && r.state?.bill) {
         reply = `呢張係你張單，合共 ${money(r.state.bill.totalCents)}，未收錢，核對清楚話我知先至付款。`;
@@ -188,12 +290,12 @@ export function createVoiceBridge({ game } = {}) {
     }
     if (names.length && executed.includes('ADD_ITEM')) { reply = `記低咗：${names.join('、')}，仲未落單，確認先至送去廚房。`; meaning = `已记下：${names.join('、')}，还未下单，确认后才送厨房。`; }
     else if (names.length && executed.includes('UPDATE_ITEM')) { reply = `改好喇：${names.join('、')}，未落單前仲可以改。`; meaning = `已修改：${names.join('、')}，下单前还可以再改。`; }
-    else if (names.length && executed.includes('CANCEL_ITEM')) { reply = `取消咗：${names.join('、')}。`; meaning = `已取消：${names.join('、')}。`; }
+    else if (cancelledNames.length && executed.includes('CANCEL_ITEM')) { reply = `取消咗：${cancelledNames.join('、')}。`; meaning = `已取消：${cancelledNames.join('、')}。`; }
 
-    if (token() !== tk) { pendingQuestion = null; history = []; } // 任何业务变化/重开/动画完成使旧上下文作废
+    if (dialogueMemoryKey() !== memoryBefore) pendingQuestion = null;
     record(reply);
-    memoryToken=token();
-    return { ok: true, reply, meaning, executed };
+    memoryKey=dialogueMemoryKey();
+    return { ok: true, reply, meaning, executed, executedIntents };
   }
 
   return { context, token, apply };
