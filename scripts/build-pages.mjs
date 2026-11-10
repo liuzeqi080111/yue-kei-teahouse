@@ -11,7 +11,7 @@ export const publicFiles=[
  'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','practice-audio.js','practice-recorder.js','music.js','ambient.js','sound-priority.js',
  'teahouse-scene/index.js','teahouse-scene/menu.js','teahouse-scene/session.js',
  ...Object.values(NPC_VOICE_CLIPS),
- ...['interior-furnished.png','window-street-clean-ux5.png','window-tram-ux5.png','window-walkers-ux6.png','exterior.png','waiter-poses.png','table.png','food-sheet.png','food-empty-ux3.png','drinks.png','drinks-empty-ux3.png','waiter-gait-v2.png','service-hands.png','takeaway-bun.png','hongkong-evening.wav','hongkong-arrival.png'].map(n=>'assets/'+n)
+ ...['interior-furnished.png','window-street-clean-ux5.png','window-tram-ux5.png','window-walkers-ux6.png','exterior.png','waiter-poses.png','table.png','food-sheet.png','food-empty-ux3.png','drinks.png','drinks-empty-ux3.png','waiter-gait-v2.png','service-hands.png','takeaway-bun.png','hongkong-evening.wav','hongkong-arrival.png','hongkong-street-opening.png'].map(n=>'assets/'+n)
 ];
 await mkdir(target,{recursive:true});
 // Refuse stale/unexpected output rather than risk publishing local private files.
