@@ -65,4 +65,16 @@ for(const playerText of ['奶茶怎么说','奶茶點講','教我点一杯奶茶
 }
 const ordered=bridge.apply({decision:'execute',playerText:'我要一杯热奶茶，正常甜',intents:[{type:'ADD_ITEM',itemId:'drink-milk-tea',options:{temperature:'熱',sweetness:'正常甜'}}]},bridge.token());
 assert.equal(ordered.ok,true);assert.equal(game.snapshot().state.items.length,1);
+const milkId=game.snapshot().state.items[0].id;
+unchanged(()=>apply({type:'UPDATE_ITEM',orderItemId:milkId,itemId:'food-curry-fishball'}));
+const replace=apply({type:'UPDATE_ITEM',orderItemId:milkId,itemId:'drink-lemon-tea',options:{temperature:'凍',sweetness:'少甜'}});
+assert.equal(replace.ok,true);assert.equal(game.snapshot().state.items.length,1);
+assert.equal(game.snapshot().state.items[0].itemId,'drink-lemon-tea');
+assert.equal(game.snapshot().state.items[0].options.sweetness,'少甜');
 console.log('PASS voice bridge: menu rules, service, safe virtual payment, contextual replies without order mutation, and stale response');
+game.action('RESTART');game.action('ENTER');flush();
+unchanged(()=>apply({type:'START_SEATING',qty:3}));
+assert.equal(apply({type:'START_SEATING',qty:2}).ok,true);flush();
+assert.equal(game.snapshot().state.partySize,2,'legacy hosted qty maps to partySize only for seating');
+const taught=bridge.apply({decision:'reply',intents:[],playerText:'教我点冻奶茶少甜，用普通话解释',reply:'可以講「唔該，一杯凍奶茶，少甜」。',meaning:'麻烦，一杯冰奶茶，少甜。'},bridge.token());
+assert.match(taught.reply,/凍奶茶，少甜/);assert.equal(game.snapshot().state.items.length,0);

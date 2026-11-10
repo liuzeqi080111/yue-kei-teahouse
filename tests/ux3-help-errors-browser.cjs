@@ -18,7 +18,14 @@ const assert=require('node:assert/strict');
  });
  await page.route('**/api/voice/interpret',r=>{calls++;if(fail)return r.abort('failed');return r.continue();});
  try{
-  await page.goto('http://127.0.0.1:'+server.address().port);await page.locator('[data-action="ENTER"]').click();await page.waitForTimeout(16000);
+  await page.goto('http://127.0.0.1:'+server.address().port);await page.locator('[data-action="ENTER"]').click();
+  await page.locator('.hud-direct [data-hud="first-answer"]').click();
+  assert.equal(await page.locator('.hud-example').count(),1,'greeting offers direct help');
+  await page.locator('[data-hud="close"]').click();
+  await page.locator('.hud-direct [data-action="START_SEATING"]').first().click();
+  await page.locator('[data-hud-camera="menu"]:not(:disabled)').waitFor();
+  await page.locator('#hotspots [data-action="CALL_WAITER"]').click();
+  await page.locator('#hud-idle-hint').waitFor({state:'visible',timeout:25000});
   assert.equal(await page.locator('#hud-idle-hint').isVisible(),true,'idle hint after NPC finished');
   await page.locator('#hud-idle-hint').click();assert.equal(await page.locator('.hud-example').count(),1,'expression help immediately provides the complete example');
   await page.locator('[data-hud="close"]').click();await page.waitForTimeout(15000);assert.equal(await page.locator('#hud-idle-hint').isVisible(),false,'only once per line');

@@ -177,14 +177,31 @@ export function createVoiceBridge({ game } = {}) {
     if (typeof tk !== 'string' || tk !== token()) return bad('啱啱狀態有更新，麻煩再講一次。');
     if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return bad('提案格式唔啱，請再試一次。');
     if (!DECISIONS.has(proposal.decision)) return bad('提案決策唔合法，請再試一次。');
-    const intents = proposal.intents === undefined ? [] : proposal.intents;
+    let intents = proposal.intents === undefined ? [] : proposal.intents;
     if (!Array.isArray(intents) || intents.length > 4) return bad('提案意圖數量唔合法。');
+    // The existing hosted API used qty for seating. Interpret it only for this
+    // action; ordinary menu quantities retain their existing validation.
+    intents=intents.map(it=>it?.type==='START_SEATING'&&it.partySize===undefined&&it.qty!==undefined?{...it,partySize:it.qty}:it);
+    // A different menu item is a replacement, not an options-only update. Expand
+    // it before the existing atomic precheck so a failed replacement changes nothing.
+    intents=intents.flatMap(it=>{
+      if(it?.type!=='UPDATE_ITEM'||!it.itemId)return [it];
+      const old=state.items.find(line=>line.id===it.orderItemId);
+      if(old&&old.itemId===it.itemId)return [it];
+      return [{type:'CANCEL_ITEM',orderItemId:it.orderItemId},{type:'ADD_ITEM',itemId:it.itemId,options:it.options,qty:it.qty}];
+    });
+    if(intents.length>4)return bad('一次改动较多，请分开说明。');
     const record = (npcText) => {
       if (text(proposal.playerText)) history.push({ role: 'player', text: text(proposal.playerText) });
       history.push({ role: 'npc', text: npcText });
       history = history.slice(-6);
     };
-    const conversational = conversationReply(text(proposal.playerText), state, view);
+    let conversational = conversationReply(text(proposal.playerText), state, view);
+    // Keep the no-order teaching guard, but preserve a model's contextual example
+    // for compound requests instead of replacing it with a generic single word.
+    if(conversational?.teaching&&proposal.decision==='reply'&&text(proposal.reply)&&/冻|凍|少甜|走甜|普通话|普通話/.test(text(proposal.playerText))){
+      conversational={...conversational,reply:text(proposal.reply),meaning:text(proposal.meaning)||conversational.meaning};
+    }
     const replyOnly = ({ reply, meaning, playbackRate, teaching,helpRequested }) => {
       if(!teaching)pendingQuestion = null; record(reply); memoryKey = dialogueMemoryKey();
       return { ok: true, reply, meaning, executed: [], executedIntents: [], ...(playbackRate ? { playbackRate } : {}),...(helpRequested?{helpRequested:true}:{}) };
@@ -225,7 +242,7 @@ export function createVoiceBridge({ game } = {}) {
 
     const memoryBefore=dialogueMemoryKey();
     if (state.phase === P.SEATED && isOrderBatch && !game.action('OPEN_MENU')?.ok) return bad('而家未能開始點餐，請稍後再試。');
-    const executed = [], executedIntents = [], names = [];
+    const executed = [], executedIntents = [], names = [], cancelledNames=[];
     let reply = '', meaning = '';
     for (const it of intents) {
       let r;
@@ -258,7 +275,7 @@ export function createVoiceBridge({ game } = {}) {
       }
       const line = it.orderItemId ? state.items.find((l) => l.id === it.orderItemId) : null;
       const menuItem = it.itemId ? getMenuItem(it.itemId) : null;
-      if (menuItem || line) names.push((menuItem || line).name);
+      if (menuItem || line) (it.type==='CANCEL_ITEM'?cancelledNames:names).push((menuItem || line).name);
       if (REPLIES[it.type]) [reply, meaning] = REPLIES[it.type];
       if (it.type === 'REQUEST_BILL' && r.state?.bill) {
         reply = `呢張係你張單，合共 ${money(r.state.bill.totalCents)}，未收錢，核對清楚話我知先至付款。`;
@@ -273,7 +290,7 @@ export function createVoiceBridge({ game } = {}) {
     }
     if (names.length && executed.includes('ADD_ITEM')) { reply = `記低咗：${names.join('、')}，仲未落單，確認先至送去廚房。`; meaning = `已记下：${names.join('、')}，还未下单，确认后才送厨房。`; }
     else if (names.length && executed.includes('UPDATE_ITEM')) { reply = `改好喇：${names.join('、')}，未落單前仲可以改。`; meaning = `已修改：${names.join('、')}，下单前还可以再改。`; }
-    else if (names.length && executed.includes('CANCEL_ITEM')) { reply = `取消咗：${names.join('、')}。`; meaning = `已取消：${names.join('、')}。`; }
+    else if (cancelledNames.length && executed.includes('CANCEL_ITEM')) { reply = `取消咗：${cancelledNames.join('、')}。`; meaning = `已取消：${cancelledNames.join('、')}。`; }
 
     if (dialogueMemoryKey() !== memoryBefore) pendingQuestion = null;
     record(reply);

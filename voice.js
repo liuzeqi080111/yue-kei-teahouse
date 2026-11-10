@@ -51,6 +51,7 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
   let aborter = null, lastReply = '', lastReplyRate = 1, lastKey = '';
   let failedMessage=null,suspended=false,working=false,destroyed=false,serviceRound=null,interpreting=false;
   const queued=[];
+  let inFlightMessages=[];
   let lastNpcLine='',lineTimer=0,suppressLine=false,releaseFarewell=null,farewellText='';
   const speech=createNpcSpeech({onActivity:()=>{game.setSpeech?.(speech.active);refreshButtons();},onState:t=>{if(!working)setState(t);},onSettled:text=>{if(text===farewellText){releaseFarewell?.();releaseFarewell=null;farewellText='';}}});
   const bizKey = (s) => JSON.stringify([s.state, s.view.orderReview]);
@@ -63,8 +64,8 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
   function refreshButtons() {
     const busy = game.snapshot().view.busy;
     detectBtn.disabled=working||busy;
-    micBtn.disabled = working && !recorder;
-    sendBtn.disabled = working || !input.value.trim();
+    micBtn.disabled = working && !interpreting && !recorder;
+    sendBtn.disabled = (working && !interpreting) || !input.value.trim();
     cancelBtn.hidden = !working && !queued.length;
     micBtn.innerHTML=recorder?'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg>';
     micBtn.dataset.recording=String(Boolean(recorder));
@@ -138,7 +139,7 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
     try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
     recorder = null; stream = null;
   }
-  function cancel(preserveSpeech=false) { runId++;queued.length=0;failedMessage=null;retryMessageBtn.hidden=true;interpreting=false;clearTimeout(lineTimer);if(!preserveSpeech){speech.stop();releaseFarewell?.();releaseFarewell=null;} working=false;serviceRound=null; try { aborter?.abort(); } catch {} aborter = null; stopMic(); closeCtx(); ready(); }
+  function cancel(preserveSpeech=false) { runId++;queued.length=0;inFlightMessages=[];failedMessage=null;retryMessageBtn.hidden=true;interpreting=false;clearTimeout(lineTimer);if(!preserveSpeech){speech.stop();releaseFarewell?.();releaseFarewell=null;} working=false;serviceRound=null; try { aborter?.abort(); } catch {} aborter = null; stopMic(); closeCtx(); ready(); }
   let audioCtx = null;
   function closeCtx() { const c = audioCtx; audioCtx = null; if (c) c.close().catch(() => {}); }
 
@@ -167,12 +168,20 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
     return;
   }
 
+  function interruptInterpretation(){
+    if(!interpreting)return;
+    // The pending proposal has not executed. Preserve its text with the correction,
+    // and invalidate its response before starting any replacement request.
+    runId++;aborter?.abort();aborter=null;
+    queued.unshift(...inFlightMessages);inFlightMessages=[];interpreting=false;working=false;
+  }
   function sendFlow(raw,mode='text') {
     const text = String(raw || '').trim();
-    if (!text || working || destroyed || suspended) return;
+    if (!text || (working&&!interpreting) || destroyed || suspended) return;
     failedMessage=null;retryMessageBtn.hidden=true;
-    const size=queued.reduce((total,message)=>total+message.text.length+1,0);
+    const size=[...inFlightMessages,...queued].reduce((total,message)=>total+message.text.length+1,0);
     if(size+text.length>500){setState('已接收的消息较多，请等阿明回应后再试。');return;}
+    interruptInterpretation();
     queued.push({text,mode});
     if(game.snapshot().view.busy){setState('已收到，阿明服务完就会回应。');refreshButtons();return;}
     void drainMessages();
@@ -183,6 +192,7 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
     const before=game.snapshot();
     if (before.view.busy) return;
     const messages=queued.splice(0);
+    inFlightMessages=messages;
     const text=messages.map(message=>message.text).join('\n');
     const mode=messages.every(message=>message.mode==='voice')?'voice':'text';
     const practiceTarget=typeof getPracticeTarget==='function'?getPracticeTarget():null;
@@ -214,12 +224,13 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
       if(result.ok)setTimeout(()=>{if(id===runId&&!working&&!speech.active)setState('准备好');},3500);
       if(game.snapshot().view.busy){working=false;lastNpcLine='';syncNpc(game.snapshot());}else await playReply(lastReply, id, lastReplyRate);
     } catch (e) { if (id === runId) {failedMessage={text,mode,token:bridge.token()};retryMessageBtn.hidden=false;input.value=text;setState(e.message || '发生错误，请再试。');} }
-    if(id===runId){working=false;interpreting=false;}
+    if(id===runId){working=false;interpreting=false;inFlightMessages=[];}
     refreshButtons();
   }
 
   async function startRecording() {
-    if (working || destroyed || suspended) return;
+    if ((working&&!interpreting) || destroyed || suspended) return;
+    interruptInterpretation();
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setState('此浏览器不支持录音，请使用系统浏览器或输入文字。'); return; }
     speech.stop(); working=true; refreshButtons(); const id = ++runId;
     try {
