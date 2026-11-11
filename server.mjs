@@ -12,6 +12,8 @@ try{process.loadEnvFile(path.join(root,'.env'));}catch{/* 缺文件或其他读�
 
 const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','practice-audio.js','practice-recorder.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','music.js','voice-capture.js','voice-endpoint.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css','assets/ow-world.png','assets/ow-player.png','assets/ow-npcs.png','assets/ow-home.png','assets/ow-laundry.png','assets/ow-qing-coats.png','assets/ow-world-day.png','assets/ow-world-night.png']);
 const mime={'.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
+for (const name of ['fp1-demo.html','fp1-demo.css','fp1-demo.js','fp1-follow.js','fp1-render.js',
+  'fp1-scene.js','fp1-story.js','fp1-travel.js','fp1-voice.js','fp1-dictation.js','fp1-clips.js']) allowed.add(name);
 const MAX_BODY=3*1024*1024,MAX_CONCURRENCY=2,RATE_PER_MINUTE=30;
 const HTTP_BY_CODE={INVALID_INPUT:400,INVALID_JSON:400,UNSUPPORTED_MEDIA_TYPE:415,PAYLOAD_TOO_LARGE:413,AUDIO_TOO_LARGE:413,ASR_EMPTY:422,PROVIDER_UNCONFIGURED:503,PROVIDER_UNAVAILABLE:503,UPSTREAM_TIMEOUT:504,UPSTREAM_ERROR:502,UPSTREAM_STATUS:502,INVALID_MODEL_JSON:502,UNTRUSTED_AUDIO_URL:502,RATE_LIMITED:429};
 const PRACTICE_HTTP={INVALID_INPUT:400,PRACTICE_NO_SPEECH:422,PRACTICE_UNCONFIGURED:503,PRACTICE_UPSTREAM_ERROR:502,PRACTICE_TIMEOUT:504,PRACTICE_RATE_LIMITED:429};
@@ -143,6 +145,8 @@ export function createServer({provider=createBailian(),pronunciation=createPronu
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const server=createServer();
+  const server=process.argv.includes('--fp1')
+    ? createServer({provider:createBailian({speechVoice:'Kiki'})})
+    : createServer();
   server.listen(Number(process.env.PORT||4173),'127.0.0.1',()=>console.log(`Local: http://127.0.0.1:${server.address().port}`));
 }

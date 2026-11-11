@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#24332e">
+  <title>送错的外套 · 唔該，開局！</title>
+  <link rel="stylesheet" href="./fp1-demo.css">
+  <script type="module" src="./fp1-demo.js"></script>
+</head>
+<body>
+  <main id="experience" aria-label="送错的外套">
+    <canvas id="scene" tabindex="0" aria-label="街巷第一人称画面，拖动环顾，方向键或 WASD 移动"></canvas>
+    <header class="hud">
+      <div class="goal">
+        <p class="brand">唔該，開局！ <span>／</span> 送错的外套</p>
+        <div class="goal-line"><span class="goal-dot" aria-hidden="true"></span><span id="goal" aria-live="polite">正在打开街巷</span></div>
+      </div>
+      <div class="utility">
+        <button id="sound" type="button" aria-pressed="true">声音</button>
+        <button id="restart" type="button">重来</button>
+      </div>
+    </header>
+    <div class="view-hint" id="view-hint">拖动环顾 <span>·</span> 方向键移动</div>
+    <div class="walk-tools" id="walk-tools" hidden>
+      <div class="direction" id="direction" aria-label="移动方向" hidden>
+        <button type="button" data-move="left" aria-label="向左">←</button>
+        <button type="button" data-move="forward" aria-label="向前">↑</button>
+        <button type="button" data-move="right" aria-label="向右">→</button>
+      </div>
+      <button id="follow" type="button">自己逛逛</button>
+    </div>
+    <section class="dialogue" id="dialogue" aria-label="当前对话" hidden>
+      <div class="dialogue-inner">
+        <div class="line" id="line">
+          <p id="speaker" class="speaker"></p>
+          <button id="subtitle" class="subtitle" type="button" title="点台词重听"></button>
+          <p id="context-line" class="context-line" hidden></p>
+          <p id="explanation" class="explanation" aria-live="polite" hidden></p>
+        </div>
+        <div id="choices" class="choices" aria-label="当前行动"></div>
+        <div class="dialogue-tools" id="dialogue-tools" hidden>
+          <button type="button" id="speak">说话</button>
+          <button type="button" id="help" aria-expanded="false" aria-controls="help-options">问朋友</button>
+          <button type="button" id="type" aria-expanded="false" aria-controls="type-form">打字</button>
+        </div>
+        <div class="help-options" id="help-options" hidden>
+          <button type="button" data-help="meaning">什么意思？</button>
+          <button type="button" data-help="example">怎么说？</button>
+          <button type="button" data-help="answer">帮我说</button>
+        </div>
+        <form id="type-form" hidden>
+          <label class="visually-hidden" for="voice-text">想说的话</label>
+          <input id="voice-text" maxlength="160" autocomplete="off" placeholder="写下你想说的话">
+          <button type="submit">发送</button>
+        </form>
+        <div id="dictation-consent" class="help-options" hidden>
+          <button type="button" id="dictate">使用浏览器听写</button>
+          <span class="voice-status">浏览器可能将声音发送给自己的识别服务。</span>
+        </div>
+        <p id="voice-status" class="voice-status" role="status" hidden></p>
+      </div>
+    </section>
+    <div id="loading" class="loading" role="status">正在打开街巷…</div>
+  </main>
+</body>
+</html>

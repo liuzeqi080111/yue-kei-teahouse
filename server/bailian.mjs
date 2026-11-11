@@ -259,7 +259,8 @@ function parseWorldModel(content, request) {
   return result;
 }
 
-export function createBailian({ env = process.env, fetchImpl = fetch } = {}) {
+export function createBailian({ env = process.env, fetchImpl = fetch, speechVoice = MODELS.voice } = {}) {
+  if (!['Rocky','Kiki','Ethan'].includes(speechVoice)) throw new TypeError('不支持的配音音色');
   const key = env.DASHSCOPE_API_KEY;
   const base = env.BAILIAN_OPENAI_BASE_URL;
   const configured = Boolean(key && base);
@@ -275,7 +276,7 @@ export function createBailian({ env = process.env, fetchImpl = fetch } = {}) {
       npc: configured,
       tts: configured,
       mode: configured ? 'real' : 'unconfigured',
-      models: { asr: MODELS.asr, npc: MODELS.npc, tts: MODELS.tts, voice: MODELS.voice },
+      models: { asr: MODELS.asr, npc: MODELS.npc, tts: MODELS.tts, voice: speechVoice },
     };
   }
 
@@ -355,7 +356,7 @@ export function createBailian({ env = process.env, fetchImpl = fetch } = {}) {
       fetchImpl,
       new URL('/api/v1/services/aigc/multimodal-generation/generation', base),
       key,
-      { model: MODELS.tts, input: { text, voice: MODELS.voice, language_type: 'Chinese' } },
+      { model: MODELS.tts, input: { text, voice: speechVoice, language_type: 'Chinese' } },
     );
     const audioUrl = data?.output?.audio?.url;
     if (!audioUrl) fail('UPSTREAM_ERROR', '上游未返回音頻地址');
