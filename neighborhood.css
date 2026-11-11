@@ -46,3 +46,4 @@ body.world-open{overflow:hidden}
 @media(prefers-reduced-motion:reduce){#world-stick::after{transition:none}}
 .world-compose input{flex:1 1 100%;width:100%;min-width:0}
 .world-choices.world-compose button{flex:1 1 130px;text-align:center}
+#world-status{pointer-events:none}
