@@ -11,6 +11,23 @@ const TAKEAWAY_SERVINGS = new Set([
   "外带",
 ]);
 
+function isRecord(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactKeys(value, keys) {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function isPackedItem(item) {
+  const options = item && item.options && typeof item.options === "object" ? item.options : {};
+  const serving = typeof options.serving === "string" ? options.serving.toLowerCase() : options.serving;
+  return Boolean(TAKEAWAY_SERVINGS.has(serving) || options.packed === true || options.isPacked === true);
+}
+
 /**
  * 创建独立的用餐逻辑。订单与快照只读，份量仅保存在当前回合的内部状态中。
  *
@@ -35,17 +52,8 @@ export function createDining({ getSnapshot }) {
   }
 
   function describe(state, view, orderId, item, expectedRound, checkRound) {
-    const options = item && item.options && typeof item.options === "object"
-      ? item.options
-      : {};
     const itemId = item ? item.itemId : undefined;
-    const serving = typeof options.serving === "string"
-      ? options.serving.toLowerCase()
-      : options.serving;
-    const isTakeaway = TAKEAWAY_SERVINGS.has(serving);
-    const isPacked = Boolean(
-      isTakeaway || options.packed === true || options.isPacked === true,
-    );
+    const isPacked = isPackedItem(item);
     const isDrink = Boolean(
       item && typeof itemId === "string" && itemId.startsWith("drink-"),
     );
@@ -123,7 +131,67 @@ export function createDining({ getSnapshot }) {
     };
   }
 
-  return { takeBite, inspect };
+  /** 导出当前回合所有可食用已上菜行的剩余量；外卖不占用餐份量。 */
+  function exportState() {
+    const snapshot = getSnapshot();
+    const state = snapshot && snapshot.state ? snapshot.state : {};
+    const view = snapshot && snapshot.view ? snapshot.view : {};
+    const items = Array.isArray(state.items) ? state.items : [];
+    syncRound(state.round);
+    const savedPortions = [];
+    for (const item of items) {
+      if (!item || item.status !== "served" || isPackedItem(item)) continue;
+      const details = describe(state, view, item.id, item, undefined, false);
+      savedPortions.push({ orderId: item.id, remaining: details.remaining });
+    }
+    return { round: state.round, portions: savedPortions };
+  }
+
+  /**
+   * 原子恢复份量。条目必须对应当前回合、已上菜且非外卖的有效订单行。
+   * 未列出的有效行保持默认三口；任何失败都不会清空或改写旧份量。
+   */
+  function restoreState(saved) {
+    const failure = (reason) => ({ ok: false, reason });
+    const snapshot = getSnapshot();
+    const state = snapshot && snapshot.state ? snapshot.state : {};
+    const items = Array.isArray(state.items) ? state.items : [];
+    if (!isRecord(saved) || !hasExactKeys(saved, ["round", "portions"]) ||
+        !Number.isSafeInteger(saved.round) || saved.round < 0 || !Array.isArray(saved.portions)) {
+      return failure("invalid_snapshot");
+    }
+    if (!Object.is(saved.round, state.round)) return failure("stale_round");
+
+    const next = new Map();
+    for (const entry of saved.portions) {
+      if (!isRecord(entry) || !hasExactKeys(entry, ["orderId", "remaining"]) ||
+          typeof entry.orderId !== "string" || !Number.isInteger(entry.remaining) ||
+          entry.remaining < 0 || entry.remaining > BITES_PER_ITEM) {
+        return failure("invalid_portion");
+      }
+      if (next.has(entry.orderId)) return failure("duplicate_order");
+      const item = items.find((candidate) => candidate && candidate.id === entry.orderId);
+      if (!item) return failure("not_found");
+      if (item.status !== "served") return failure("not_served");
+      if (isPackedItem(item)) return failure("takeaway");
+      next.set(entry.orderId, entry.remaining);
+    }
+
+    portions.clear();
+    for (const [orderId, remaining] of next) portions.set(orderId, remaining);
+    activeRound = saved.round;
+    hasActiveRound = true;
+    return { ok: true, state: exportState(), reason: null };
+  }
+
+  return {
+    takeBite,
+    inspect,
+    exportState,
+    restoreState,
+    exportSnapshot: exportState,
+    restoreSnapshot: restoreState,
+  };
 }
 
 export default createDining;

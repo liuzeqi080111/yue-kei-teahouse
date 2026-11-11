@@ -1,0 +1,48 @@
+#neighborhood{position:fixed;inset:0;z-index:30;background:#193932;color:#fff2cf;font-family:var(--font-ui,system-ui);isolation:isolate}
+#neighborhood[hidden]{display:none!important}
+#world-canvas{width:100%;height:100%;display:block;touch-action:none;outline-offset:-5px}
+#world-room{position:absolute;inset:0;background-size:cover;background-position:center;z-index:1}
+#world-room[data-room="home"]{background-image:linear-gradient(0deg,#10282180,transparent 40%),url('./assets/ow-home.png')}
+#world-room[data-room="laundry"]{background-image:linear-gradient(0deg,#10282180,transparent 40%),url('./assets/ow-laundry.png')}
+.world-top{position:absolute;inset:16px 18px auto;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;z-index:3;pointer-events:none}
+.world-top>div{display:flex;flex-wrap:wrap;gap:8px;pointer-events:auto}
+.world-place{padding:10px 16px;border-radius:7px;background:#15362fd9;line-height:1.5}
+.world-place small{display:block;color:#d9c7a1;font-size:12px}
+#neighborhood button,#world-restaurant-bar button{min-height:44px;border:1px solid #dfcf9c80;border-radius:7px;background:#173c34eb;color:#fff1ce;padding:8px 14px;font:inherit;cursor:pointer}
+#neighborhood button:hover,#world-restaurant-bar button:hover{background:#355749}
+#neighborhood button:focus-visible{outline:3px solid #fff2c8;outline-offset:3px}
+#neighborhood button:disabled{opacity:.5;cursor:wait}
+#neighborhood .world-primary{background:#f3dfad;color:#19372e}
+.world-bottom{position:absolute;left:18px;right:18px;bottom:max(22px,env(safe-area-inset-bottom));display:flex;justify-content:center;align-items:center;gap:12px;z-index:4;pointer-events:none}
+.world-bottom>*{pointer-events:auto}
+#world-interact{min-width:190px;font-size:19px;box-shadow:0 6px 25px #0005}
+.world-hint{position:absolute;bottom:85px;left:50%;transform:translateX(-50%);padding:6px 12px;background:#17352fcc;border-radius:6px;font-size:13px;max-width:80%;text-align:center;pointer-events:none;z-index:3}
+#world-stick{position:absolute;left:20px;bottom:max(24px,env(safe-area-inset-bottom));width:110px;height:110px;border:1px solid #f0dfb58c;border-radius:50%;background:#18362f70;touch-action:none;display:none;z-index:5;--stick-x:0px;--stick-y:0px}
+#world-stick::after{content:'✥';font-size:56px;display:grid;place-items:center;height:100%;color:#f0dfb5a0;transform:translate(var(--stick-x),var(--stick-y))}
+.world-sheet{position:absolute;z-index:6;bottom:20px;left:50%;transform:translateX(-50%);width:min(740px,calc(100% - 32px));max-height:68%;overflow:auto;border:1px solid #ccb58670;border-radius:14px;background:#172c28f7;padding:18px;box-shadow:0 12px 45px #0008;overscroll-behavior:contain}
+.world-sheet header{display:flex;align-items:center;gap:10px;margin-bottom:12px;position:sticky;top:-18px;background:#172c28;padding:8px 0;z-index:1}
+.world-sheet header strong{flex:1;font-size:21px}
+.world-sheet p{line-height:1.65;margin:10px 0}.world-sheet .world-cantonese{font-size:22px;color:#ffe4a8}
+.world-sheet .world-meaning{color:#d4d7c8;font-size:16px}
+.world-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.world-choices button{flex:1 1 210px;text-align:left}
+.world-compose{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.world-compose input{flex:1;min-width:130px;padding:10px 12px;border:1px solid #aab89b80;background:#ffffff0c;color:#fff4da;border-radius:7px;font:inherit}
+#world-status{font-size:13px;color:#e3c68e;min-height:20px;margin:0;text-align:center;text-shadow:0 1px 3px #000}
+#world-status:empty{display:none}
+.world-inventory{display:flex;gap:8px;flex-wrap:wrap}.world-inventory span{padding:10px 14px;background:#ffffff0a;border:1px solid #ccb58655;border-radius:7px}
+.world-notes{padding-left:20px}.world-notes li{margin-bottom:12px;line-height:1.6}
+#world-restaurant-bar{position:fixed;top:max(18px,env(safe-area-inset-top));left:max(18px,env(safe-area-inset-left));z-index:19;display:flex;gap:8px}
+#world-restaurant-bar button:focus-visible{outline:3px solid #fff2c8;outline-offset:3px}
+.world-map-image{width:100%;max-height:52vh;object-fit:contain}
+#world-room-line{position:absolute;z-index:2;top:15%;left:50%;transform:translateX(-50%);width:min(620px,calc(100% - 40px));margin:0;padding:14px 18px;border:1px solid #ccb58670;border-radius:10px;background:#172c28df;line-height:1.75;text-align:center}
+.world-room-person{position:absolute;left:52%;bottom:15%;width:170px;height:340px;background:none;pointer-events:none;z-index:1}
+.world-room-actions{position:absolute;z-index:2;bottom:max(8%,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:90%}
+body.world-open{overflow:hidden}
+#world-canvas:focus-visible{outline:2px solid #fff2c8}
+@media(pointer:coarse){#world-stick{display:block}.world-bottom{justify-content:flex-end}#world-interact{min-width:130px;max-width:55%;font-size:16px}.world-hint{bottom:150px}}
+@media(max-width:650px){.world-top{inset:10px 10px auto}.world-top>div{max-width:55%;justify-content:flex-end}.world-top button{font-size:13px!important;padding:7px 10px!important}.world-place{padding:7px 10px;font-size:14px}.world-sheet{bottom:10px;max-height:72%;padding:12px}.world-sheet header{top:-12px}.world-sheet .world-cantonese{font-size:20px}.world-choices button{flex-basis:100%;font-size:15px!important}.world-compose button{font-size:14px!important}.world-room-person{left:48%;width:135px;height:270px}.world-room-actions{bottom:max(9%,env(safe-area-inset-bottom))}#world-room-line{top:18%;font-size:14px;padding:10px 12px}#world-restaurant-bar{top:auto;bottom:max(12px,env(safe-area-inset-bottom));left:12px}#world-restaurant-bar button{font-size:13px;padding:8px 10px}}
+@media(max-height:500px){.world-sheet{max-height:80%}.world-hint{display:none}.world-room-actions{bottom:5%}#world-room-line{top:12%;padding:8px 12px}.world-room-person{height:240px;width:120px;bottom:8%}}
+@media(prefers-reduced-motion:reduce){#world-stick::after{transition:none}}
+.world-compose input{flex:1 1 100%;width:100%;min-width:0}
+.world-choices.world-compose button{flex:1 1 130px;text-align:center}

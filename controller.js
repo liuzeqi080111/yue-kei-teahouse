@@ -15,6 +15,14 @@ export const LINES={
  PAY_BILL:['阿明 · 侍應','收妥喇，多謝晒！','sau1 to5 laa3, do1 ze6 saai3!','已收妥，非常感謝！'],
  LEAVE:['阿明 · 侍應','慢行呀，得閒再嚟！','maan6 haang4 aa3, dak1 haan4 zoi3 lai4!','慢走，有空再來！'],
 };
+const STABLE_SNAPSHOT_VERSION=1;
+function isRecord(value){
+ if(value===null||typeof value!=='object'||Array.isArray(value))return false;
+ const prototype=Object.getPrototypeOf(value);return prototype===Object.prototype||prototype===null;
+}
+function hasExactKeys(value,keys){
+ const actual=Object.keys(value);return actual.length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(value,key));
+}
 export function diningOutcome(state,inspectDining=()=>null){
  const outcome={completed:[],leftover:[],untouched:[],packed:[]};
  for(const item of state?.items||[]){
@@ -34,6 +42,58 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
  let view={camera:'outside',busy:false,water:false,utensils:false,line:LINES.outside,notice:'',beat:null,near:false,orderReview:false};
  const snapshot=()=>({state:session.getState(),view:{...view}});
  const emit=()=>changed(snapshot());
+ /** 仅导出可持久业务状态与桌面稳定视图，不包含镜头演出、语音或定时器。 */
+ function exportSnapshot(){
+  return {version:STABLE_SNAPSHOT_VERSION,state:session.getState(),view:{water:view.water,utensils:view.utensils}};
+ }
+ function restoreFailure(reason){return {ok:false,state:session.getState(),view:{...view},reason};}
+ function restoreLine(state){
+  if(state.phase===P.OUTSIDE)return LINES.outside;
+  if(state.phase===P.GREETING)return LINES.ENTER;
+  if(state.phase===P.SEATED)return LINES.SIT_DOWN;
+  if(state.phase===P.ORDERING)return LINES.OPEN_MENU;
+  if(state.phase===P.DINING)return state.items.some(item=>item.status==='served')?LINES.MARK_SERVED:LINES.OPEN_MENU;
+  if(state.phase===P.BILLING)return LINES.REQUEST_BILL;
+  return LINES.LEAVE;
+ }
+ function restoreSnapshot(save){
+  if(!isRecord(save)||!hasExactKeys(save,['version','state','view'])||save.version!==STABLE_SNAPSHOT_VERSION){
+   return restoreFailure('快照版本或外层字段无效。');
+  }
+  if(!isRecord(save.view)||!hasExactKeys(save.view,['water','utensils'])||typeof save.view.water!=='boolean'||typeof save.view.utensils!=='boolean'){
+   return restoreFailure('快照稳定视图字段无效。');
+  }
+  if(isRecord(save.state)&&[P.OUTSIDE,P.GREETING,P.SEATING].includes(save.state.phase)&&(save.view.water||save.view.utensils)){
+   return restoreFailure('当前阶段不可能已有水或餐具服务。');
+  }
+  const previousState=session.getState();
+  const restored=session.restoreState(save.state);
+  if(!restored.ok)return restoreFailure(restored.reason);
+
+  // 稳定化而非复活旧演出：带位直接入座、已确认餐点直接上齐、已付款直接结束。
+  // 订单内容、金额和支付标记均由 session 校验；这里不重新下单或收费。
+  let current=session.getState(),settled=null;
+  if(current.phase===P.SEATING)settled=session.dispatch({type:'SIT_DOWN',round:current.round});
+  if(settled&&!settled.ok){session.restoreState(previousState);return restoreFailure('带位快照无法稳定化，已保留原餐局。');}
+  current=session.getState();
+  if(current.phase===P.DINING&&current.items.some(item=>item.status==='confirmed')){
+   settled=session.dispatch({type:'MARK_SERVED',round:current.round});
+   if(!settled.ok){session.restoreState(previousState);return restoreFailure('待上菜快照无法稳定化，已保留原餐局。');}
+  }
+  current=session.getState();
+  if(current.phase===P.BILLING&&current.isPaid){
+   settled=session.dispatch({type:'LEAVE',round:current.round});
+   if(!settled.ok){session.restoreState(previousState);return restoreFailure('付款快照无法稳定化，已保留原餐局。');}
+  }
+
+  // 只有完整成功后才使旧回调失效；即便旧回调已进入事件队列，也会被 generation 拒绝。
+  generation++;cameraRevision++;speechPending=false;farewellPending=null;
+  for(const timer of timers)cancel(timer);timers.clear();
+  current=session.getState();
+  const cameras={ [P.OUTSIDE]:'outside',[P.GREETING]:'entrance',[P.SEATED]:'room',[P.ORDERING]:'menu',[P.DINING]:'table',[P.BILLING]:'bill',[P.FINISHED]:'outside' };
+  view={camera:cameras[current.phase],busy:false,water:save.view.water,utensils:save.view.utensils,line:restoreLine(current),notice:'',beat:null,near:current.waiterPresent,orderReview:false};
+  emit();return {ok:true,state:current,view:{...view},reason:null};
+ }
  function followUp(kind){
   const packed=session.getState().items.some(i=>i.status==='served'&&i.options.serving==='外賣');
   const text=kind==='REQUEST_WATER'?'水加好喇，仲有咩需要？':kind==='REQUEST_UTENSILS'?'餐具放好喇，仲有咩需要？':packed?'外賣包好喇，仲有咩需要？':'餐點上齊喇，仲有咩需要？';
@@ -134,5 +194,5 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
   if(value==='menu'&&st.phase===P.BILLING)value='bill';
   cameraRevision++;view.camera=value;emit();
  }
- return {snapshot,action,camera,setSpeech(active,level=0){speechPending=active;view.speaking=level>0;view.speechLevel=level;},holdFarewell(round){if(round!==session.getState().round||view.beat?.kind!=='farewell')return ()=>{};const marker={round};farewellPending=marker;return ()=>{if(farewellPending===marker)farewellPending=null;};},chapter(value){action('RESTART');if(value==='full')return;for(const type of ['ENTER','START_SEATING','SIT_DOWN','OPEN_MENU'])dispatch(type);view.camera='table';if(value==='service'||value==='bill'){dispatch('ADD_ITEM',{itemId:'food-pineapple-bun'});dispatch('ADD_ITEM',{itemId:'drink-lemon-tea',options:{temperature:'凍',sweetness:'少甜'}});dispatch('CONFIRM_ORDER');dispatch('MARK_SERVED');dispatch('WAITER_LEAVE');}view.line=['章節練習',value==='order'?'由睇餐牌開始，試吓用粵語落單。':'練習情境：菠蘿油同凍檸茶已經上枱。','',''];if(value==='bill'){dispatch('REQUEST_BILL');view.near=true;view.camera='bill';view.line=['阿明 · 侍應','呢張係你張單，睇啱就可以埋單。','','這是你的帳單，核對後就可以結帳。'];}emit();},say(text,meaning=''){if(view.busy)return;if(!session.getState().waiterPresent){dispatch('CALL_WAITER');}view.near=true;view.camera='room';view.line=['阿明 · 侍應',String(text).slice(0,500),'',String(meaning).slice(0,500)];emit();},notify(message){view.notice=message;emit();}};
+ return {snapshot,exportSnapshot,restoreSnapshot,action,camera,setSpeech(active,level=0){speechPending=active;view.speaking=level>0;view.speechLevel=level;},holdFarewell(round){if(round!==session.getState().round||view.beat?.kind!=='farewell')return ()=>{};const marker={round};farewellPending=marker;return ()=>{if(farewellPending===marker)farewellPending=null;};},chapter(value){action('RESTART');if(value==='full')return;for(const type of ['ENTER','START_SEATING','SIT_DOWN','OPEN_MENU'])dispatch(type);view.camera='table';if(value==='service'||value==='bill'){dispatch('ADD_ITEM',{itemId:'food-pineapple-bun'});dispatch('ADD_ITEM',{itemId:'drink-lemon-tea',options:{temperature:'凍',sweetness:'少甜'}});dispatch('CONFIRM_ORDER');dispatch('MARK_SERVED');dispatch('WAITER_LEAVE');}view.line=['章節練習',value==='order'?'由睇餐牌開始，試吓用粵語落單。':'練習情境：菠蘿油同凍檸茶已經上枱。','',''];if(value==='bill'){dispatch('REQUEST_BILL');view.near=true;view.camera='bill';view.line=['阿明 · 侍應','呢張係你張單，睇啱就可以埋單。','','這是你的帳單，核對後就可以結帳。'];}emit();},say(text,meaning=''){if(view.busy)return;if(!session.getState().waiterPresent){dispatch('CALL_WAITER');}view.near=true;view.camera='room';view.line=['阿明 · 侍應',String(text).slice(0,500),'',String(meaning).slice(0,500)];emit();},notify(message){view.notice=message;emit();}};
 }

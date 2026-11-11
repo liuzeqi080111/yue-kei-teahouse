@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hans"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183e34"><title>唔該，開局！ · 粤语语音角色扮演游戏</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voice.css"><link rel="stylesheet" href="landing.css"><link rel="stylesheet" href="immersive-hud.css"></head>
+<html lang="zh-Hans"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183e34"><title>唔該，開局！ · 粤语语音角色扮演游戏</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voice.css"><link rel="stylesheet" href="landing.css"><link rel="stylesheet" href="immersive-hud.css"><link rel="stylesheet" href="neighborhood.css"></head>
 <body>
 <main>
  <section id="game" class="game" aria-label="茶餐廳互動場景">
@@ -11,17 +11,19 @@
    <div class="landing-scene" role="img" aria-label="傍晚的香港街道，沿街店铺、行人与暖灯，粤记茶餐厅是其中一间店"></div>
    <div class="landing-shade" aria-hidden="true"></div>
    <div class="landing-content">
+    <p id="world-save-status" class="note" role="status" hidden></p>
     <header class="landing-heading">
      <h1 lang="yue">唔該，開局！</h1>
      <p class="landing-kicker">粤语角色扮演游戏</p>
     </header>
     <nav class="title-options landing-actions" aria-label="游戏入口">
-     <button class="primary landing-button landing-button-primary" type="button" data-action="ENTER"><span>开始游戏</span><span class="landing-button-arrow" aria-hidden="true">→</span></button>
+     <button class="primary landing-button landing-button-primary" type="button" data-action="ENTER" data-world-save-state="empty"><span id="world-start-label">开始游戏</span><span class="landing-button-arrow" aria-hidden="true">→</span></button>
      <div class="landing-secondary-actions">
       <button class="landing-button landing-button-secondary" type="button" data-open-review aria-haspopup="dialog">短复习</button>
       <button class="landing-button landing-button-secondary" type="button" data-dialog="settings" aria-haspopup="dialog">设置</button>
      </div>
      <button class="landing-button landing-chapters" type="button" data-dialog="chapters" aria-haspopup="dialog">章节练习 <span aria-hidden="true">↗</span></button>
+     <button id="world-title-restart" class="landing-button landing-chapters" type="button" hidden>重新开始</button>
     </nav>
    </div>
    <small>点击麦克风说话 · 停止录音后自动发送 · 按 H 打开帮助</small>
@@ -38,7 +40,28 @@
  </section>
  <p id="asset-status" class="asset-status" role="status" hidden>部分場景素材未能載入，仍然可以繼續練習。重新整理可再試一次。</p>
 </main>
+<section id="neighborhood" aria-label="香港街坊开放街区" hidden>
+ <canvas id="world-canvas" width="1008" height="567" role="application" tabindex="0" aria-label="斜俯视开放街区：WASD 或方向键移动，E 与附近地点或街坊互动" aria-keyshortcuts="W A S D ArrowUp ArrowLeft ArrowDown ArrowRight E" aria-describedby="world-hint"></canvas>
+ <div id="world-room" class="world-room" hidden>
+  <canvas id="world-room-person" class="world-room-person" width="340" height="680" role="img" aria-label="室内人物"></canvas>
+  <p id="world-room-line" aria-live="polite"></p>
+  <div class="world-room-actions"><button id="world-room-talk" type="button" data-world-room-talk>倾偈</button><button id="world-rest" type="button" data-world-rest>休息，推进一个时段</button><button id="world-leave-room" class="world-primary" type="button">回到街上</button></div>
+ </div>
+ <div class="world-top">
+  <div class="world-place"><strong id="world-place-name"></strong><small id="world-place-note" data-world-day="1" data-world-period="1" data-world-money="30000"></small></div>
+  <div><button id="world-inventory-button" type="button" data-world-inventory>随身物品</button><button id="world-notes-button" type="button" data-world-notes>记事本</button><button id="world-map-button" type="button" aria-label="查看街区地图">地图</button><button id="world-help-button" type="button" aria-label="查看街区操作">操作</button><button id="world-home-button" type="button" data-world-home>回首页</button></div>
+ </div>
+ <div id="world-stick" aria-label="触屏移动摇杆"></div>
+ <p id="world-hint" class="world-hint">WASD / 方向键移动 · 点击街道寻路 · 靠近门口或街坊后互动</p>
+ <div class="world-bottom"><p id="world-status" role="status" aria-live="polite"></p><button id="world-interact" class="world-primary" type="button" hidden></button></div>
+ <section id="world-sheet" class="world-sheet" role="dialog" aria-labelledby="world-sheet-title" hidden>
+  <header><strong id="world-sheet-title"></strong><button id="world-sheet-close" type="button">合上</button></header>
+  <div id="world-sheet-body"></div>
+ </section>
+</section>
+<div id="world-restaurant-bar" hidden style="display:none"><button id="world-leave-restaurant" type="button">离开茶餐厅 · 回到街区</button></div>
 <dialog id="settings" aria-labelledby="settings-title"><h2 id="settings-title">歇一歇 · 設定</h2><div class="settings"><button id="translation" aria-pressed="true">普通话字幕</button><button type="button" data-learning-settings>學習模式：<span data-learning-mode-label>首次選擇</span></button><button id="pronunciation" hidden aria-pressed="false">顯示粵拼</button><button id="ambience" aria-pressed="true">背景音效：開</button><button type="button" data-open-review aria-haspopup="dialog">回顧與短複習</button><button id="clear-review" type="button">清除學習記錄</button><button id="restart">返回準備畫面</button></div><div class="clear-review-wrap"><small id="clear-review-status" class="clear-review-status" role="status"></small></div><label class="scene-weather-label" for="scene-weather">場景天氣</label><select id="scene-weather"><option value="afternoon">午後</option><option value="dusk" selected>黃昏</option><option value="rain">雨夜</option></select><section id="music-settings" aria-label="香港老歌"></section><p>可以用情境选项、录音或打字和阿明交流。正常停止录音后会自动发送。</p><p>Tab 選擇 · Enter 確認 · Esc 合上餐牌／設定</p><small>对话录音会提交至阿里云识别。短复习评分仅在评测服务可用时提供。结账为游戏模拟。</small><button data-dismiss>返回</button></dialog>
 <dialog id="review-dialog" aria-labelledby="review-title" aria-describedby="review-context"><h2 id="review-title">两句短复习</h2><p id="review-context"></p><p id="review-challenge-progress" class="review-challenge-progress" role="status"></p><div id="review-challenge-list" class="review-challenge-list"></div><p class="practice-status" data-practice-status role="status" hidden></p><small>粤拼用于核对参考读法。评测只用于本次练习。</small><div class="review-dialog-actions"><button type="button" class="primary" data-dismiss>回到游戏</button></div></dialog>
 <dialog id="learning-mode" aria-labelledby="learning-mode-title" aria-describedby="learning-mode-description"><h2 id="learning-mode-title">先选一个练习模式</h2><p id="learning-mode-description">之后可以在设置里随时切换。</p><div class="learning-mode-options"><button type="button" class="primary" data-learning-mode="beginner" aria-pressed="false">零基础<small>默认显示普通话字幕，需要时再打开表达提示。</small></button><button type="button" data-learning-mode="experienced" aria-pressed="false">已有基础<small>先试着回答，需要时可以查看示范。</small></button></div><button type="button" data-learning-cancel>返回</button></dialog>
+<dialog id="world-restart-confirm" aria-labelledby="world-restart-title"><h2 id="world-restart-title">重新开始？</h2><p>只会重置本机街区世界、钱包、物件、故事和餐局，不会清除学习记录或其他偏好。此操作不能撤销。</p><div><button type="button" class="primary" data-world-restart-confirm>确认重新开始</button><button type="button" data-world-restart-cancel>取消</button></div></dialog>
 <dialog id="chapters" aria-labelledby="chapters-title"><h2 id="chapters-title">揀一段日常</h2><button data-chapter="full">完整體驗 · 由門外開始</button><button data-chapter="order">點餐與改單 · 已入座，空白訂單</button><button data-chapter="service">用餐與服務 · 預設菠蘿油、凍檸茶</button><button data-chapter="bill">埋單離店 · 預設 HK$40 虛擬帳單</button><button data-dismiss>返回</button></dialog><script type="module" src="app.js"></script></body></html>

@@ -18,6 +18,9 @@ import {createReviewStore} from './review-store.js';
 import {getPhrase,buildOrderPhrase} from './learning-phrases.js';
 import {createPracticeRecorder} from './practice-recorder.js';
 import {voiceUrl} from './voice-endpoint.js';
+import {createNeighborhood} from './neighborhood.js';
+import {freshWorld,loadWorld,saveWorld,resetWorld,applyWorldAction,restEvent,rackStatus} from './neighborhood-state.js';
+import {walkable} from './neighborhood-map.js';
 const $=s=>document.querySelector(s),money=n=>'$'+(n/100).toFixed(2),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names={temperature:'溫度',sweetness:'甜度',serving:'享用方式',rice:'飯量',noodle:'麵條',soup:'湯量',bread:'麵包',syrup:'糖漿',spicy:'辣度'};
 const roman={'food-pineapple-bun':'BO LO YAU','food-charsiu-rice':'CHAR SIU RICE','food-wonton-noodle':'WONTON NOODLES','food-egg-sandwich':'EGG SANDWICH','food-french-toast':'FRENCH TOAST','food-curry-fishball':'CURRY FISHBALLS','drink-lemon-tea':'LEMON TEA','drink-milk-tea':'SILK STOCKING MILK TEA','drink-yuanyang':'YUANYANG','drink-horlicks':'HORLICKS'};
@@ -58,8 +61,8 @@ try {
 } catch {}
 document.body.dataset.weather = weather;
 $('#scene-weather').value = weather;
-let hud=null,voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null;
-const game=createGame({changed:render,inspectDining:id=>dining?.inspect(id)});
+let hud=null,voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null,neighborhood=null,restaurantFromWorld=false;
+const game=createGame({changed:handleGameChanged,inspectDining:id=>dining?.inspect(id)});
 const practiceLog=createPracticeLog();
 let practiceRound=null,practiceAttemptSerial=0;
 function loadReviewStorage(){try{return globalThis.localStorage||null;}catch{return null;}}
@@ -302,6 +305,225 @@ const mobileTray=createMobileTray({
  onLayout:()=>render(game.snapshot()),onCloseVoice:()=>voice?.cancelPending(),onCompact:value=>voice?.setCompact(value),
 });
 hud=createImmersiveHud({game,guide:learningGuide,voice,preview:text=>practiceAudio?.preview(text)});
+function neighborhoodRootFromDocument(){
+ const root=$('#neighborhood');if(!root)throw new Error('缺少街区 DOM');return root;
+}
+function setRestaurantReturnBar(visible){
+ const bar=$('#world-restaurant-bar');bar.hidden=!visible;if(visible)bar.style.removeProperty('display');else bar.style.display='none';
+}
+function cancelTransientAudio(){
+ reviewSession++;reviewRecorder.cancel();practiceAudio?.stop();stopReviewPlayback();stopDiningSound();voice?.cancelPending();
+}
+let world=null,worldStorage=null,worldSaveExists=false,worldStarted=false,worldSaveLocked=false;
+let worldStorageError='',worldSaveStatus='',worldDirty=false,worldSaveTimer=0,worldRestoreInProgress=false;
+let worldExperienceActive=false,lastRestaurantKey='';
+function syncWorldTitle(){
+ const button=$('[data-world-save-state]'),hasProgress=worldSaveExists||worldStarted;
+ const label=worldSaveLocked?'无法继续':hasProgress?'继续游戏':'开始游戏';
+ updateText($('#world-start-label'),label);
+ if(button)button.dataset.worldSaveState=worldSaveLocked?'error':worldSaveExists?'saved':worldStarted?'unsaved':'empty';
+ const restart=$('#world-title-restart');if(restart)restart.hidden=!hasProgress&&!worldSaveLocked;
+ const status=$('#world-save-status'),message=worldStorageError||worldSaveStatus;
+ if(status){updateText(status,message);status.hidden=!message;}
+}
+function lockWorld(message){
+ const text=String(message||'存档无法恢复。');
+ worldSaveLocked=true;
+ worldStorageError=text.includes('原存档')||text.includes('原数据')?text:`${text} 原存档已保留，未被覆盖；只有明确重新开始才能解除锁定。`;
+ worldSaveStatus=worldStorageError;syncWorldTitle();
+}
+function validateWorldCandidate(candidate){
+ const history=neighborhood.validateHistory(candidate?.history);
+ if(!history.ok)return {ok:false,error:'无法继续：对话历史无效。'};
+ if(!candidate||!walkable(candidate.position?.x,candidate.position?.y,rackStatus(candidate).blocked)){
+  return {ok:false,error:'无法继续：存档位置不在当前规则允许的可通行道路上。'};
+ }
+ try{
+  if(candidate.restaurant==null){
+   if(candidate.dining!=null)return {ok:false,error:'无法继续：存档缺少餐局却包含食物份量。'};
+   return {ok:true,restaurant:null,dining:null};
+  }
+  const temporaryGame=createGame();
+  const temporaryDining=createDining({getSnapshot:()=>temporaryGame.snapshot()});
+  const restored=temporaryGame.restoreSnapshot(candidate.restaurant);
+  if(!restored.ok)return {ok:false,error:`无法继续：茶餐厅存档无效（${restored.reason||'未知原因'}）。`};
+  const diningInput=candidate.dining==null?temporaryDining.exportState():candidate.dining;
+  const portions=temporaryDining.restoreState(diningInput);
+  if(!portions.ok)return {ok:false,error:`无法继续：食物份量无效（${portions.reason||'未知原因'}）。`};
+  return {ok:true,restaurant:temporaryGame.exportSnapshot(),dining:temporaryDining.exportState()};
+ }catch(error){return {ok:false,error:`无法继续：餐厅恢复校验失败（${error?.message||'未知原因'}）。`};}
+}
+function stableRestaurantKey(){return JSON.stringify([game.exportSnapshot(),dining.exportState()]);}
+function captureWorldRestaurant(){
+ if(!restaurantFromWorld)return;
+ const restaurant=game.exportSnapshot(),portions=dining.exportState();
+ world={...world,restaurant,dining:portions};lastRestaurantKey=JSON.stringify([restaurant,portions]);
+}
+function flushWorldSave(){
+ clearTimeout(worldSaveTimer);worldSaveTimer=0;
+ if(worldSaveLocked){syncWorldTitle();return false;}
+ if(!worldDirty)return true;
+ captureWorldRestaurant();
+ const result=saveWorld(worldStorage,world);
+ if(!result.ok){worldSaveStatus=result.error;syncWorldTitle();return false;}
+ worldSaveExists=true;worldDirty=false;worldSaveStatus='进度已保存。';syncWorldTitle();return true;
+}
+function scheduleWorldSave(){
+ if(worldSaveLocked||worldSaveTimer)return;
+ worldSaveTimer=setTimeout(flushWorldSave,400);
+}
+function handleGameChanged(snapshot){
+ render(snapshot);
+ if(!restaurantFromWorld||worldRestoreInProgress||worldSaveLocked)return;
+ if(stableRestaurantKey()===lastRestaurantKey)return;
+ worldDirty=true;flushWorldSave();
+}
+function restoreWorldRestaurant(candidate,validated){
+ const previousGame=game.exportSnapshot(),previousDining=dining.exportState();
+ worldRestoreInProgress=true;
+ try{
+  cancelTransientAudio();
+  if(!validated.restaurant){
+   game.action('RESTART');dining.exportState();
+   world={...candidate,restaurant:null,dining:null};lastRestaurantKey='';
+   return {ok:true};
+  }
+  const restored=game.restoreSnapshot(validated.restaurant);
+  if(!restored.ok)throw Error(restored.reason||'实际餐局恢复失败');
+  const portions=dining.restoreState(validated.dining);
+  if(!portions.ok)throw Error(portions.reason||'实际份量恢复失败');
+  world={...candidate,restaurant:game.exportSnapshot(),dining:dining.exportState()};
+  lastRestaurantKey=stableRestaurantKey();return {ok:true};
+ }catch(error){
+  game.restoreSnapshot(previousGame);dining.restoreState(previousDining);
+  return {ok:false,error:error?.message||'餐厅恢复失败'};
+ }finally{worldRestoreInProgress=false;}
+}
+function failWorldRestore(message){
+ closeNeighborhood({flush:false});lockWorld(message);game.action('RESTART');syncWorldTitle();
+}
+function syncWorldTransition(destination){
+ const inRestaurant=destination==='restaurant';
+ cancelTransientAudio();
+ voice?.suspend(!inRestaurant);
+ sound.setLocation(inRestaurant?'interior':['home','laundry'].includes(destination)?'interior':'outside');
+ if(inRestaurant){
+  $('#game').inert=false;const hudRoot=$('#immersive-hud');if(hudRoot)hudRoot.hidden=false;
+ }else{
+  cancelAnimationFrame(frame);frame=0;$('#game').inert=true;const hudRoot=$('#immersive-hud');if(hudRoot)hudRoot.hidden=true;
+ }
+}
+function enterRestaurantFromWorld(prevalidated=null){
+ const validated=prevalidated||validateWorldCandidate(world);
+ if(!validated.ok){failWorldRestore(validated.error);return;}
+ const restored=restoreWorldRestaurant(world,validated);
+ if(!restored.ok){failWorldRestore(`无法继续：${restored.error}。`);return;}
+ worldExperienceActive=true;worldStarted=true;restaurantFromWorld=true;setRestaurantReturnBar(true);
+ syncWorldTransition('restaurant');
+ if(game.snapshot().state.phase===P.FINISHED)game.action('RESTART');
+ if(game.snapshot().state.phase===P.OUTSIDE)game.action('ENTER');else render(game.snapshot());
+ $('#world-leave-restaurant').focus({preventScroll:true});
+}
+function leaveRestaurantToStreet(){
+ if(!restaurantFromWorld)return;
+ worldDirty=true;flushWorldSave();
+ restaurantFromWorld=false;setRestaurantReturnBar(false);
+ neighborhood?.showStreet('restaurant');
+}
+function startNeighborhoodFromTitle(){
+ restaurantFromWorld=false;setRestaurantReturnBar(false);
+ if(worldSaveLocked){syncWorldTitle();return;}
+ const validated=validateWorldCandidate(world);
+ if(!validated.ok){lockWorld(validated.error);return;}
+ const shouldRestore=worldSaveExists||worldStarted;
+ worldExperienceActive=true;worldStarted=true;
+ if(world.location==='restaurant'){
+  const result=neighborhood.restore();
+  if(!result?.ok){worldExperienceActive=false;lockWorld(result?.error||'无法继续：街区恢复失败。');return;}
+  enterRestaurantFromWorld(validated);return;
+ }
+ const result=shouldRestore?neighborhood.restore():neighborhood.start();
+ if(!result?.ok){worldExperienceActive=false;lockWorld(result?.error||'无法继续：街区恢复失败。');}
+}
+function closeNeighborhood({flush=true}={}){
+ if(flush)flushWorldSave();
+ worldExperienceActive=false;restaurantFromWorld=false;setRestaurantReturnBar(false);
+ neighborhood?.hide({flush:false});$('#game').inert=false;cancelTransientAudio();voice?.suspend(false);
+ sound.setLocation(game.snapshot().view.camera==='outside'?'outside':'interior');
+}
+function returnToTitle(){
+ closeNeighborhood();learningGuide?.reset();game.action('RESTART');syncWorldTitle();
+}
+function onWorldAction(npcId,optionId){
+ if(worldSaveLocked)return {ok:false,message:worldStorageError};
+ flushWorldSave();
+ const result=applyWorldAction(world,npcId,optionId);
+ if(!result.ok)return {ok:false,message:result.message};
+ if(!walkable(result.state.position.x,result.state.position.y,rackStatus(result.state).blocked))return {ok:false,message:'行动后当前位置会被通道障碍占用，请先移到安全路面。'};
+ world=result.state;worldStarted=true;worldDirty=true;flushWorldSave();
+ return {ok:true,text:result.text,meaning:result.meaning};
+}
+function onWorldRest(){
+ if(worldSaveLocked)return {ok:false,message:worldStorageError};
+ try{
+  flushWorldSave();const next=restEvent(world);
+  if(!walkable(next.position.x,next.position.y,rackStatus(next).blocked))return {ok:false,message:'推进时间后当前位置会被通道障碍占用，请先移到安全路面。'};
+  world=next;worldStarted=true;worldDirty=true;flushWorldSave();return {ok:true};
+ }catch{return {ok:false,message:'现在无法推进时间，请稍后重试。'};}
+}
+function onWorldMove(position,{final=false}={}){
+ if(worldSaveLocked||world.location!=='street')return;
+ if(!walkable(position?.x,position?.y,rackStatus(world).blocked))return;
+ world={...world,position:{x:position.x,y:position.y}};worldStarted=true;worldDirty=true;
+ if(final)flushWorldSave();else scheduleWorldSave();
+}
+function onWorldLocation(location,position){
+ if(worldSaveLocked||!['street','home','laundry','restaurant'].includes(location))return;
+ if(!walkable(position?.x,position?.y,rackStatus(world).blocked))return;
+ flushWorldSave();
+ world={...world,location,position:{x:position.x,y:position.y},revision:world.revision+1};
+ worldStarted=true;worldDirty=true;flushWorldSave();
+}
+function onWorldHistoryChange(snapshot){
+ if(worldSaveLocked)return;
+ const validation=neighborhood.validateHistory(snapshot);
+ if(!validation.ok){lockWorld('无法继续：对话历史无效。');return;}
+ world={...world,history:snapshot};worldStarted=true;worldDirty=true;flushWorldSave();
+}
+const neighborhoodRoot=neighborhoodRootFromDocument();
+neighborhood=createNeighborhood({
+ root:neighborhoodRoot,
+ getState:()=>world,
+ onAction:onWorldAction,
+ onRest:onWorldRest,
+ onMove:onWorldMove,
+ onLocation:onWorldLocation,
+ onHome:returnToTitle,
+ onHistoryChange:onWorldHistoryChange,
+ getStorageStatus:()=>worldStorageError||worldSaveStatus,
+ onTransition:syncWorldTransition,
+ onEnterRestaurant:enterRestaurantFromWorld,
+});
+$('#world-leave-restaurant').addEventListener('click',leaveRestaurantToStreet);
+$('#world-title-restart').addEventListener('click',()=>$('#world-restart-confirm').showModal());
+$('[data-world-restart-cancel]').addEventListener('click',()=>$('#world-restart-confirm').close());
+$('[data-world-restart-confirm]').addEventListener('click',()=>{
+ const result=resetWorld(worldStorage);
+ if(!result.ok){worldSaveStatus=result.error;syncWorldTitle();return;}
+ neighborhood.reset();closeNeighborhood({flush:false});clearTimeout(worldSaveTimer);worldSaveTimer=0;
+ world=freshWorld();worldSaveExists=false;worldStarted=false;worldSaveLocked=false;worldStorageError='';
+ worldSaveStatus='已重新开始本游戏；设置与学习记录未改。';worldDirty=false;lastRestaurantKey='';
+ $('#world-restart-confirm').close();game.action('RESTART');syncWorldTitle();
+});
+window.addEventListener('pagehide',()=>{neighborhood?.flush();flushWorldSave();});
+worldStorage=(()=>{try{return globalThis.localStorage||null;}catch{return null;}})();
+const loadedWorld=loadWorld(worldStorage);
+world=loadedWorld.state;worldSaveExists=loadedWorld.exists;worldStorageError=loadedWorld.error;
+worldSaveLocked=Boolean(loadedWorld.error);worldSaveStatus=loadedWorld.error;
+if(!worldSaveLocked&&loadedWorld.exists){
+ const validated=validateWorldCandidate(world);if(!validated.ok)lockWorld(validated.error);
+}
+syncWorldTitle();
 function feedback(s){
  if(s.includes('售罄'))return s.replace(/今日售罄.*/, '今天已经售完，请选另一款。');
  if(s.includes('未确认的商品'))return '还有餐品未确认，下单或取消这些餐品后就可以结账。';
@@ -473,6 +695,12 @@ function panel(state,view){const el=$('#panel');const visible=['menu','bill'].in
  previousPanel=true;
 }
 function render({state,view}){
+ if(neighborhood?.active){
+  setRestaurantReturnBar(false);$('#game').inert=true;const hudRoot=$('#immersive-hud');if(hudRoot)hudRoot.hidden=true;
+  cancelAnimationFrame(frame);frame=0;voice?.suspend(true);sound.setLocation(neighborhood.soundLocation);
+  return;
+ }
+ $('#game').inert=false;if(!restaurantFromWorld)setRestaurantReturnBar(false);
  sound.setLocation(view.camera === 'outside' ? 'outside' : 'interior');
  syncPracticeRound(state.round);settlePracticeReview(state);
  voice?.sync({state,view});
@@ -648,13 +876,13 @@ document.addEventListener('click',e=>{
   game.notify(result.remaining?`${verb}了一口${systemText(item.name)}，还剩 ${result.remaining} 口。`:`${systemText(item.name)}已经${verb}完了。`);return;
  }
  if(b.dataset.action){
-  if(b.dataset.action==='ENTER'){learningGuide.openMode(()=>game.action('ENTER'));return;}
-  if(b.dataset.action==='RESTART')learningGuide.reset();
+  if(b.dataset.action==='ENTER'){learningGuide.openMode(()=>startNeighborhoodFromTitle());return;}
+  if(b.dataset.action==='RESTART'){returnToTitle();return;}
   performClickAction(b.dataset.action,b.dataset.partySize?{partySize:Number(b.dataset.partySize)}:{});return;
  }
  if(b.dataset.dialog){$('#'+b.dataset.dialog).showModal();return;}
  if(b.hasAttribute('data-dismiss')){b.closest('dialog').close();return;}
- if(b.dataset.chapter){const chapter=b.dataset.chapter;learningGuide.openMode(()=>game.chapter(chapter),$('#chapters'));return;}
+ if(b.dataset.chapter){const chapter=b.dataset.chapter;learningGuide.openMode(()=>{closeNeighborhood();game.chapter(chapter);},$('#chapters'));return;}
  if(b.hasAttribute('data-table-page')){tablePage++;selectedDining=null;render(game.snapshot());return;}
   if(b.dataset.camera){performCamera(b.dataset.camera);return;}
  if(b.hasAttribute('data-close')){closePanel();return;}
@@ -691,7 +919,7 @@ document.addEventListener('submit',e=>{
 });
 $('#translation').addEventListener('click',()=>learningGuide.setMeaning(!showMeaning));
 function closeReviewPractice(){
- reviewSession++;reviewRecorder.cancel();practiceAudio?.stop();stopReviewPlayback();voice?.suspend(false);
+ reviewSession++;reviewRecorder.cancel();practiceAudio?.stop();stopReviewPlayback();voice?.suspend(Boolean(neighborhood?.active));
  for(const item of reviewChallenges)item.audio=null;
 }
 $('#review-dialog').addEventListener('close',closeReviewPractice);
@@ -707,9 +935,9 @@ $('#clear-review').addEventListener('click',()=>{
  if($('#review-dialog').open)renderReview();
 });
 $('#settings').addEventListener('close',resetClearReview);
-$('#restart').addEventListener('click',()=>{$('#settings').close();game.action('RESTART');});
+$('#restart').addEventListener('click',()=>{$('#settings').close();returnToTitle();});
 $('#pronunciation').addEventListener('click',e=>{const on=e.target.getAttribute('aria-pressed')!=='true';e.target.setAttribute('aria-pressed',on);document.body.classList.toggle('show-jyutping',on);});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]')&&!$('#panel').hidden){e.preventDefault();closePanel();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!neighborhood?.active&&!document.querySelector('dialog[open]')&&!$('#panel').hidden){e.preventDefault();closePanel();}});
 for(const selector of ['#welcome','#settings','#sound-controls','#chapters','#learning-mode','#pause','#asset-status'])localizeUi($(selector));
 render(game.snapshot());ready.then(results=>{
  assetsSettled=true;render(game.snapshot());
@@ -776,8 +1004,8 @@ function sceneView(state, view, sceneFit, elapsed) {
  return {...view, tablePage, sceneFit, weather, elapsed:ambientTime, finishedDrinks: finishedDrinks(state),diningPortions:diningPortions(state)};
 }
 function motionNeeded(state, view) {
- if (document.hidden || document.querySelector('dialog[open]') ||
-  ['menu', 'bill'].includes(view.camera) || selectedDining) return false;
+ if (neighborhood?.active || document.hidden || document.querySelector('dialog[open]') ||
+   ['menu', 'bill'].includes(view.camera) || selectedDining) return false;
  // Service motion conveys an action's progress. Never leave its timers running
  // while suppressing every intermediate frame (which makes the waiter teleport).
  if (view.beat && Date.now() < view.beat.start + view.beat.duration) return true;

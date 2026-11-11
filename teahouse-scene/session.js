@@ -80,6 +80,180 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+const STATE_KEYS = Object.freeze([
+  'phase', 'items', 'bill', 'isPaid', 'waiterPresent', 'partySize',
+  'hasFoodOnTable', 'billPresented', 'round',
+]);
+const ITEM_KEYS = Object.freeze(['id', 'itemId', 'name', 'qty', 'options', 'unitPrice', 'status']);
+const BILL_KEYS = Object.freeze(['currency', 'unit', 'lines', 'totalCents']);
+const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const VALID_PHASES = new Set(Object.values(P));
+const VALID_ITEM_STATUSES = new Set(Object.values(ITEM_STATUS));
+
+function isRecord(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactKeys(value, keys) {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+/** 禁用原型污染键、Symbol 键及循环/共享引用；稳定快照必须是纯 JSON 数据。 */
+function hasForbiddenKeys(value, seen = new WeakSet()) {
+  if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value)) return true;
+  seen.add(value);
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key === 'symbol' || FORBIDDEN_KEYS.has(key)) return true;
+    if (hasForbiddenKeys(value[key], seen)) return true;
+  }
+  return false;
+}
+
+function sameJson(left, right) {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((entry, index) => sameJson(entry, right[index]));
+  }
+  if (!isRecord(left) || !isRecord(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length || !rightKeys.every((key) => Object.prototype.hasOwnProperty.call(left, key))) return false;
+  return rightKeys.every((key) => sameJson(left[key], right[key]));
+}
+
+function invalidRestore(reason) {
+  return { ok: false, reason };
+}
+
+/**
+ * 从当前菜单重建候选状态。调用方只有在整个候选通过校验后才能替换现有状态。
+ * 菜单名称、规格、单价及账单均以当前菜单为准，存档仅用于逐项核对。
+ */
+function validateRestoredState(input, maxPerItem) {
+  if (!isRecord(input) || hasForbiddenKeys(input)) {
+    return invalidRestore('快照必须是纯 JSON 对象，且不得包含禁用键或循环引用。');
+  }
+  if (!hasExactKeys(input, STATE_KEYS)) return invalidRestore('快照业务字段缺失或含有未知字段。');
+  if (!VALID_PHASES.has(input.phase)) return invalidRestore(`未知阶段「${input.phase}」。`);
+  if (!Array.isArray(input.items)) return invalidRestore('items 必须是订单行数组。');
+  if (!Number.isSafeInteger(input.round) || input.round < 0) return invalidRestore('round 必须是非负安全整数。');
+  if (typeof input.isPaid !== 'boolean' || typeof input.waiterPresent !== 'boolean' ||
+      typeof input.hasFoodOnTable !== 'boolean' || typeof input.billPresented !== 'boolean') {
+    return invalidRestore('支付、服务员及派生标记必须是布尔值。');
+  }
+  if (input.partySize !== null && input.partySize !== 1 && input.partySize !== 2) {
+    return invalidRestore('partySize 只能是 null、1 或 2。');
+  }
+
+  const items = [];
+  const ids = new Set();
+  const productTotals = new Map();
+  let itemSeq = 0;
+  for (const raw of input.items) {
+    if (!isRecord(raw) || !hasExactKeys(raw, ITEM_KEYS)) return invalidRestore('订单行字段缺失或含有未知字段。');
+    if (typeof raw.id !== 'string' || !/^line-[1-9]\d*$/.test(raw.id)) {
+      return invalidRestore('订单行 id 必须是 line-正整数 格式。');
+    }
+    const sequence = Number(raw.id.slice(5));
+    if (!Number.isSafeInteger(sequence) || sequence >= Number.MAX_SAFE_INTEGER) {
+      return invalidRestore('订单行 id 序号超出可恢复范围。');
+    }
+    if (ids.has(raw.id)) return invalidRestore(`订单行「${raw.id}」重复。`);
+    ids.add(raw.id);
+    itemSeq = Math.max(itemSeq, sequence);
+
+    const menuItem = getMenuItem(raw.itemId);
+    if (!menuItem) return invalidRestore(`菜单中不存在商品「${raw.itemId}」。`);
+    if (!menuItem.available) return invalidRestore(`「${menuItem.name}」今日售罄，不能恢复。`);
+    if (maxPerItem === 1 && productTotals.has(raw.itemId)) {
+      return invalidRestore(`商品「${menuItem.name}」出现重复订单行。`);
+    }
+    if (raw.name !== menuItem.name || raw.unitPrice !== menuItem.price) {
+      return invalidRestore(`商品「${menuItem.name}」的名称或单价与当前菜单不符。`);
+    }
+    if (!Number.isInteger(raw.qty) || raw.qty < 1 || raw.qty > 99) {
+      return invalidRestore('订单数量必须是 1–99 的整数。');
+    }
+    const productTotal = (productTotals.get(raw.itemId) ?? 0) + raw.qty;
+    if (productTotal > maxPerItem) return invalidRestore(`商品「${menuItem.name}」超过本局数量上限。`);
+    productTotals.set(raw.itemId, productTotal);
+    if (!VALID_ITEM_STATUSES.has(raw.status)) return invalidRestore(`订单行「${raw.id}」状态无效。`);
+    if (!isRecord(raw.options)) return invalidRestore(`订单行「${raw.id}」的规格必须是对象。`);
+    const resolved = resolveOptions(menuItem, raw.options);
+    if (!resolved.ok || !sameJson(raw.options, resolved.options)) {
+      return invalidRestore(resolved.reason || `订单行「${raw.id}」的规格未完整按菜单保存。`);
+    }
+    items.push({
+      id: raw.id,
+      itemId: menuItem.id,
+      name: menuItem.name,
+      qty: raw.qty,
+      options: resolved.options,
+      unitPrice: menuItem.price,
+      status: raw.status,
+    });
+  }
+
+  const candidate = {
+    phase: input.phase,
+    items,
+    bill: null,
+    isPaid: input.isPaid,
+    waiterPresent: input.waiterPresent,
+    partySize: input.partySize,
+    hasFoodOnTable: input.hasFoodOnTable,
+    billPresented: input.billPresented,
+    round: input.round,
+  };
+
+  const earlyPhase = [P.OUTSIDE, P.GREETING, P.SEATING, P.SEATED].includes(input.phase);
+  if (earlyPhase && items.length > 0) return invalidRestore('入座前或刚入座时不得已有订单行。');
+  if (input.phase === P.ORDERING && items.some((item) => item.status !== ITEM_STATUS.PENDING)) {
+    return invalidRestore('点餐阶段只能包含待确认订单行。');
+  }
+  if ([P.BILLING, P.FINISHED].includes(input.phase) && items.some((item) => item.status === ITEM_STATUS.PENDING)) {
+    return invalidRestore('结账或结束阶段不得包含待确认订单行。');
+  }
+  if ([P.OUTSIDE, P.GREETING].includes(input.phase)) {
+    if (input.partySize !== null) return invalidRestore('尚未带位时 partySize 必须为 null。');
+  } else if (input.partySize === null) {
+    return invalidRestore('带位及后续阶段必须保存有效人数。');
+  }
+  if (input.phase === P.OUTSIDE && input.waiterPresent) return invalidRestore('门外阶段服务员不应在桌边。');
+  if ([P.GREETING, P.SEATING].includes(input.phase) && !input.waiterPresent) {
+    return invalidRestore('迎接或带位阶段服务员必须在场。');
+  }
+
+  const expectsBill = input.phase === P.BILLING || input.phase === P.FINISHED;
+  if ((input.bill !== null) !== expectsBill) return invalidRestore('账单与阶段相互矛盾。');
+  if (input.isPaid && !expectsBill) return invalidRestore('未进入结账阶段不得标记为已支付。');
+  if (input.phase === P.FINISHED && !input.isPaid) return invalidRestore('结束阶段必须已经完成支付。');
+  if ((input.isPaid || input.phase === P.FINISHED) && input.waiterPresent) {
+    return invalidRestore('已支付或已结束阶段服务员必须离场。');
+  }
+
+  const hasFoodOnTable = items.some((item) => item.status === ITEM_STATUS.SERVED);
+  if (input.hasFoodOnTable !== hasFoodOnTable) return invalidRestore('hasFoodOnTable 与订单行状态不符。');
+  if (input.billPresented !== expectsBill) return invalidRestore('billPresented 与账单状态不符。');
+
+  if (expectsBill) {
+    if (!isRecord(input.bill) || !hasExactKeys(input.bill, BILL_KEYS)) {
+      return invalidRestore('账单字段缺失或含有未知字段。');
+    }
+    const expectedBill = calculateBill(candidate);
+    if (!sameJson(input.bill, expectedBill)) return invalidRestore('账单与当前菜单及有效订单行重算结果不符。');
+    candidate.bill = expectedBill;
+  }
+
+  return { ok: true, state: candidate, itemSeq };
+}
+
 function ok(state, events = []) {
   syncDerived(state);
   return { ok: true, state: clone(state), events, reason: null };
@@ -134,7 +308,7 @@ function calculateBill(state) {
 
 /**
  * 创建一局新会话。
- * @returns {{ getState: Function, dispatch: Function }}
+ * @returns {{ getState: Function, dispatch: Function, restoreState: Function }}
  */
 export function createSession({maxPerItem=Infinity}={}) {
   if(maxPerItem!==Infinity&&(!Number.isInteger(maxPerItem)||maxPerItem<1))throw new RangeError('maxPerItem must be a positive integer');
@@ -445,5 +619,22 @@ export function createSession({maxPerItem=Infinity}={}) {
     }
   }
 
-  return { getState, dispatch };
+  /**
+   * 原子恢复 getState() 对应的稳定业务状态，不重放历史动作。
+   * 任何校验失败均返回原状态；成功时同时修复下一条订单行的序号。
+   */
+  function restoreState(snapshot) {
+    let restored;
+    try {
+      restored = validateRestoredState(snapshot, maxPerItem);
+    } catch {
+      return fail(state, '快照无法读取，恢复已取消。');
+    }
+    if (!restored.ok) return fail(state, restored.reason);
+    state = restored.state;
+    itemSeq = restored.itemSeq;
+    return ok(state, [{ type: 'SESSION_RESTORED', round: state.round }]);
+  }
+
+  return { getState, dispatch, restoreState };
 }

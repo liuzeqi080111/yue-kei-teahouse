@@ -10,10 +10,10 @@ import {MENU} from './teahouse-scene/index.js';
 const root=path.dirname(fileURLToPath(import.meta.url));
 try{process.loadEnvFile(path.join(root,'.env'));}catch{/* 缺文件或其他读取问题均忽略；不读取、不输出任何凭证内容 */}
 
-const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','practice-audio.js','practice-recorder.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','music.js','voice-capture.js','voice-endpoint.js']);
+const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','practice-audio.js','practice-recorder.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','music.js','voice-capture.js','voice-endpoint.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css','assets/ow-world.png','assets/ow-player.png','assets/ow-npcs.png','assets/ow-home.png','assets/ow-laundry.png','assets/ow-qing-coats.png','assets/ow-world-day.png','assets/ow-world-night.png']);
 const mime={'.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
 const MAX_BODY=3*1024*1024,MAX_CONCURRENCY=2,RATE_PER_MINUTE=30;
-const HTTP_BY_CODE={INVALID_INPUT:400,INVALID_JSON:400,UNSUPPORTED_MEDIA_TYPE:415,PAYLOAD_TOO_LARGE:413,AUDIO_TOO_LARGE:413,ASR_EMPTY:422,PROVIDER_UNCONFIGURED:503,UPSTREAM_TIMEOUT:504,UPSTREAM_ERROR:502,UPSTREAM_STATUS:502,INVALID_MODEL_JSON:502,UNTRUSTED_AUDIO_URL:502,RATE_LIMITED:429};
+const HTTP_BY_CODE={INVALID_INPUT:400,INVALID_JSON:400,UNSUPPORTED_MEDIA_TYPE:415,PAYLOAD_TOO_LARGE:413,AUDIO_TOO_LARGE:413,ASR_EMPTY:422,PROVIDER_UNCONFIGURED:503,PROVIDER_UNAVAILABLE:503,UPSTREAM_TIMEOUT:504,UPSTREAM_ERROR:502,UPSTREAM_STATUS:502,INVALID_MODEL_JSON:502,UNTRUSTED_AUDIO_URL:502,RATE_LIMITED:429};
 const PRACTICE_HTTP={INVALID_INPUT:400,PRACTICE_NO_SPEECH:422,PRACTICE_UNCONFIGURED:503,PRACTICE_UPSTREAM_ERROR:502,PRACTICE_TIMEOUT:504,PRACTICE_RATE_LIMITED:429};
 
 const orderPracticePhrases=new Map();
@@ -84,6 +84,18 @@ export function createServer({provider=createBailian(),pronunciation=createPronu
       '/api/voice/status':{method:'GET',call:()=>provider.status()},
       '/api/voice/transcribe':{method:'POST',call:(body)=>provider.transcribe(body)},
       '/api/voice/interpret':{method:'POST',call:(body)=>provider.interpret(body)},
+      '/api/world/interpret':{method:'POST',messages:{
+        INVALID_INPUT:'街坊理解請求格式無效。',
+        PROVIDER_UNCONFIGURED:'街坊理解服務未配置。',
+        PROVIDER_UNAVAILABLE:'街坊理解服務暫時不可用。',
+        UPSTREAM_TIMEOUT:'街坊理解服務逾時，請稍後重試。',
+        UPSTREAM_ERROR:'街坊理解服務暫時不可用，請稍後重試。',
+        UPSTREAM_STATUS:'街坊理解服務暫時不可用，請稍後重試。',
+        INVALID_MODEL_JSON:'街坊理解暫時無法回應，請稍後重試。',
+      },call:(body)=>{
+        if(typeof provider.worldInterpret!=='function')throw httpError(503,'PROVIDER_UNAVAILABLE','街坊理解服務不可用。');
+        return provider.worldInterpret(body);
+      }},
       '/api/voice/speak':{method:'POST',call:(body)=>provider.speak(body)},
       '/api/practice/status':{method:'GET',call:()=>({configured:pronunciation.configured,locale:'zh-HK'})},
       '/api/practice/assess':{method:'POST',call:async(body)=>{
@@ -106,7 +118,10 @@ export function createServer({provider=createBailian(),pronunciation=createPronu
     }catch(e){
       if(e instanceof PronunciationError&&Object.hasOwn(PRACTICE_HTTP,e.code))return failJson(res,PRACTICE_HTTP[e.code],e.code,e.message);
       // 仅透传已知安全 code/message；不输出上游原文、堆栈或请求头
-      if(typeof e?.code==='string'&&Object.hasOwn(HTTP_BY_CODE,e.code))return failJson(res,HTTP_BY_CODE[e.code],e.code,({ASR_EMPTY:'未聽清楚，請靠近咪高峰再講一次。',UPSTREAM_TIMEOUT:'語音服務逾時，請稍後重試。',RATE_LIMITED:'語音服務繁忙，請稍後重試。',PROVIDER_UNCONFIGURED:'語音服務未配置。'}[e.code]||'請求未完成，請檢查輸入或稍後重試。'));
+      if(typeof e?.code==='string'&&Object.hasOwn(HTTP_BY_CODE,e.code)){
+        const messages={ASR_EMPTY:'未聽清楚，請靠近咪高峰再講一次。',UPSTREAM_TIMEOUT:'語音服務逾時，請稍後重試。',RATE_LIMITED:'語音服務繁忙，請稍後重試。',PROVIDER_UNCONFIGURED:'語音服務未配置。'};
+        return failJson(res,HTTP_BY_CODE[e.code],e.code,route.messages?.[e.code]||messages[e.code]||'請求未完成，請檢查輸入或稍後重試。');
+      }
       failJson(res,500,'INTERNAL_ERROR','服務內部錯誤');
     }finally{active--;}
   }
