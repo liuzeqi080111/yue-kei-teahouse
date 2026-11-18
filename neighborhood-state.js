@@ -14,7 +14,7 @@ export const ITEMS={ticket:'洗衣取件单',wrongCoat:'拿错的外套',coat:'�
 export function freshWorld(){return {version:1,revision:0,position:{x:1110,y:1220},location:'home',day:1,period:1,money:30000,items:[],flags:[],notes:[],met:[],history:{},restaurant:null,dining:null,paidMeals:[],coatOutcome:null,recordOutcome:null,stallOutcome:null};}
 const copy=x=>JSON.parse(JSON.stringify(x));
 const FORBIDDEN_KEYS=new Set(['__proto__','constructor','prototype']);
-const WORLD_KEYS=['version','revision','position','location','day','period','money','items','flags','notes','met','history','restaurant','dining','paidMeals','coatOutcome','recordOutcome','stallOutcome'];
+const WORLD_KEYS=['version','revision','position','location','day','period','money','items','flags','notes','met','history','restaurant','dining','paidMeals','coatOutcome','recordOutcome','stallOutcome','streetView'];
 const LOCATIONS=new Set(['street','home','laundry','restaurant']);
 function isPlainObject(value){return value!==null&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value));}
 // 递归校验 JSON 值：每层对象必须是普通对象；拒绝禁用键、非有限数字、
@@ -52,6 +52,11 @@ function validateWorld(s){
  if(s.items.some(i=>!Object.prototype.hasOwnProperty.call(ITEMS,i)))throw Error('存档物品无效');
  if(!isPlainObject(s.position)||!Number.isFinite(s.position.x)||!Number.isFinite(s.position.y))throw Error('存档位置无效');
  if(s.position.x<0||s.position.x>1536||s.position.y<0||s.position.y>1536)throw Error('存档位置越界');
+ if(s.streetView!==undefined){
+  const v=s.streetView;
+  if(!isPlainObject(v)||!['x','z','heading','pitch'].every(key=>Number.isFinite(v[key]))||
+     Math.abs(v.x)>60||Math.abs(v.z)>60||v.pitch< -1.05||v.pitch>1.14)throw Error('第一人称游玩位置无效');
+ }
  if(!isPlainObject(s.history))throw Error('历史记录必须是普通对象');
  if(s.restaurant!==null&&s.restaurant!==undefined&&!isPlainObject(s.restaurant))throw Error('餐厅进度必须是普通对象或空');
  if(s.dining!==null&&s.dining!==undefined&&!isPlainObject(s.dining))throw Error('用餐进度必须是普通对象或空');
@@ -87,6 +92,7 @@ export function resetWorld(storage){
 export function optionsFor(s,npc){
  // 阿晴赴面试离场期间不能对话：没有任何选项。
  if(npc==='qing'&&s.coatOutcome&&!s.flags.includes('qing-returned'))return [];
+ const firstPerson=Boolean(s.streetView);
  const f=k=>s.flags.includes(k),has=k=>s.items.includes(k),out=[];
  const add=(id,label,text,meaning,effect=()=>{})=>out.push({id,label,text,meaning,effect});
  const flag=(d,k)=>{if(!d.flags.includes(k))d.flags.push(k);};
@@ -112,7 +118,15 @@ export function optionsFor(s,npc){
   }
  if(npc==='fang'){
   add('laundry-chat','这里平时忙吗？','放工前最多人攞衫，記得帶單呀。','下班前取衣的人最多，记得带单。');
-  if(has('ticket')&&!f('shop-check'))add('shop-check','出示取件单，核对外套','兩件深色褸好似。周生啱啱攞走一件，佢成日去粵記。','两件深色外套很像。周先生刚拿走一件，他常去粤记。',d=>{flag(d,'shop-check');note(d,'芳姐核对记录：另一位取衣客人是常去粤记的周叔。');});
+  if(has('ticket')&&!f('shop-check'))add('shop-check',firstPerson?'亲手递上取件单':'出示取件单，核对外套','兩件深色褸好似。周生啱啱攞走一件，佢成日去粵記。','两件深色外套很像。周先生刚拿走一件，他常去粤记。',d=>{flag(d,'shop-check');if(firstPerson){take(d,'ticket');flag(d,'ticket-filed');}note(d,'芳姐核对记录：另一位取衣客人是常去粤记的周叔。');});
+  if(firstPerson&&f('shop-check')&&!s.coatOutcome&&!s.flags.some(k=>k.startsWith('coat-route-'))){
+   const plans=[
+    ['recover','先找回原来的外套','去粵記問阿明，佢認得周生。','去粤记问阿明，他认得周叔。'],
+    ['borrow','先向玲姐借一件','可以去衣檔問玲姐借件褸，記住要還。','可以去衣摊问玲姐借件外套，记得归还。'],
+    ['buy','先陪阿晴去买一件','可以陪阿晴去問價。件舊褸仲要查清楚。','可以陪阿晴去问价。原衣的误会还有待解决。'],
+   ];
+   for(const [id,label,text,meaning] of plans)add('coat-route-'+id,label,text,meaning,d=>{flag(d,'coat-route-'+id);note(d,label+'。');});
+  }
   if(f('shop-check')&&!f('shop-contact')&&!s.coatOutcome)add('shop-contact','请联系周叔，一起核对解决','我打畀佢，請佢帶件褸返嚟，大家核對清楚。','我联系他，请他带外套回来，大家核对。',d=>{flag(d,'shop-contact');note(d,'芳姐已联系周叔，可以请阿晴来共同核对。');});
   if(s.coatOutcome)add('laundry-after','外套的事处理好了','下次我會再核對清楚。多謝你肯聽兩邊講。','下次我会再核对清楚，谢谢你肯听双方说。');
  }
@@ -126,7 +140,7 @@ export function optionsFor(s,npc){
   }
  if(npc==='guest'){
   add('guest-chat','你也拿错了外套吗？','件褸有啲窄，但我唔可以隨便交畀陌生人。','外套有点紧，但我不能随便交给陌生人。');
-    if(has('ticket')&&f('shop-check')&&f('coat-detail')&&has('wrongCoat')&&!has('coat'))add('coat-swap','出示取件单和特征，当面交换外套','個名對得上，袖口都係。原來真係攞錯咗。','名字和袖口都对得上，原来真的拿错了。',d=>{take(d,'wrongCoat');give(d,'coat');flag(d,'coat-swapped');note(d,'已与周叔核对并换回阿晴的外套。');});
+    if((has('ticket')||f('ticket-filed'))&&f('shop-check')&&f('coat-detail')&&has('wrongCoat')&&!has('coat'))add('coat-swap','出示取件单和特征，当面交换外套','個名對得上，袖口都係。原來真係攞錯咗。','名字和袖口都对得上，原来真的拿错了。',d=>{take(d,'wrongCoat');give(d,'coat');flag(d,'coat-swapped');note(d,'已与周叔核对并换回阿晴的外套。');});
  }
  if(npc==='ling'){
    if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&!f('loan-returned')){

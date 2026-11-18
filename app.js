@@ -490,13 +490,22 @@ function onWorldHistoryChange(snapshot){
  if(!validation.ok){lockWorld('无法继续：对话历史无效。');return;}
  world={...world,history:snapshot};worldStarted=true;worldDirty=true;flushWorldSave();
 }
+const firstPerson=new URLSearchParams(location.search).get('street')==='3d';
 const neighborhoodRoot=neighborhoodRootFromDocument();
-neighborhood=createNeighborhood({
+const createWorldView=firstPerson?(await import('./street-game.js')).createStreetGame:createNeighborhood;
+neighborhood=createWorldView({
  root:neighborhoodRoot,
  getState:()=>world,
  onAction:onWorldAction,
  onRest:onWorldRest,
  onMove:onWorldMove,
+ onView:(streetView,{final=false}={})=>{
+  if(worldSaveLocked)return;
+  if(JSON.stringify(world.streetView)!==JSON.stringify(streetView)){
+   world={...world,streetView};worldStarted=true;worldDirty=true;
+  }
+  if(final)flushWorldSave();else scheduleWorldSave();
+ },
  onLocation:onWorldLocation,
  onHome:returnToTitle,
  onHistoryChange:onWorldHistoryChange,

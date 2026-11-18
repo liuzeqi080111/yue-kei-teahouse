@@ -11,7 +11,13 @@ const root=path.dirname(fileURLToPath(import.meta.url));
 try{process.loadEnvFile(path.join(root,'.env'));}catch{/* 缺文件或其他读取问题均忽略；不读取、不输出任何凭证内容 */}
 
 const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','practice-audio.js','practice-recorder.js','dining-actions.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','music.js','voice-capture.js','voice-endpoint.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css','assets/ow-world.png','assets/ow-player.png','assets/ow-npcs.png','assets/ow-home.png','assets/ow-laundry.png','assets/ow-qing-coats.png','assets/ow-world-day.png','assets/ow-world-night.png']);
-const mime={'.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
+for(const name of ['street-game.js','street-game.css','street-space.js','street-fang.js','street-render.js',
+ 'assets/street/walk.json','assets/street/district.glb',
+ 'assets/street/three/build/three.module.min.js','assets/street/three/build/three.core.min.js',
+ 'assets/street/three/examples/jsm/loaders/GLTFLoader.js','assets/street/three/examples/jsm/utils/BufferGeometryUtils.js',
+ ...['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].map(id=>'assets/street/'+id+'-styled-v3.glb'),
+])allowed.add(name);
+const mime={'.glb':'model/gltf-binary','.json':'application/json','.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
 for (const name of ['fp1-demo.html','fp1-demo.css','fp1-demo.js','fp1-follow.js','fp1-render.js',
   'fp1-scene.js','fp1-story.js','fp1-travel.js','fp1-voice.js','fp1-dictation.js','fp1-clips.js']) allowed.add(name);
 const MAX_BODY=3*1024*1024,MAX_CONCURRENCY=2,RATE_PER_MINUTE=30;
@@ -65,7 +71,7 @@ async function readJsonBody(req){
   try{return JSON.parse(text);}catch{throw httpError(400,'INVALID_JSON','請求體不是合法 JSON');}
 }
 
-/** 静态白名单保持不变；server 目录、md/json/.env 永不可达。GET/HEAD 之外 405，HEAD 不返回 body。 */
+/** 静态文件使用明确白名单；server 目录和 .env 不对外提供。GET/HEAD 之外 405，HEAD 不返回 body。 */
 async function handleStatic(req,res,pathname){
   if(req.method!=='GET'&&req.method!=='HEAD'){res.setHeader('Allow','GET, HEAD');return failJson(res,405,'METHOD_NOT_ALLOWED','方法不允許');}
   try{
