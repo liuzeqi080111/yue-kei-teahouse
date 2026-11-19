@@ -1,7 +1,7 @@
 // FP1-TRAVEL-01: travel wiring over the follow controller (pure logic, no UI).
 import { createFollowController } from './fp1-follow.js';
 
-const SPEED = 2.15;
+export const FP1_TRAVEL_SPEED = 2.15;
 const ARRIVE_RADIUS = 0.025;
 const MAX_DT = 0.08;
 const MAX_MOVE = 0.18;
@@ -63,7 +63,7 @@ export function createFp1Travel(options = {}) {
     if (controller) controller.destroy();
     controller = createFollowController({
       waypoints,
-      speed: SPEED,
+      speed: FP1_TRAVEL_SPEED,
       arriveRadius: ARRIVE_RADIUS,
       maxStep: MAX_DT,
     });

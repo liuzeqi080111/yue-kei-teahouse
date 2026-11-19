@@ -349,14 +349,14 @@ export function createBailian({ env = process.env, fetchImpl = fetch, speechVoic
     return parseWorldModel(data?.choices?.[0]?.message?.content, request);
   }
 
-  async function speak({ text } = {}) {
+  async function speak({ text,npcId } = {}) {
     requireConfig();
     requireText(text, '朗讀文字');
     const data = await postJson(
       fetchImpl,
       new URL('/api/v1/services/aigc/multimodal-generation/generation', base),
       key,
-      { model: MODELS.tts, input: { text, voice: speechVoice, language_type: 'Chinese' } },
+      { model: MODELS.tts, input: { text, voice: WORLD_NPC_IDS.has(npcId)?({qing:'Kiki',fang:'Kiki',ling:'Kiki',buyer:'Kiki',ming:'Ethan',lok:'Ethan',lam:'Rocky',guest:'Rocky'})[npcId]:speechVoice, language_type: 'Chinese' } },
     );
     const audioUrl = data?.output?.audio?.url;
     if (!audioUrl) fail('UPSTREAM_ERROR', '上游未返回音頻地址');

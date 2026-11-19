@@ -47,6 +47,7 @@ export function createNeighborhoodVoice({
 
  let current=null,generation=0,requestCounter=0,busy=false,recording=false,speaking=false,lastLine=null;
  let playGeneration=0,playController=null,audio=null,audioUrl=null,playTimer=0;
+ const speechCache=new Map();
  const histories=new Map(),handledRequests=new Set();
 
  const call=(fn,...args)=>{try{fn(...args);}catch{}};
@@ -251,11 +252,17 @@ export function createNeighborhoodVoice({
   stopPlayback();const id=playGeneration;speaking=true;status('speaking',rate<1?'正在慢速播放…':'正在播放回应…');emitActivity();
   playTimer=setTimeout(()=>{if(id!==playGeneration)return;stopPlayback();status('error','配音等待超时，请重听。');},playbackTimeoutMs);
   try{
-   const data=await postJson('/api/voice/speak',{text:line.text.slice(0,500)});
-   if(id!==playGeneration)return false;
-   const clip=base64ToBlob(data?.audioBase64,data?.mimeType);
+   const key=line.npcId+'|'+line.text;
+   let clip=speechCache.get(key);
+   if(!clip){
+    const data=await postJson('/api/voice/speak',{text:line.text.slice(0,500),npcId:line.npcId});
+    if(id!==playGeneration)return false;
+    clip=base64ToBlob(data?.audioBase64,data?.mimeType);
+    if(speechCache.size>=16)speechCache.delete(speechCache.keys().next().value);
+    speechCache.set(key,clip);
+   }
    audioUrl=createObjectURL(clip);audio=audioFactory(audioUrl);
-   audio.playbackRate=rate;audio.preservesPitch=true;audio.mozPreservesPitch=true;audio.webkitPreservesPitch=true;
+   audio.preservesPitch=true;audio.playbackRate=rate;
    audio.onended=()=>{if(id!==playGeneration)return;stopPlayback();if(!busy)status('ready','播放完成。');};
    audio.onerror=()=>{if(id!==playGeneration)return;stopPlayback();status('error','配音播放失败，请重试。');};
    await audio.play();

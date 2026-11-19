@@ -297,7 +297,7 @@ await checkLateResponse('reset');
   assert.equal(h.client.busy,false);
 }
 
-// 重听和慢速只请求 TTS，不重复理解或执行；停止时撤销音频资源并清除 speaking。
+// 重听和慢速复用同一次合成。停止播放时撤销对象 URL。
 {
   const h=makeHarness({respond:request=>worldResponse(request,{
     decision:'execute',actionId:'inspect-laundry',
@@ -312,7 +312,7 @@ await checkLateResponse('reset');
   assert.equal(h.clips[0].paused,1);
   assert.equal(h.revoked.length,1);
   assert.equal(worldRequests(h).length,1);
-  assert.equal(h.requests.filter(entry=>entry.url==='/api/voice/speak').length,2);
+  assert.equal(h.requests.filter(entry=>entry.url==='/api/voice/speak').length,1);
   assert.deepEqual(h.state.applied,['inspect-laundry']);
   assert.equal(h.client.stopAudio(),true);
   assert.equal(h.client.speaking,false);
