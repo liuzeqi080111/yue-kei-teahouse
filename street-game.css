@@ -6,6 +6,7 @@
 .street-game button:hover,.street-game button:focus-visible{background:#325b4b}
 .street-game button:disabled{opacity:.6;cursor:wait}
 .street-game .street-primary{background:#f4d49d;color:#261d14}
+.street-game .street-primary:hover,.street-game .street-primary:focus-visible{background:#ffe7b9;color:#261d14}
 .street-top{position:absolute;inset:max(12px,env(safe-area-inset-top)) 14px auto;display:flex;align-items:start;justify-content:space-between;gap:8px;pointer-events:none}
 .street-goals,.street-menu,.street-dialogue,.street-tray{background:#102b24e8;border-radius:8px}
 .street-menu,.street-tray{pointer-events:auto}
@@ -43,7 +44,7 @@
 .street-ticket{position:absolute;left:50%;top:48%;pointer-events:none;background:#f2e2b8;color:#294639;padding:.75rem .55rem;border:1px solid #74664f;border-radius:3px;font-family:serif;animation:street-ticket-pass .65s ease-in both}
 @keyframes street-ticket-pass{from{transform:translate(30px,160px) rotate(-9deg) scale(1.25);opacity:1}to{transform:translate(-20px,-30px) rotate(7deg) scale(.30);opacity:0}}
 @media(prefers-reduced-motion:reduce){.street-ticket{animation-duration:.01s}}
-.street-gomoku button{border:0;border-radius:0;padding:0;background:linear-gradient(90deg,transparent 48%,#755539 49% 51%,transparent 52%),linear-gradient(transparent 48%,#755539 49% 51%,transparent 52%);position:relative}
+.street-gomoku button{border:0;border-radius:0;padding:0;background:linear-gradient(#755539,#755539) center/1px 100% no-repeat,linear-gradient(#755539,#755539) center/100% 1px no-repeat;position:relative}
 .street-gomoku button:hover:enabled,.street-gomoku button:focus-visible{background-color:#f3cd96}
 .street-gomoku button:disabled{opacity:1;cursor:default}
 .street-gomoku button[data-stone="1"]::after,.street-gomoku button[data-stone="2"]::after{content:"";position:absolute;inset:9%;border-radius:50%;background:radial-gradient(at 35% 25%,#62615a,#211e1a 65%);box-shadow:0 1px 2px #634832}

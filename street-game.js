@@ -483,7 +483,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    current.heading+=diff*ease;current.pitch+=pitchDelta*ease;dirty=true;
    if(Math.abs(diff)+Math.abs(pitchDelta)<.01)pendingLook=null;
   }
-  if(talking==='fang'&&lastSpeech?.speaker==='qing'&&!route())pendingLook={heading:angle(current,pointOf(body('qing'))),pitch:-.08};
+  if(talking==='fang'&&lastSpeech?.speaker==='qing'&&!route())pendingLook={heading:angle(current,pointOf(body('qing'))),pitch:-.23};
   if(talking==='fang'&&worldFlag('coat-inspected')&&!route()&&scene.face('aqing',current,dt))dirty=true;
   if(talking==='intro'&&scene.face('friend',current,dt))dirty=true;
   if(talking!=='lam'&&(NPCS[talking]||SHOPS[talking])&&scene.face(ACTORS[talking]?.model||talking,current,dt))dirty=true;
