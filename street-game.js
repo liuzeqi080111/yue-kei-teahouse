@@ -2,7 +2,8 @@ import { atShopCounter, shopBlocks, SHOPS, ACTORS, HOME, COUNTER, LAUNDRY_DOOR, 
 import { atFangCounter, createFangCounter } from './street-fang.js';
 import { createFp1Travel } from './fp1-travel.js';
 import { createNeighborhoodVoice } from './neighborhood-voice.js';
-import { FP1_CLIPS, STREET_CLIPS, ROLE_CLIPS } from './fp1-clips.js';
+import { FP1_CLIPS, ROLE_CLIPS } from './fp1-clips.js';
+import { prepareVoiceRecording } from './voice-clips.js';
 import { entryPosition } from './neighborhood-map.js';
 import { ITEMS, NPCS, npcContext, optionsFor, qingStatus, rackStatus } from './neighborhood-state.js';
 
@@ -43,7 +44,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    <button data-move="KeyW" aria-label="向前走">▲</button><button data-move="KeyA" aria-label="向左平移">◀</button>
    <button data-move="KeyS" aria-label="向后走">▼</button><button data-move="KeyD" aria-label="向右平移">▶</button>
   </div>
-  <div class="street-prompt"><button id="street-follow" hidden></button><button id="street-interact" class="street-primary" hidden></button></div>
+  <div class="street-prompt"><button id="street-follow" hidden></button><button id="street-interact" class="street-primary" hidden></button><button id="street-dine" hidden>进店用餐</button></div>
   <section class="street-dialogue" aria-label="街坊对话" hidden>
    <div class="street-caption"><strong class="street-speaker"></strong>
    <p class="street-line" aria-live="polite"></p><p class="street-meaning"></p></div>
@@ -72,7 +73,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  let lastView=0,showedIntroduction=false,clip=null,lastSpeech=null,styleKey='',dirty=true,restoreId=0,noticeTimer=0,voiceRecording=false;
  let chess=null,chessFinished=null,chessBusy=false,chessTurns=0,playTurn;
  let pendingVoiceFollow=false,guideTravel=null,guideHeadStart=0;
- const voiceRates={fang:.88,lam:.84,guest:.94,ling:1.04,lok:1.09,westBread:.93,arcade:.9,marketBack:1.07};
+ let clipRequest=null,clipUrl=null;
  function publish(message){
   clearTimeout(noticeTimer);status.textContent=message;
   if(message)noticeTimer=setTimeout(()=>{status.textContent='';},5600);
@@ -91,6 +92,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(SHOPS[npc])return [{id:'ask-shop',label:SHOPS[npc].question}];
   if(npc==='fang'&&worldFlag('coat-pickup-visit')&&worldFlag('shop-check')&&!worldFlag('coat-inspected'))return [{id:'show-coat',label:'把刚取的外套交给身旁的阿晴'}];
   const legal=optionsFor(getState(),npc);
+  if(npc==='ming')return [{id:'enter-restaurant',label:'进店用餐'},...legal];
   if(npc==='lam'){
    const choices=legal.filter(o=>o.id!=='record-start'||(chess&&chessTurns>=2)).map(o=>o.id==='record-start'?{...o,label:'你哋以前听边只碟？'}:o);
    if(!chess||chessFinished)choices.unshift({id:'sit-chess',label:chess?'再下一盘':'坐下，陪林伯下五子棋'});
@@ -119,7 +121,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    const context=npcContext(getState(),talking);
    return {npcId:talking,name:NPCS[talking].name,role:NPCS[talking].role,
     facts:[context.background,...context.knownClues,...context.relations].slice(0,12),
-    allowedActions:actionList(talking).filter(o=>o.effect||(o.id==='show-coat'&&qingAtCounter())).map(({id,label})=>({id,label}))};
+    allowedActions:actionList(talking).filter(o=>o.effect||o.id==='enter-restaurant'||(o.id==='show-coat'&&qingAtCounter())).map(({id,label})=>({id,label}))};
   },
   matchFixedChoice:(context,text)=>{
    const shop=SHOPS[context.npcId];
@@ -156,29 +158,40 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   autoSpeak:false,
  });
  function stopSpeech(){
+  clipRequest?.abort();clipRequest=null;
   if(clip){clip.pause();clip=null;}
+  if(clipUrl){URL.revokeObjectURL(clipUrl);clipUrl=null;}
  }
- function playFile(file,rate=1,profile=1){
+ async function playFile(file,speaker,rate=1){
   stopSpeech();
-  clip=new Audio(file);
-  clip.preservesPitch=rate<1;
-  clip.playbackRate=rate*profile;
-  clip.play().catch(error=>{
-   if(error.name==='NotAllowedError'&&talking)setText('#street-voice-state','点「听这句」即可播放。');
-  });
+  const request=new AbortController();clipRequest=request;
+  try{
+   const res=await fetch(file,{signal:request.signal});
+   if(!res.ok)throw Error('clip');
+   const recording=await prepareVoiceRecording(await res.blob(),speaker);
+   if(request.signal.aborted)return;
+   clipUrl=URL.createObjectURL(recording.blob);clip=new Audio(clipUrl);
+   clip.preservesPitch=true;clip.playbackRate=rate*recording.rate;
+   clip.onended=()=>{if(clipRequest===request)stopSpeech();};
+   await clip.play();
+  }catch(error){
+   if(request.signal.aborted)return;
+   stopSpeech();
+   if(talking)setText('#street-voice-state',error.name==='NotAllowedError'?'点「听这句」即可播放。':'配音未能播放，请点「听这句」重试。');
+  }
  }
  function friendLine(text,instruction=''){
   publish('老朋友：'+text+(instruction?' '+instruction:''));
-  if(FP1_CLIPS[text])playFile(FP1_CLIPS[text]);
+  if(FP1_CLIPS[text])void playFile(FP1_CLIPS[text],'intro');
  }
  function play(rate=1){
   stopSpeech();
   if(!lastSpeech)return;
   const speaker=lastSpeech.speaker||talking;
-  const file=ROLE_CLIPS[speaker+'|'+lastSpeech.text]||STREET_CLIPS[lastSpeech.text]||FP1_CLIPS[lastSpeech.text];
+  const file=ROLE_CLIPS[speaker+'|'+lastSpeech.text]||(speaker==='intro'&&FP1_CLIPS[lastSpeech.text]);
   if(file){
    voice.cancel('');
-   playFile(file,rate,voiceRates[speaker]||1);
+   void playFile(file,speaker,rate);
   }else if(talking){
    voice.setLine({npcId:talking,...lastSpeech});
    void (rate<1?voice.replaySlow():voice.replay());
@@ -339,6 +352,11 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   }
   if(!canTalk(npc,current))return {ok:false,message:'请走近后再开口。'};
   if(!actionList(npc).some(o=>o.id===id))return {ok:false,message:'现在还不能这样做。'};
+  if(npc==='ming'&&id==='enter-restaurant'){
+   if(fromVoice)queueMicrotask(()=>{if(talking==='ming')enterRestaurant();});
+   else enterRestaurant();
+   return {ok:true,text:'入嚟坐。',meaning:'进来坐。'};
+  }
   if(SHOPS[npc]){const {reply:text,translation:meaning}=SHOPS[npc];if(!fromVoice)setLine(text,meaning,true);return {ok:true,text,meaning};}
   if(id==='sit-chess'&&npc==='lam'){
    if(chessBusy)return {ok:false};
@@ -410,21 +428,31 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   return model.visible&&within(position,zone)&&distance(position,pointOf(model))<=2.3;
  }
  function updateTarget(){
+  const dine=$('#street-dine');
+  dine.hidden=true;
   if(!scene||talking){
    interact.hidden=true;follow.hidden=true;return;
   }
   const candidates=[...Object.keys(ACTORS),...Object.keys(SHOPS)].filter(id=>canTalk(id,current));
   candidates.sort((a,b)=>distance(current,pointOf(body(a)))-distance(current,pointOf(body(b))));
   nextTarget=atFangCounter(current)?'fang':candidates[0]||null;
-  if(isAt(RESTAURANT,.67))nextTarget='restaurant';
+  const byEntrance=within(current,[-15.3,-11.8,7.6,11.3]);
+  if(byEntrance){
+   if(isAt(RESTAURANT,.67)||!nextTarget)nextTarget='restaurant';
+   else dine.hidden=false;
+  }
   if(!nextTarget&&isAt(REST,2.05))nextTarget='rest';
   if(!nextTarget&&(within(current,[14.24,17.2,-.60,-.29])||isAt(LAUNDRY_DOOR,1.75)))nextTarget='door';
   const mode=travel.snapshot().mode;
   follow.hidden=!(mode==='following'||(worldFlag('coat-start')&&!worldFlag('shop-check')&&!isAt(LAUNDRY_DOOR,2.2)&&!atFangCounter(current)));
   follow.textContent=mode==='following'?'自己走':'跟上老朋友';
   interact.hidden=!nextTarget||mode==='following'&&nextTarget==='door';
-  const labels={restaurant:'进入粤记',rest:'坐坐，等一个时段',door:'进洗衣店，走到芳姐柜前',fang:'跟芳姐交谈'};
+  const labels={restaurant:'进店用餐',rest:'坐坐，等一个时段',door:'进洗衣店，走到芳姐柜前',fang:'跟芳姐交谈'};
   if(nextTarget)interact.textContent=(labels[nextTarget]||'跟'+(SHOPS[nextTarget]||NPCS[nextTarget]).name+'交谈')+' [E]';
+ }
+ function enterRestaurant(){
+  if(!visible||!active)return;
+  persist(true);onLocation('restaurant',entryPosition('restaurant'));hide({flush:false});onEnterRestaurant();
  }
  function doInteract(){
   if(!visible||!nextTarget||talking)return;
@@ -435,7 +463,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    drawHud();return;
   }
   if(nextTarget==='restaurant'){
-   persist(true);onLocation('restaurant',entryPosition('restaurant'));hide({flush:false});onEnterRestaurant();return;
+   enterRestaurant();return;
   }
   if(nextTarget==='fang')counter.open();
   else if(canTalk(nextTarget,current))openDialogue(nextTarget);
@@ -621,6 +649,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  $('#street-home').onclick=()=>{if(visible)persist(true);onHome();};
  $('#street-close').onclick=dropDialogue;
  interact.onclick=doInteract;
+ $('#street-dine').onclick=enterRestaurant;
  follow.onclick=()=>{if(travel.snapshot().mode==='following'){travel.pause();dirty=true;}else startRoute(COUNTER);};
  $('#street-mic').onclick=()=>{stopSpeech();if(voiceRecording)voice.stopRecording();else void voice.startRecording();};
  $('.street-form').onsubmit=event=>{event.preventDefault();stopSpeech();const input=$('.street-form input');void voice.submitText(input.value);input.value='';};

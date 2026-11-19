@@ -2,7 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {SHOPS} from '../street-space.js';
+import {SHOPS,streetVoiceIds} from '../street-space.js';
+import {characterVoice,prepareVoiceRecording,speechRequest} from '../voice-clips.js';
+import {ROLE_CLIPS} from '../fp1-clips.js';
+
+test('街坊各自有固定配音，门口阿明的音高与重听速度独立',async()=>{
+ for(const id of streetVoiceIds){
+  assert.ok(characterVoice(id),id);
+  assert.equal(speechRequest('你好',id).speakerId,id);
+  if(id!=='intro')assert.ok(Object.keys(ROLE_CLIPS).some(key=>key.startsWith(id+'|')),id);
+ }
+ assert.equal(characterVoice('buyer').voice,'Kiki');
+ const file=ROLE_CLIPS['ming|你好呀，想問啲乜？'];
+ const original=readFileSync(new URL('../'+file,import.meta.url));
+ const recording=await prepareVoiceRecording(new Blob([original]),'ming');
+ const adjusted=Buffer.from(await recording.blob.arrayBuffer());
+ assert.equal(adjusted.readUInt32LE(24),Math.round(original.readUInt32LE(24)*.84));
+ assert.deepEqual(adjusted.subarray(44),original.subarray(44));
+ assert.ok(Math.abs(recording.rate*.84-.97)<1e-8);
+});
 
 test('每位店主有独立贴图与几何，柜边工作姿势与网页载入格式一致',()=>{
  const positions=new Set(),textures=new Set();

@@ -33,6 +33,24 @@ const assert=require('node:assert/strict');
   await street.waitForSelector('#street-mic[aria-pressed="true"]');await street.waitForTimeout(1200);
   await mic.click();
   await street.locator('[data-street-action="defer"]').waitFor();assert.equal(requests,1);
-  console.log('PASS reversible drag, stable waiter pose, and spoken intro option on narrow street dock.');
+  const door=await browser.newPage({viewport:{width:390,height:844}});
+  await door.goto(url);
+  await door.evaluate(async()=>{
+   const {freshWorld,saveWorld}=await import('./neighborhood-state.js');
+   const world=freshWorld();world.location='street';
+   world.streetView={x:-13.7,z:8.3,pitch:0,heading:-1.48};
+   saveWorld(localStorage,world);
+   localStorage.setItem('yuekei-learning-guide-v1',JSON.stringify({mode:'experienced',showMeaning:true}));
+  });
+  await door.reload();
+  await door.locator('[data-world-save-state]').click();
+  await door.locator('#street-dine:visible').waitFor();
+  await door.locator('#street-interact').filter({hasText:'阿明'}).click();
+  await door.locator('[data-street-action="enter-restaurant"]').click();
+  await door.locator('.hud-direct [data-action="START_SEATING"]').first().waitFor();
+  await door.locator('#world-leave-restaurant').click();
+  await door.locator('#street-dine:visible').click();
+  await door.locator('#dining-room:visible').waitFor();
+  console.log('PASS reversible drag, stable waiter pose, spoken intro, and dining from both the storefront and waiter dialogue.');
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);process.exitCode=1;});

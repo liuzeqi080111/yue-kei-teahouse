@@ -881,7 +881,11 @@ document.addEventListener('click',e=>{
  }
  if(b.dataset.dialog){$('#'+b.dataset.dialog).showModal();return;}
  if(b.hasAttribute('data-dismiss')){b.closest('dialog').close();return;}
- if(b.dataset.chapter){const chapter=b.dataset.chapter;learningGuide.openMode(()=>{closeNeighborhood();game.chapter(chapter);if(chapter==='full')game.action('ENTER');},$('#chapters'));return;}
+ if(b.dataset.chapter||b.hasAttribute('data-dining-entry')){
+  const chapter=b.dataset.chapter||'full';
+  learningGuide.openMode(()=>{closeNeighborhood();game.chapter(chapter);if(chapter==='full')game.action('ENTER');},b.closest('dialog'));
+  return;
+ }
  if(b.hasAttribute('data-table-page')){tablePage++;selectedDining=null;render(game.snapshot());return;}
   if(b.dataset.camera){performCamera(b.dataset.camera);return;}
  if(b.hasAttribute('data-close')){closePanel();return;}

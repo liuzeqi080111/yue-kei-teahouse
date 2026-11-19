@@ -1,4 +1,4 @@
-import {loadVoiceClip,voiceFailure} from './voice-clips.js';
+import {loadVoiceClip,voiceFailure,prepareVoiceRecording} from './voice-clips.js';
 // One current utterance, tied to the visible NPC. Mouth animation stays disabled.
 export function createNpcSpeech({onActivity=()=>{},onState=()=>{},onSettled=()=>{},onLevel=()=>{}}={}){
  let current='',audio=null,url=null,controller=null,generation=0,muted=false,active=false,tick=0,deadline=0;
@@ -12,10 +12,10 @@ export function createNpcSpeech({onActivity=()=>{},onState=()=>{},onSettled=()=>
   deadline=setTimeout(()=>{if(id!==generation)return;controller?.abort();finish('配音等待超时，请点“更多→重播”重试。');},44000);
   try{
    let clip=cache.get(text);
-   if(!clip){controller=new AbortController();clip=await loadVoiceClip(text,{signal:controller.signal});if(id!==generation||settled)return;cache.set(text,clip);if(cache.size>32)cache.delete(cache.keys().next().value);}
+   if(!clip){controller=new AbortController();clip=await prepareVoiceRecording(await loadVoiceClip(text,{signal:controller.signal,npcId:'ming'}),'ming');if(id!==generation||settled)return;cache.set(text,clip);if(cache.size>32)cache.delete(cache.keys().next().value);}
    if(id!==generation||settled||muted)return;
-   url=URL.createObjectURL(clip);audio=new Audio(url);
-   audio.playbackRate=Number.isFinite(rate)?Math.max(.65,Math.min(1,rate)):1;audio.preservesPitch=true;
+   url=URL.createObjectURL(clip.blob);audio=new Audio(url);
+   audio.playbackRate=clip.rate*(Number.isFinite(rate)?Math.max(.65,Math.min(1,rate)):1);audio.preservesPitch=true;
    audio.onended=()=>finish();audio.onerror=()=>{if(id!==generation)return;cache.delete(text);finish(voiceFailure({code:'VOICE_MEDIA'}));};
    await audio.play();if(id!==generation||settled)return;onState('阿明說話中');
 

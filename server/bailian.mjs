@@ -4,6 +4,8 @@
  * 安全约定：30s 超时；错误只含安全 code/status，不泄露上游原文、请求头或密钥。
  */
 
+import {characterVoice} from '../voice-clips.js';
+
 const TIMEOUT_MS = 30000;
 const MAX_TEXT = 500;
 const MAX_AUDIO_BYTES = 2 * 1024 * 1024;
@@ -349,14 +351,14 @@ export function createBailian({ env = process.env, fetchImpl = fetch, speechVoic
     return parseWorldModel(data?.choices?.[0]?.message?.content, request);
   }
 
-  async function speak({ text,npcId } = {}) {
+  async function speak({ text,npcId,speakerId } = {}) {
     requireConfig();
     requireText(text, '朗讀文字');
     const data = await postJson(
       fetchImpl,
       new URL('/api/v1/services/aigc/multimodal-generation/generation', base),
       key,
-      { model: MODELS.tts, input: { text, voice: WORLD_NPC_IDS.has(npcId)?({qing:'Kiki',fang:'Kiki',ling:'Kiki',buyer:'Kiki',ming:'Ethan',lok:'Ethan',lam:'Rocky',guest:'Rocky'})[npcId]:speechVoice, language_type: 'Chinese' } },
+      { model: MODELS.tts, input: { text, voice: characterVoice(speakerId??npcId)?.voice??speechVoice, language_type: 'Chinese' } },
     );
     const audioUrl = data?.output?.audio?.url;
     if (!audioUrl) fail('UPSTREAM_ERROR', '上游未返回音頻地址');

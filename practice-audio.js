@@ -1,4 +1,4 @@
-import {loadVoiceClip} from './voice-clips.js';
+import {loadVoiceClip,prepareVoiceRecording} from './voice-clips.js';
 import {systemText} from './ui-language.js';
 
 const TIMEOUT_MS=30000,SLOW_RATE=0.65,CACHE_LIMIT=24;
@@ -80,7 +80,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   return `${prefix}第 ${partIndex+1}/${parts.length} 句：「${parts[partIndex]}」。听完可自行录音，${next}`;
  }
 
- async function playText(value,playbackRate){
+ async function playText(value,playbackRate,npcId){
   const text=clean(value);
   if(!enabled||!text)return;
   const blocked=blockedMessage();
@@ -89,28 +89,29 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   const id=generation;
   active=true;rate=playbackRate;status='准备示范音…';emit();paint();
   deadline=setTimeout(()=>{controller?.abort();settle(id,'示范音逾时，请重试。');},TIMEOUT_MS);
+  const key=(npcId||'practice')+'|'+text;
   try{
-   let clip=cache.get(text);
+   let clip=cache.get(key);
    if(!clip){
     const ctrl=new AbortController();controller=ctrl;
-    clip=await loadVoiceClip(text,{signal:ctrl.signal});
+    clip=await prepareVoiceRecording(await loadVoiceClip(text,{signal:ctrl.signal,npcId}),npcId);
     if(id!==generation)return;
-    cache.set(text,clip);if(cache.size>CACHE_LIMIT)cache.delete(cache.keys().next().value);
+    cache.set(key,clip);if(cache.size>CACHE_LIMIT)cache.delete(cache.keys().next().value);
    }
    controller=null;
    if(id!==generation)return;
-   url=URL.createObjectURL(clip);
+   url=URL.createObjectURL(clip.blob);
    audio=new Audio(url);
-   audio.playbackRate=playbackRate;
+   audio.playbackRate=playbackRate*clip.rate;
    audio.preservesPitch=true;audio.mozPreservesPitch=true;audio.webkitPreservesPitch=true;
    audio.onended=()=>settle(id,follow?partStatus():'试听完成。');
-   audio.onerror=()=>{if(id!==generation)return;cache.delete(text);settle(id,'示范音播放失败，请重试。');};
+   audio.onerror=()=>{if(id!==generation)return;cache.delete(key);settle(id,'示范音播放失败，请重试。');};
    await audio.play();
    if(id!==generation)return;
    status=follow?partStatus('正在播放：'):playbackRate<1?'正在慢速试听。':'正在试听。';paint();
   }catch(error){
    if(id!==generation)return;
-   cache.delete(text);
+   cache.delete(key);
    const message=error?.name==='NotAllowedError'?'浏览器拒絕播放，请再按一次试听。':'示范音连接或播放失敗，请检查网絡后重试。';
    settle(id,message);
   }
@@ -131,7 +132,7 @@ export function createPracticeAudio({getSnapshot,getPractice,enabled=true}={}){
   if(action==='stop'){cancel({message:'已停止练习。'});return;}
   if(action==='npc-slow'){
    follow=false;parts=[];partIndex=0;fullText=clean(current.npcText);sourceKind=kind;
-   playText(fullText,SLOW_RATE);return;
+   playText(fullText,SLOW_RATE,'ming');return;
   }
   if(!current.example)return;
   if(action==='follow'){sourceKind=kind;startFollow();return;}

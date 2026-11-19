@@ -1,3 +1,4 @@
+import {prepareVoiceRecording,speechRequest} from './voice-clips.js';
 import {streetVoiceIds} from './street-space.js';
 import {createPracticeRecorder} from './practice-recorder.js';
 import {voiceUrl} from './voice-endpoint.js';
@@ -262,17 +263,19 @@ export function createNeighborhoodVoice({
   stopPlayback();const id=playGeneration;speaking=true;status('speaking',rate<1?'正在慢速播放…':'正在播放回应…');emitActivity();
   playTimer=setTimeout(()=>{if(id!==playGeneration)return;stopPlayback();status('error','配音等待超时，请重听。');},playbackTimeoutMs);
   try{
-   const key=line.npcId+'|'+line.text;
+   const speaker=line.speaker||line.npcId;
+   const key=speaker+'|'+line.text;
    let clip=speechCache.get(key);
    if(!clip){
-    const data=await postJson('/api/voice/speak',{text:line.text.slice(0,500),npcId:line.npcId});
+    const data=await postJson('/api/voice/speak',speechRequest(line.text.slice(0,500),speaker));
     if(id!==playGeneration)return false;
-    clip=base64ToBlob(data?.audioBase64,data?.mimeType);
+    clip=await prepareVoiceRecording(base64ToBlob(data?.audioBase64,data?.mimeType),speaker);
+    if(id!==playGeneration)return false;
     if(speechCache.size>=16)speechCache.delete(speechCache.keys().next().value);
     speechCache.set(key,clip);
    }
-   audioUrl=createObjectURL(clip);audio=audioFactory(audioUrl);
-   audio.preservesPitch=true;audio.playbackRate=rate;
+   audioUrl=createObjectURL(clip.blob);audio=audioFactory(audioUrl);
+   audio.preservesPitch=true;audio.playbackRate=rate*clip.rate;
    audio.onended=()=>{if(id!==playGeneration)return;stopPlayback();if(!busy)status('ready','播放完成。');};
    audio.onerror=()=>{if(id!==playGeneration)return;stopPlayback();status('error','配音播放失败，请重试。');};
    await audio.play();
@@ -289,7 +292,7 @@ export function createNeighborhoodVoice({
   try{currentNpc=getContext()?.npcId;}catch{return false;}
   if(!NPC_IDS.has(npcId)||npcId!==currentNpc||!text||!meaning)return false;
   // Only replace the replay subtitle; never abort an interpretation attempt or write history.
-  stopPlayback();lastLine={npcId,text,meaning};return true;
+  stopPlayback();lastLine={npcId,text,meaning,speaker:NPC_IDS.has(line.speaker)?line.speaker:npcId};return true;
  }
 
  function replayLine(rate){

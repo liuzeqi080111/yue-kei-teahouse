@@ -1,28 +1,27 @@
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {createBailian} from '../server/bailian.mjs';
+import {characterVoice} from '../voice-clips.js';
 import {SHOPS} from '../street-space.js';
 import {optionsFor,freshWorld,NPCS,applyWorldAction,restEvent} from '../neighborhood-state.js';
 import {STREET_CLIPS} from '../fp1-clips.js';
 
-// Original common greeting assets retain their published paths for existing saves and builds.
-for(const [text,file] of Object.entries(STREET_CLIPS)){
- if(fs.existsSync(file))continue;
- const actor=/street-line-(\w+)-\d+/.exec(file)?.[1];
- const voice=['ling','herbs','westBread','marketBack','fang'].includes(actor)?'Kiki':
-  ['lok','radio','ming','buyer'].includes(actor)?'Ethan':'Rocky';
- const reply=await createBailian({speechVoice:voice}).speak({text});
- const bytes=Buffer.from(reply.audioBase64,'base64');
- if(bytes.toString('ascii',0,4)!=='RIFF')throw Error('Invalid WAV');
- fs.writeFileSync(file,bytes);
-}
 const lines=new Map();
-function add(id,text,cast=id){
- const voice=['ling','qing','aqing','buyer','fang'].includes(cast)?'Kiki':['aming','ming','ale','lok','friend'].includes(cast)?'Ethan':'Rocky';
+function add(id,text){
+ const {voice}=characterVoice(id);
  lines.set(id+'|'+text,{voice,text});
 }
+// Reuse a published greeting only if it was recorded by the current cast.
+const reusable=new Map();
+for(const [text,file] of Object.entries(STREET_CLIPS)){
+ const actor=/street-line-(\w+)-\d+/.exec(file)?.[1];
+ const original=['ling','herbs','westBread','marketBack','fang'].includes(actor)?'Kiki':
+  ['lok','radio','ming','buyer'].includes(actor)?'Ethan':'Rocky';
+ if(original===characterVoice(actor).voice&&fs.existsSync(file))reusable.set(actor+'|'+text,file);
+ add(actor,text);
+}
 for(const [id,shop] of Object.entries(SHOPS)){
- if(shop.stall){add(id,shop.line,shop.cast);add(id,shop.reply,shop.cast);}
+ add(id,shop.line);add(id,shop.reply);
 }
 const base={...freshWorld(),streetView:{x:12.22,z:8.94,heading:1.56,pitch:0}};
 const pickup='coat-start shop-check coat-inspect coat-route-';
@@ -39,7 +38,7 @@ for(const visit of visits){
  for(const next of [...visit.split(' '),null]){
   let speaker;
   for(const id of Object.keys(NPCS))for(const o of optionsFor(state,id)){
-   if(!STREET_CLIPS[o.text])add(id,o.text);
+   add(id,o.text);
    if(o.id===next)speaker=id;
   }
   if(next==='rest')state=restEvent(state);
@@ -59,6 +58,7 @@ for(const [id,text] of [
 ])add(id,text);
 const map={};
 for(const [key,{text,voice}] of lines){
+ if(reusable.has(key)){map[key]=reusable.get(key);continue;}
  const hash=createHash('sha256').update(voice+'|'+text).digest('hex').slice(0,14);
  const file='assets/street-line-'+hash+'.wav';
  if(!fs.existsSync(file)){
