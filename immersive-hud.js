@@ -10,7 +10,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
  const root=document.createElement('section');root.id='immersive-hud';root.hidden=true;
  root.setAttribute('aria-label','对话与求助');
  root.innerHTML=`<div class="hud-caption" aria-live="polite"><span class="hud-speaker"></span><p class="hud-subtitle"></p><p class="hud-notice" role="status"></p><button type="button" class="hud-subtitle-toggle" data-hud="subtitle" hidden>展开字幕</button></div>
- <section class="hud-direct" aria-label="当前回应" hidden><p class="hud-direct-note"></p><div class="hud-direct-actions"></div></section>
+
  <section class="hud-card" id="hud-help" aria-label="对话帮助" hidden>
   <header><strong>需要一点提示？</strong><button type="button" data-hud="pin" aria-pressed="false">固定</button><button type="button" data-hud="close" aria-label="关闭帮助">×</button></header>
   <nav class="hud-help-tabs" aria-label="帮助方向"><button type="button" data-help="goal" aria-pressed="true">我能做什么</button><button type="button" data-help="expression" aria-pressed="false">教我怎么说</button><button type="button" data-help="meaning" aria-pressed="false">解释上一句</button></nav>
@@ -19,14 +19,14 @@ export function createImmersiveHud({game,guide,voice,preview}){
  </section>
  <section class="hud-card hud-more" id="hud-more" aria-label="更多对话方式" hidden>
   <header><strong>更多对话方式</strong><button type="button" data-hud="close-more" aria-label="关闭更多选项">×</button></header>
-  <div class="hud-more-grid"><button type="button" data-hud="type">文字输入</button><button type="button" data-hud="transcript" aria-pressed="false">识别文字</button><button type="button" data-hud="original" aria-pressed="false">粤语原句与粤拼</button><button type="button" data-hud="previous" aria-pressed="false">查看上一句</button><button type="button" data-hud="replay">重播</button><button type="button" data-hud="slow">慢速重听</button><button type="button" data-hud="mute" aria-pressed="false">静音</button><button type="button" data-hud="devices">检查麦克风</button><button type="button" data-hud="history" aria-expanded="false">对话记录</button></div>
+  <div class="hud-more-grid"><button data-explore="window">望向窗边</button><button data-explore="cashier">望向收银处</button><button type="button" data-hud="type">文字输入</button><button type="button" data-hud="transcript" aria-pressed="false">识别文字</button><button type="button" data-hud="original" aria-pressed="false">粤语原句与粤拼</button><button type="button" data-hud="previous" aria-pressed="false">查看上一句</button><button type="button" data-hud="replay">重播</button><button type="button" data-hud="slow">慢速重听</button><button type="button" data-hud="mute" aria-pressed="false">静音</button><button type="button" data-hud="devices">检查麦克风</button><button type="button" data-hud="history" aria-expanded="false">对话记录</button></div>
   <div class="hud-original" hidden></div><div class="hud-history" aria-label="本局对话记录" hidden></div>
   <div class="hud-font-setting" role="group" aria-label="字幕和界面字号"><span>字号</span><button type="button" data-font-size="standard" aria-pressed="true">标准</button><button type="button" data-font-size="large" aria-pressed="false">大号</button><button type="button" data-font-size="xlarge" aria-pressed="false">特大</button></div>
   <label class="hud-auto-setting"><input type="checkbox" id="hud-auto-hint" checked> 等待回应时提醒我求助</label><p class="hud-static-note" hidden>当前版本未开放在线语音，可以使用帮助里的情境选项继续。</p>
  </section>
  <button type="button" id="hud-intro" hidden>点麦克风说话；需要帮助点这里或按 H</button>
  <button type="button" id="hud-idle-hint" hidden>不知道怎么说？</button>
- <div class="hud-bottom"><button type="button" class="hud-quiet" data-hud="help" aria-controls="hud-help" aria-expanded="false" aria-label="打开帮助（H）" title="帮助（H）">帮助</button><div id="hud-voice"></div><div class="hud-view-controls" role="group" aria-label="视角与菜单" hidden><button type="button" data-camera="table" data-hud-camera="table" aria-pressed="false">看看桌面</button><button type="button" data-camera="room" data-hud-camera="room" aria-pressed="false">看看店里</button><button type="button" data-camera="menu" data-hud-camera="menu" aria-pressed="false">看看菜单</button></div><button type="button" class="hud-quiet" data-hud="more" aria-controls="hud-more" aria-expanded="false" aria-label="更多对话方式">更多</button></div>
+ <div class="hud-bottom"><button type="button" class="hud-quiet" data-hud="help" aria-controls="hud-help" aria-expanded="false" aria-label="打开帮助（H）" title="帮助（H）">帮助</button><div id="hud-voice"></div> <section class="hud-direct" aria-label="当前回应" hidden><div class="hud-direct-actions"></div></section><button class="hud-quiet" data-action="CALL_WAITER" hidden>招呼阿明</button><div class="hud-view-controls" role="group" aria-label="视角与菜单" hidden><button type="button" data-camera="table" data-hud-camera="table" aria-pressed="false">看看桌面</button><button type="button" data-camera="room" data-hud-camera="room" aria-pressed="false">看看店里</button><button type="button" data-camera="menu" data-hud-camera="menu" aria-pressed="false">看看菜单</button></div><button type="button" class="hud-quiet" data-hud="more" aria-controls="hud-more" aria-expanded="false" aria-label="更多对话方式">更多</button></div>
  <button type="button" class="hud-return" data-camera="room" hidden>← 回到座位</button>`;
  document.querySelector('#game').append(root);
  const $=selector=>root.querySelector(selector),card=$('#hud-help'),more=$('#hud-more'),idle=$('#hud-idle-hint'),intro=$('#hud-intro');
@@ -123,7 +123,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
   box.hidden=!(review||greeting)||view.busy||!card.hidden||!more.hidden;
   const key=review?'review':greeting?'greeting':'';
   if(box.dataset.kind===key)return;box.dataset.kind=key;buttons.replaceChildren();
-  write($('.hud-direct-note'),review?'餐点尚未下单，请核对后确认。':greeting?'第一次来？可以先看说法，也可以直接选择人数。':'');
+
   if(review)buttons.append(makeButton('继续选餐',{action:'CONTINUE_ORDER'}),makeButton('就这些，下单',{action:'FINISH_ORDER'}));
   if(greeting)buttons.append(makeButton('教我回答',{hud:'first-answer'}),makeButton('一位',{action:'START_SEATING'}),makeButton('两位',{action:'START_SEATING',partySize:'2'}));
  }
@@ -163,6 +163,8 @@ export function createImmersiveHud({game,guide,voice,preview}){
   if(readingPanel()&&!wasPanel)voice?.setTextMode(false);
   root.hidden=!active;$('.hud-return').hidden=!exploring();root.dataset.exploring=String(exploring());root.dataset.panel=String(readingPanel());root.dataset.voiceError=String(voiceError);document.body.dataset.immersive='true';
   const viewControls=$('.hud-view-controls'),canLook=[P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
+  $('[data-action="CALL_WAITER"]').hidden=!canLook||state.waiterPresent||view.busy||readingPanel()||exploring()||state.isPaid;
+  root.querySelectorAll('[data-explore]').forEach(button=>button.hidden=!canLook||view.camera!=='room'||view.busy||state.isPaid);
   viewControls.hidden=!canLook||exploring();
   root.querySelectorAll('[data-hud-camera]').forEach(button=>{
    const camera=button.dataset.hudCamera;
@@ -174,6 +176,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
    turnKey='';offered=false;errorTurn='';voiceError=false;currentNpc=null;previousNpc=null;history=[];viewingPrevious=false;subtitleExpanded=false;pinned=false;
    clearHint();hideIdle();hideIntro();closeHelp(true);showMore(false);voice?.setTextMode(false);
   }
+  if(exploring())showMore(false);
   if(!active){turnKey='';offered=false;clearHint();hideIdle();hideIntro();closeHelp(true);showMore(false);return;}
   const line=view.line||[];
   if(isNpcLine(line)){

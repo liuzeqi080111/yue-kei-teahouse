@@ -1,7 +1,8 @@
+import {streetVoiceIds} from './street-space.js';
 import {createPracticeRecorder} from './practice-recorder.js';
 import {voiceUrl} from './voice-endpoint.js';
 
-const NPC_IDS=new Set(['qing','fang','lok','ling','lam','ming','guest','buyer']);
+const NPC_IDS=new Set(streetVoiceIds);
 const DECISIONS=new Set(['execute','clarify','reply','reject']);
 const MAX_TEXT=300,MAX_AUDIO_BYTES=2*1024*1024,SLOW_RATE=0.78;
 const own=(value,key)=>Object.prototype.hasOwnProperty.call(value,key);
@@ -34,7 +35,7 @@ function base64ToBlob(value,mimeType){
  * 模块不持有 DOM、世界状态或原始录音；录音仅在 startRecording() 中启动。
  */
 export function createNeighborhoodVoice({
- getContext,getRevision,applyAction,
+ getContext,getRevision,applyAction,matchFixedChoice,
  onLine=()=>{},onStatus=()=>{},onProgress=()=>{},onTranscript=()=>{},onActivity=()=>{},onRecording=()=>{},
  fetchImpl=globalThis.fetch?.bind(globalThis),recorder:providedRecorder=null,recorderFactory=createPracticeRecorder,
  audioFactory=url=>new Audio(url),resolveUrl=voiceUrl,
@@ -175,6 +176,15 @@ export function createNeighborhoodVoice({
  async function interpret(attempt,text,help){
   if(!stillBound(attempt))return failAttempt(attempt,'街坊或场景已变化，请重新表达。','stale');
   attempt.playerText=text;attempt.requestId=makeRequestId(attempt);
+  // Some encounters have one authored response. Recognize its spoken option
+  // locally, using the same recording/ASR lifecycle as the other street NPCs.
+  const fixed=matchFixedChoice?.(attempt.context,text);
+  if(fixed){
+   if(!fixed.actionId)return acceptLine(attempt,{decision:'clarify'},fixed);
+   const rule=applyAction(fixed.actionId);
+   if(!rule?.ok)return failAttempt(attempt,'当前还不能这样做。','rule_failed');
+   return acceptLine(attempt,{decision:'execute',actionId:fixed.actionId},rule);
+  }
   const context={...attempt.context,history:historyFor(attempt.context.npcId),allowedActions:help?[]:attempt.context.allowedActions};
   const request={version:1,text,requestId:attempt.requestId,generation:attempt.id,revision:attempt.revision,context};
   status('interpreting',help?'正在准备解释…':'正在理解…');

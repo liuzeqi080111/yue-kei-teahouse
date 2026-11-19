@@ -254,3 +254,6 @@ body[data-immersive] #panel .bill-practice small{display:block;margin-top:6px}
  body[data-immersive]:not(.at-title) #hotspots{top:0;bottom:0;height:100%}
  body[data-immersive]:not(.at-title) .scene-shade{top:60px;height:max(calc(100vw * .5625 + 40px),calc(100% - var(--hud-dock-height,150px) - 180px))}
 }
+#immersive-hud .hud-bottom .hud-direct{padding:0;background:none;max-width:100%}
+#immersive-hud .hud-bottom .hud-direct button{border-radius:30px;background:#20352fe8}
+#immersive-hud .hud-bottom [data-action="CALL_WAITER"]{width:auto;padding-inline:12px;white-space:nowrap}

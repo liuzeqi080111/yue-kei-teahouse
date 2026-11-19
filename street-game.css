@@ -52,3 +52,31 @@
 .street-game[data-chess] .street-dialogue{left:12px;bottom:12px;width:min(51vw,410px);max-height:46dvh;transform:none;overflow:visible}
 .street-game[data-chess] .street-gomoku{position:fixed;right:12px;bottom:12px;display:grid;background:#d9ad73;border:5px solid #91603c;box-sizing:border-box;width:min(36vw,210px);height:min(36vw,210px);grid-template-rows:repeat(9,minmax(0,1fr));grid-template-columns:repeat(9,minmax(0,1fr))}
 .street-gomoku button{min-width:0;min-height:0;line-height:1;height:100%;width:100%;box-sizing:border-box}
+/* The street conversation uses the same caption and control order as the dining room. */
+.street-game .street-dialogue{width:min(960px,96%);padding:0;background:none;box-shadow:none;text-align:center;overflow:visible}
+.street-caption{padding:8px 22px;border-radius:14px;background:linear-gradient(90deg,transparent,#0d1214c7 12%,#0d1214c7 88%,transparent);text-shadow:0 2px 4px #000;max-height:28dvh;overflow:auto}
+.street-speaker{display:block;font-size:var(--hud-small-size,16px);font-weight:500;line-height:1.35;color:#e7ca88}
+.street-line{margin:0;color:#fff6e5;font-size:var(--hud-subtitle-size,24px);font-weight:600;line-height:1.5}
+.street-meaning:empty,#street-voice-state:empty{display:none}
+.street-tools{align-items:center;justify-content:center;gap:8px;margin-top:8px}
+.street-actions{display:contents}
+.street-tools button,.street-tools summary{border-radius:30px;color:#fff6e4;border:1px solid #e6d6ac80;background:#20352fe8;font-size:var(--hud-ui-size,16px);padding:8px 14px;min-height:40px}
+.street-tools .street-actions button.street-primary{background:#efe2bd;color:#24342c}
+.street-more{position:relative}
+.street-more>summary{list-style:none}
+.street-more-panel{position:absolute;bottom:calc(100% + 8px);right:0;z-index:2;width:min(270px,78vw);padding:12px;display:grid;gap:6px;text-align:left;background:#152d25fa;border-radius:14px;box-shadow:0 4px 24px #101a1480}
+.street-more-panel details>summary{font-size:14px}
+.street-more-panel form input{min-width:0;width:100%}
+#street-mic{display:grid;place-items:center;border-radius:50%;width:54px;height:54px;padding:0;border:2px solid #e9d8a4;background:#233b32}
+#street-mic[aria-pressed=true]{background:#964d3d}
+#street-voice-state:not(:empty){display:inline-block;margin-top:4px;background:#14251edc;border-radius:10px;padding:2px 8px}
+.street-game[data-chess] .street-dialogue{width:min(54vw,550px)}
+@media(max-width:650px),(max-height:500px){
+ .street-tools{gap:4px}
+ .street-tools button,.street-tools summary{font-size:14px;padding:6px 10px;min-height:34px}
+ .street-caption{padding:4px 10px}
+ .street-line{font-size:clamp(17px,4vw,23px)}
+ .street-dialogue .street-more{position:static}
+ .street-more-panel{right:4px;bottom:54px;max-height:46dvh;overflow:auto}
+ #street-mic{width:44px;height:44px}
+}

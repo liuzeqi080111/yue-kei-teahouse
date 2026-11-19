@@ -7,7 +7,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const target=path.join(root,'dist');
 // Explicit allowlist: no environment files, recordings, server code or local notes.
 export const publicFiles=[
- 'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js','dining-room.js',
+ 'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js','dining-room.js','street-space.js',
  'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','practice-audio.js','practice-recorder.js','music.js','ambient.js','sound-priority.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css',
  'teahouse-scene/index.js','teahouse-scene/menu.js','teahouse-scene/session.js',
  'assets/street/district.glb','assets/street/aming-styled-v3.glb',

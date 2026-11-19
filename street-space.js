@@ -134,3 +134,5 @@ export function shopBlocks(shop,point){
  if(shop.stall)return side>=.78&&side<1.38&&depth<- .45&&depth>-1.18;
  return side>1.40&&side<3.6&&depth<.57&&depth>-.15;
 }
+
+export const streetVoiceIds=['intro','qing','fang','lok','ling','lam','ming','guest','buyer',...Object.keys(SHOPS)];

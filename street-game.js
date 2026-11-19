@@ -45,16 +45,18 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   </div>
   <div class="street-prompt"><button id="street-follow" hidden></button><button id="street-interact" class="street-primary" hidden></button></div>
   <section class="street-dialogue" aria-label="街坊对话" hidden>
-   <strong class="street-speaker"></strong>
-   <p class="street-line" aria-live="polite"></p><p class="street-meaning"></p>
-   <div class="street-actions"></div>
+   <div class="street-caption"><strong class="street-speaker"></strong>
+   <p class="street-line" aria-live="polite"></p><p class="street-meaning"></p></div>
+
    <div class="street-gomoku" hidden aria-label="九路五子棋盘"></div>
    <div class="street-tools">
-    <button id="street-mic">讲粤语</button>
+    <button id="street-mic" aria-label="讲粤语" aria-pressed="false" title="讲粤语"><svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11h2a5 5 0 0010 0h2a7 7 0 01-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 015 11z"/></svg></button>
+    <div class="street-actions"></div>
+    <details class="street-more"><summary>更多</summary><div class="street-more-panel">
     <details id="street-write"><summary>打字</summary><form class="street-form"><input maxlength="300" aria-label="想说的话" required><button>发送</button></form></details>
     <details id="street-listen"><summary>听这句</summary><button id="street-replay">重听</button> <button id="street-slow">慢速</button></details>
     <details id="street-help"><summary>问朋友</summary><button data-help="meaning">什么意思？</button> <button data-help="example">怎么说？</button> <button data-help="assist">帮我说。</button></details>
-    <button id="street-close">结束交谈</button>
+    <button id="street-close">结束交谈</button></div></details>
    </div>
    <small id="street-voice-state" aria-live="polite"></small>
   </section>`;
@@ -110,11 +112,25 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  const historyValue=value=>value&&Object.keys(value).length===0?{version:1,npcs:[]}:value;
  const voice=createNeighborhoodVoice({
   getContext:()=>{
+   if(talking==='intro')return {npcId:'intro',name:'老朋友',role:'陪你熟悉街区的老朋友',facts:[WELCOME],allowedActions:actionList(talking)};
+   const shop=SHOPS[talking];
+   if(shop)return {npcId:talking,name:shop.name,role:'街坊店主',facts:[shop.meaning,shop.translation],allowedActions:actionList(talking)};
    if(!NPCS[talking])return null;
    const context=npcContext(getState(),talking);
    return {npcId:talking,name:NPCS[talking].name,role:NPCS[talking].role,
     facts:[context.background,...context.knownClues,...context.relations].slice(0,12),
     allowedActions:actionList(talking).filter(o=>o.effect||(o.id==='show-coat'&&qingAtCounter())).map(({id,label})=>({id,label}))};
+  },
+  matchFixedChoice:(context,text)=>{
+   const shop=SHOPS[context.npcId];
+   if(!shop&&context.npcId!=='intro')return null;
+   const normalize=value=>value.replace(/[\s？?！!。，、]/g,'');
+   const answer=normalize(text);
+   const choice=context.allowedActions.find(option=>normalize(option.label)===answer);
+   if(choice)return {actionId:choice.id};
+   if(!shop&&/^(好[啊呀啦的]?|好啊出[门門]|我[哋们們]出[门門]|落[楼樓]|行啦|出[门門]啦?|走吧)$/.test(answer))return {actionId:'go-out'};
+   if(shop)return {text:shop.reply,meaning:shop.translation};
+   return {text:'准备好了就说「出门」，我陪你下楼。',meaning:'准备好了就说「出门」，我陪你下楼。'};
   },
   getRevision:()=>getState().revision,
   applyAction:id=>act(id,true),
@@ -132,7 +148,10 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   onTranscript:text=>setText('#street-voice-state','听到：'+text),
   onRecording:recording=>{
    voiceRecording=recording;
-   setText('#street-mic',recording?'停止并发送':'讲粤语');
+   const microphone=$('#street-mic');
+   microphone.title=recording?'停止并发送':'讲粤语';
+   microphone.setAttribute('aria-label',microphone.title);
+   microphone.setAttribute('aria-pressed',String(recording));
   },
   autoSpeak:false,
  });
@@ -160,7 +179,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(file){
    voice.cancel('');
    playFile(file,rate,voiceRates[speaker]||1);
-  }else if(NPCS[talking]){
+  }else if(talking){
    voice.setLine({npcId:talking,...lastSpeech});
    void (rate<1?voice.replaySlow():voice.replay());
   }
@@ -297,7 +316,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   keys.clear();travel.pause();talking=npc;dirty=true;tray.hidden=true;publish('');
   host.dataset.conversation='true';dialogue.hidden=false;
   for(const detail of dialogue.querySelectorAll('details'))detail.open=false;
-  for(const selector of ['#street-mic','#street-write','#street-help'])$(selector).hidden=npc==='intro'||(SHOPS[npc]&&selector!=='#street-help');
+  $('#street-help').hidden=npc==='intro';
   setText('#street-voice-state','');setText('.street-speaker',SHOPS[npc]?.name||NPCS[npc]?.name||'老朋友');
   const [text,meaning]=greeting(npc);
   setLine(text,meaning,true);
@@ -311,14 +330,16 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(!talking)return {ok:false,message:'请先开始交谈。'};
   const npc=talking;
   if(npc==='intro'&&id==='go-out'){
-   onLocation('street',canon);dropDialogue();openDialogue('qing');return {ok:true};
+   const leave=()=>{if(talking==='intro'){onLocation('street',canon);dropDialogue();openDialogue('qing');}};
+   if(fromVoice)queueMicrotask(leave);else leave();
+   return {ok:true,text:'好，出門啦。',meaning:'好，我们出门。'};
   }
   if(npc==='qing'&&id==='defer'&&!worldFlag('coat-start')){
    dropDialogue();friendLine('行，你慢慢看。准备好了我们再出发。','再来找阿晴就行。');persist(true);return {ok:true};
   }
   if(!canTalk(npc,current))return {ok:false,message:'请走近后再开口。'};
   if(!actionList(npc).some(o=>o.id===id))return {ok:false,message:'现在还不能这样做。'};
-  if(SHOPS[npc]){setLine(SHOPS[npc].reply,SHOPS[npc].translation,true);return {ok:true};}
+  if(SHOPS[npc]){const {reply:text,translation:meaning}=SHOPS[npc];if(!fromVoice)setLine(text,meaning,true);return {ok:true,text,meaning};}
   if(id==='sit-chess'&&npc==='lam'){
    if(chessBusy)return {ok:false};
    chessBusy=true;

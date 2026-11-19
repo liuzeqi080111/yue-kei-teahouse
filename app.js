@@ -824,7 +824,7 @@ function paint(state,view){
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b||b.disabled)return;
- if (b.dataset.explore && b.closest('#hotspots')) {
+ if (b.dataset.explore && b.closest('#hud-more')) {
   const {state, view} = game.snapshot();
   if (view.camera !== 'room' || view.busy || state.isPaid) return;
   const windowSpot = b.dataset.explore === 'window';
@@ -986,12 +986,6 @@ render(game.snapshot());ready.then(results=>{
 const sceneLayoutObserver=new ResizeObserver(()=>render(game.snapshot()));
 sceneLayoutObserver.observe($('#game'));sceneLayoutObserver.observe($('#scene'));
 
-function sceneSpot(view, id, label, x, y) {
- const {fit, originX, originY} = measureScene(view);
- const left = originX + fit.offsetX + x * fit.scaleX;
- const top = originY + fit.offsetY + y * fit.scaleY;
- return `<button type="button" class="spot explore-spot" data-explore="${id}" style="left:${left.toFixed(1)}px;top:${top.toFixed(1)}px">${label}</button>`;
-}
 function tableMenuHotspot(view){
  if(!['room','table'].includes(view.camera))return '';
  const {fit,originX,originY}=measureScene(view),canvas=$('#scene');
@@ -1019,15 +1013,11 @@ function syncStage(state,view){
  const hot=$('#hotspots');
  let html='';
  if(seated&&!open&&!view.busy){
-  html=down?`<button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button>`:`${state.waiterPresent?'':'<button class="spot waiter-spot" data-action="CALL_WAITER">招呼阿明</button>'}`;
+  html=down?`<button class="spot water-spot" data-action="REQUEST_WATER">${learningGuide?.experienced?'加水':'唔該，加水'}</button>`:'';
   if(state.phase===P.BILLING)html=down?'<button class="spot menu-spot" data-camera="bill">拿起帳單</button><button class="look" data-camera="room">↑ 抬頭望吓</button>':'<button class="look" data-camera="bill">查看帳單</button>';
  }
  if(exploring)html='';
  if([P.SEATED,P.ORDERING,P.DINING].includes(state.phase)&&!view.busy)html+=tableMenuHotspot(view);
- if (seated && !view.busy && !state.isPaid && view.camera === 'room') {
-  html += sceneSpot(view, 'window', '窗邊', 306, 244);
-  html += sceneSpot(view, 'cashier', '收銀處', 704, 252);
- }
  html+=diningHotspots(state,view);
  if(hot.innerHTML!==html)hot.innerHTML=html;
 }

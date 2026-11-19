@@ -48,7 +48,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   await page.waitForFunction(()=>!document.querySelector('#scene-hint').textContent.includes('正在服务'),{timeout:25000});
   assert.equal(requests.at(-1).context.state.items.length,2);
   await page.locator('.voice-text-close').click();
-  await page.locator('[data-explore="window"]').click();await page.waitForTimeout(600);assert.equal(await page.locator('#explore-note').isVisible(),true);
+  await page.locator('[data-hud="more"]').click();await page.locator('[data-explore="window"]').click();await page.waitForTimeout(600);assert.equal(await page.locator('#explore-note').isVisible(),true);
   await page.locator('.hud-return').click();await page.locator('[data-hud-camera="table"]').click();
   const itemIds=await page.locator('.table-inventory [data-dining-select]').evaluateAll(items=>items.map(el=>el.dataset.diningSelect));assert.equal(itemIds.length,2);
   for(const [index,id] of itemIds.entries()){

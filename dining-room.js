@@ -72,6 +72,50 @@ function dish(item,remaining) {
  return group;
 }
 
+// Shop-local coordinates in metres. The 0.8 m cross-aisle runs between the
+// two booth rows. Enter it from the central aisle, never across a bench.
+function aisle(points){
+ const route=new T.CurvePath();
+ for(let i=1;i<points.length;i++){
+  const at=([x,z])=>new T.Vector3(x,.17,z);
+  route.add(new T.LineCurve3(at(points[i-1]),at(points[i])));
+ }
+ return route;
+}
+const serviceRoute=aisle([[.53,-4.45],[.55,-3.48],[.54,-2.64],[2.06,-2.64]]);
+const leadRoute=aisle([[.34,-1.12],[.54,-2.64],[2.06,-2.64]]);
+const seatingRoute=aisle([[.18,.27],[.26,-.61],[.54,-2.64],[2.72,-2.64],[2.73,-1.55]]);
+
+export function furnishKitchen(scene){
+ const box=(color,x,y,z,w,h,d)=>part(scene,cube,color,x,y,z,w,h,d);
+ const steel=0xa4ada5, enamel=0xe8debe, tile=0x2e6456;
+ // Reuse the shell's rear counters. The serving hatch opens to the bakery;
+ // its right-hand end leaves the central aisle open into the kitchen.
+ box(tile,-1.90,.68,-3.13,3.15,1.02,.12);
+ box(steel,-1.90,1.21,-3.13,3.28,.065,.32);
+ box(enamel,-1.90,2.56,-3.13,3.15,.38,.12);
+ for(const x of [-3.41,-.39])box(tile,x,1.78,-3.13,.10,1.18,.12);
+ box(steel,-1.88,2.34,-3.98,1.74,.25,.71);
+ box(steel,-1.88,2.84,-4.18,.40,.79,.32);
+ // The range sits over the existing rear counter in the same bay as the hood.
+ box(steel,-1.88,1.19,-3.92,1.63,.09,.66);
+ for(const x of [-2.31,-1.48]){
+  const dial=part(scene,disc,0x343c35,x,1.18,-3.575,.059,.024,.059);
+  dial.rotation.x=Math.PI/2;
+  part(scene,disc,0x292b26,x,1.25,-3.92,.33,.045,.33);
+  part(scene,cup,0x565e58,x,1.36,-3.92,.31,.18,.31);
+  box(0x383936,x+.19,1.4,-3.92,.14,.034,.045);
+ }
+ box(steel,-.77,1.85,-4.71,.85,.045,.27);
+ for(let i=0;i<6;i++)part(scene,disc,enamel,-.74,1.89+i*.021,-4.71,.22,.02,.22);
+ const board=document.createElement('canvas');board.width=384;board.height=96;
+ const ctx=board.getContext('2d');ctx.fillStyle='#18483e';ctx.fillRect(0,0,384,96);
+ ctx.fillStyle='#efe4c4';ctx.font='bold 52px serif';ctx.textAlign='center';ctx.fillText('廚 房 出 餐',192,65);
+ const map=new T.CanvasTexture(board);map.colorSpace=T.SRGBColorSpace;
+ const sign=new T.Mesh(new T.PlaneGeometry(1.12,.28),new T.MeshBasicMaterial({map}));
+ sign.position.set(-1.58,2.54,-3.064);scene.add(sign);
+}
+
 export async function createDiningRoom(canvas) {
  const loader=new GLTFLoader();
  const [district,ming]=await Promise.all(['district','aming-styled-v3'].map(name=>loader.loadAsync('./assets/street/'+name+'.glb')));
@@ -99,6 +143,7 @@ export async function createDiningRoom(canvas) {
   geometry.setIndex(kept);
  });
  scene.add(district.scene);
+ furnishKitchen(scene);
  const sky=new T.HemisphereLight(0xffeed4,0xab9680,1.75);
  const sun=new T.DirectionalLight(0xffdfaf,2.1);
  sun.position.set(2,7,4);scene.add(sun,sky);
@@ -107,6 +152,10 @@ export async function createDiningRoom(canvas) {
  const mixer=new T.AnimationMixer(actor);
  if(ming.animations.length)mixer.clipAction(ming.animations[0]).play();
  const bones={};actor.traverse(o=>{if(o.isBone)bones[o.name.replace(/^mixamorig[:_]?/i,'')]=o;});
+ // Undo the previous procedural offsets before sampling animation. Mixers
+ // can skip writing unchanged tracks on repeated renders of the same time.
+ const poseBones=[bones.Head,bones.LeftForeArm,bones.RightForeArm].filter(Boolean)
+  .map(bone=>({bone,base:bone.quaternion.clone()}));
  const docket=new T.Group();scene.add(docket);
  part(docket,cube,0x6f4732,0,0,0,.12,.014,.16);
  part(docket,cube,0xffedbf,0,.01,0,.11,.008,.15);
@@ -139,9 +188,14 @@ export async function createDiningRoom(canvas) {
   const beat=view.beat,pose=beat?.pose;
   const progress=beat?T.MathUtils.clamp((Date.now()-beat.start)/beat.duration,0,1):1;
   const arrive=pose==='approach'?progress:pose==='depart'?1-progress:pose==='prepare'?0:state.waiterPresent||beat?1:0;
-  actor.position.set(-1+3.06*arrive,.17,-2.65+.03*arrive);
-  actor.rotation.y=pose==='depart'?-1.6:pose==='approach'?1.45:.5;
+  serviceRoute.getPoint(arrive,actor.position);
+  const walking=['approach','depart'].includes(pose);
+  const heading=serviceRoute.getTangent(Math.min(.9999,Math.max(.0001,arrive)));
+  const restingYaw=arrive>0 ? .5 : -1.7;
+  actor.rotation.y=walking ? Math.atan2(heading.x,heading.z)+(pose==='depart'?Math.PI:0) : restingYaw;
+  for(const {bone,base} of poseBones)bone.quaternion.copy(base);
   mixer.setTime(['approach','depart'].includes(pose)?progress*1.5:.21);
+  for(const {bone,base} of poseBones)base.copy(bone.quaternion);
   const writing=pose==='talk'&&['order-review','food'].includes(beat.kind);
   if(bones.Head)bones.Head.rotateX(pose==='place'||writing?.23:.035);
   if(writing&&bones.LeftForeArm)bones.LeftForeArm.rotateX(-.55);
@@ -157,9 +211,11 @@ export async function createDiningRoom(canvas) {
   if(view.camera==='cashier')focus.set(-2,1.35,-2.8);
   if(['walk','entrance'].includes(view.camera)){
    const t=view.camera==='walk'?progress:0;
-   eye.lerpVectors(new T.Vector3(.30,1.78,.2),eye.clone(),t);
-   focus.set(.42+1.45*t,1.52,-2.24);actor.position.set(.40+1.66*t,.17,-1.15-1.47*t);
-   actor.rotation.y=.13;
+   seatingRoute.getPoint(t,eye);eye.y=1.78-.30*T.MathUtils.smoothstep(t,.82,1);
+   leadRoute.getPoint(Math.min(1,t*1.24),actor.position);
+   focus.copy(actor.position);focus.y=1.55;
+   const direction=leadRoute.getTangent(Math.min(.999,t*1.24));
+   actor.rotation.y=t>0&&t<.80?Math.atan2(direction.x,direction.z):t===0?.13:.5;
   }
   camera.position.copy(eye);camera.lookAt(focus);camera.rotateY(yaw);camera.rotateX(pitch);camera.updateMatrixWorld();
   sky.intensity=view.weather==='rain'?1.16:1.75;
