@@ -108,7 +108,8 @@ export async function loadStreet(canvas) {
    const copy=cloned.get(o),skeleton=o.skeleton.clone();
    skeleton.bones=o.skeleton.bones.map(b=>cloned.get(b));copy.bind(skeleton,o.bindMatrix);
   }});
-  model.position.set(shop.x-1.25*Math.sin(shop.yaw)+.38*Math.cos(shop.yaw),.22,shop.z-1.25*Math.cos(shop.yaw)-.38*Math.sin(shop.yaw));
+  const depth=shop.stall?-.31:-1.25,side=shop.stall?.95:.38;
+  model.position.set(shop.x+depth*shop.sin+side*shop.cos,shop.stall?.105:.225,shop.z+depth*shop.cos-side*shop.sin);
   model.rotation.y=shop.yaw;scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
@@ -245,6 +246,18 @@ function furnishShop(scene,shop,palette){
     box(wood,x,y,-2.07,.47,.25,.55);box(cream,x,y,-1.78,.15,.055,.035);}
   }
  }else{
+  box(wood,0,1.10,-1.64,2.57,.07,.37);
+  for(const x of [-1.22,1.22])box(wood,x,.7,-1.64,.075,1.37,.19);
+  for(let i=0;i<5;i++)stock(-.93+i*.45,1.15,-1.63,i);
+  if(shop.kind==='print'){
+   box(iron,-.91,1.34,-1.57,.48,.11,.39);box(iron,-1.1,1.52,-1.59,.075,.36,.1);
+   box(iron,-.92,1.66,-1.59,.42,.07,.11);box(wood,-.70,1.73,-1.59,.07,.21,.07);
+  }else if(shop.kind==='rice'){
+   box(iron,-.92,1.24,-1.59,.41,.11,.30);box(cream,-.92,1.40,-1.59,.28,.22,.13);
+   piece(round,iron,-.92,1.55,-1.59,.39,.033,.29);
+  }else if(shop.kind==='cloth'){
+   for(let i=0;i<4;i++)piece(round,[0x285f61,0xd6ae88,0x9d5655,0x52688a][i],-.87+i*.24,1.53,-1.62,.21,.74,.21);
+  }
   box(wood,-1.03,.31,-.82,.48,.52,.55);box(wood,1.03,.28,-.74,.48,.46,.49);
   stock(-1.03,.58,-.82,2);stock(1.03,.52,-.74,1);
  }

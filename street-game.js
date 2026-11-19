@@ -456,7 +456,9 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   counter=createFangCounter({getPosition:()=>current,getWorld:getState,onAction,onOpen:openDialogue});
   const friend=scene.actors.get('friend');
   guideTravel=null;guideHeadStart=0;
-  const anchor=saved&&worldFlag('coat-start')?current:{x:friend.spec.position[0],z:friend.spec.position[2]};
+  const anchor=worldFlag('shop-check')?{x:LAUNDRY_DOOR.x-.43,z:LAUNDRY_DOOR.z-1.05}:
+   saved&&worldFlag('coat-start')?{x:current.x+1.15*Math.cos(current.heading),z:current.z+1.15*Math.sin(current.heading)}:
+   {x:friend.spec.position[0],z:friend.spec.position[2]};
   let standing=null;
   for(let radius=0;standing===null&&radius<=2;radius+=.12){
    for(let i=0;i<16;i++){
