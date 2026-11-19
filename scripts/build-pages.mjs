@@ -7,9 +7,12 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const target=path.join(root,'dist');
 // Explicit allowlist: no environment files, recordings, server code or local notes.
 export const publicFiles=[
- 'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js',
+ 'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js','dining-room.js',
  'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','practice-audio.js','practice-recorder.js','music.js','ambient.js','sound-priority.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css',
  'teahouse-scene/index.js','teahouse-scene/menu.js','teahouse-scene/session.js',
+ 'assets/street/district.glb','assets/street/aming-styled-v3.glb',
+ 'assets/street/three/build/three.module.min.js','assets/street/three/build/three.core.min.js',
+ 'assets/street/three/examples/jsm/loaders/GLTFLoader.js','assets/street/three/examples/jsm/utils/BufferGeometryUtils.js',
  ...Object.values(NPC_VOICE_CLIPS),
  ...['interior-furnished.png','window-street-clean-ux5.png','window-tram-ux5.png','window-walkers-ux6.png','exterior.png','waiter-poses.png','table.png','food-sheet.png','food-empty-ux3.png','drinks.png','drinks-empty-ux3.png','waiter-gait-v2.png','service-hands.png','takeaway-bun.png','hongkong-evening.wav','hongkong-arrival.png','hongkong-street-opening.png','ow-world.png','ow-player.png','ow-npcs.png','ow-home.png','ow-laundry.png','ow-qing-coats.png','ow-world-day.png','ow-world-night.png'].map(n=>'assets/'+n)
 ];

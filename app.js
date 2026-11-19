@@ -62,7 +62,7 @@ try {
 document.body.dataset.weather = weather;
 $('#scene-weather').value = weather;
 let hud=null,voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null,neighborhood=null,restaurantFromWorld=false;
-const game=createGame({changed:handleGameChanged,inspectDining:id=>dining?.inspect(id)});
+const game=createGame({keepView:()=>!!diningRenderer,changed:handleGameChanged,inspectDining:id=>dining?.inspect(id)});
 const practiceLog=createPracticeLog();
 let practiceRound=null,practiceAttemptSerial=0;
 function loadReviewStorage(){try{return globalThis.localStorage||null;}catch{return null;}}
@@ -291,7 +291,7 @@ practiceAudio=STATIC_PREVIEW?null:createPracticeAudio({
  getPractice:()=>learningGuide.getPractice()
 });
 const sound = createSoundscape({musicButton: $('#music-toggle'), volumeControl: $('#music-volume')});
-createAmbience({button: $('#ambience'), sound});
+const roomAmbience=createAmbience({button: $('#ambience'), sound});
 mountMusic($('#music-settings'), {sound});
 if(STATIC_PREVIEW){
  $('#voice-dock').hidden=true;$('#voice-dock').removeAttribute('open');
@@ -786,14 +786,41 @@ function render({state,view}){
  }
 }
 let lastPaint='',assetsSettled=false;
+let diningRenderer, loadingRoom, latestRoomFrame, lastStep, lastClink;
+function drawDining(canvas,state,view){
+ const surface=$('#dining-room');
+ latestRoomFrame={state,view};
+ if(view.camera==='outside'){
+  surface.hidden=true;document.body.classList.remove('inside-3d');
+  draw(canvas,state,view);return;
+ }
+ if(!loadingRoom){
+  loadingRoom=import('./dining-room.js').then(module=>module.createDiningRoom(surface)).then(renderer=>{
+   diningRenderer=renderer;
+   drawDining(canvas,latestRoomFrame.state,latestRoomFrame.view);
+  }).catch(error=>console.error('粤记三维场景加载失败',error));
+ }
+ if(!diningRenderer){draw(canvas,state,view);return;}
+ surface.hidden=false;document.body.classList.add('inside-3d');
+ Object.assign(surface.style,{left:canvas.offsetLeft+'px',top:canvas.offsetTop+'px',width:canvas.clientWidth+'px',height:canvas.clientHeight+'px'});
+ const direction=diningRenderer(state,view);
+ const beat=view.beat;
+ if(['approach','depart'].includes(beat?.pose)&&Date.now()<beat.start+beat.duration){
+  const footfall=beat.start+Math.floor((Date.now()-beat.start)/330)*330;
+  if(footfall!==lastStep){lastStep=footfall;roomAmbience.step(direction);}
+ }
+ if(beat?.pose==='place'&&Date.now()-beat.start>=beat.duration*.88&&lastClink!==beat.start){
+  lastClink=beat.start;roomAmbience.clink(direction);
+ }
+}
 function paint(state,view){
  const canvas=$('#scene');
  const geometry=measureScene(view);
  const portions=[...diningPortions(state)];
  const key=JSON.stringify([geometry.key,assetsSettled,weather,selectedDining,portions,view.beat,view.camera,view.water,view.utensils,state.waiterPresent,state.billPresented,state.phase,tablePage,state.items.filter(i=>i.status==='served')]);
- if(lastPaint===key)return;
+ if(lastPaint===key&&!diningRenderer)return;
  lastPaint=key;
- draw(canvas,state,sceneView(state,view,geometry.fit,performance.now()));
+ drawDining(canvas,state,sceneView(state,view,geometry.fit,performance.now()));
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b||b.disabled)return;
@@ -894,7 +921,7 @@ document.addEventListener('click',e=>{
  }
  if(b.dataset.dialog){$('#'+b.dataset.dialog).showModal();return;}
  if(b.hasAttribute('data-dismiss')){b.closest('dialog').close();return;}
- if(b.dataset.chapter){const chapter=b.dataset.chapter;learningGuide.openMode(()=>{closeNeighborhood();game.chapter(chapter);},$('#chapters'));return;}
+ if(b.dataset.chapter){const chapter=b.dataset.chapter;learningGuide.openMode(()=>{closeNeighborhood();game.chapter(chapter);if(chapter==='full')game.action('ENTER');},$('#chapters'));return;}
  if(b.hasAttribute('data-table-page')){tablePage++;selectedDining=null;render(game.snapshot());return;}
   if(b.dataset.camera){performCamera(b.dataset.camera);return;}
  if(b.hasAttribute('data-close')){closePanel();return;}
@@ -974,7 +1001,7 @@ function tableMenuHotspot(view){
  const right=left+w*fit.scaleX,bottom=top+h*fit.scaleY;
  const visibleLeft=Math.max(originX,left),visibleTop=Math.max(originY,top);
  const visibleRight=Math.min(originX+canvas.clientWidth,right),visibleBottom=Math.min(originY+canvas.clientHeight,bottom);
- if(visibleRight-visibleLeft<8||visibleBottom-visibleTop<8)return '';
+ if(!diningRenderer&&(visibleRight-visibleLeft<8||visibleBottom-visibleTop<8))return '';
  const width=Math.min(canvas.clientWidth,Math.max(44,visibleRight-visibleLeft));
  const height=Math.min(canvas.clientHeight,Math.max(44,visibleBottom-visibleTop));
  const px=Math.max(originX,Math.min((visibleLeft+visibleRight-width)/2,originX+canvas.clientWidth-width));
@@ -1038,7 +1065,7 @@ function animate(now) {
  if (!motionNeeded(state, view)) return;
  const moving = view.beat && Date.now() < view.beat.start + view.beat.duration;
  if (moving || view.camera==='window' || now - lastMotionTime >= 65) {
-  draw($('#scene'), state, sceneView(state, view, measuredScene?.fit, now));
+  drawDining($('#scene'), state, sceneView(state, view, measuredScene?.fit, now));
   lastMotionTime = now;
  }
  frame = requestAnimationFrame(animate);

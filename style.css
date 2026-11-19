@@ -234,3 +234,18 @@ body.show-jyutping .learning-jyutping{display:block}
 .review-dialog-actions{display:flex;justify-content:flex-end;margin-top:14px}.review-empty{grid-column:1/-1;line-height:1.6}
 .clear-review-status{display:block;margin:10px 0;color:#743921;line-height:1.5}.clear-review-status:empty{display:none}
 @media(max-width:650px){.review-challenge-list{grid-template-columns:1fr}.review-challenge-meaning,.review-challenge-hint{min-height:0}.round-review-item{grid-template-columns:1fr}.round-review-item>span{text-align:left}.ending-actions{justify-content:stretch}.ending-actions button{flex:1}}
+#dining-room {position:absolute;display:block;touch-action:none;cursor:grab}
+#dining-room:active {cursor:grabbing}
+body.inside-3d #scene {visibility:hidden}
+body.inside-3d .scene-shade,body.inside-3d #shop-sign {display:none}
+body.inside-3d .game #hotspots {pointer-events:none}
+body.inside-3d .game #hotspots button {pointer-events:auto}
+body.inside-3d .food-icon {display:none}
+body.inside-3d .menu-row {grid-template-columns:minmax(0,1fr) auto auto}
+body.inside-3d .table-inventory {pointer-events:none}
+body.inside-3d .table-inventory button {pointer-events:auto}
+@media(max-width:600px),(max-height:500px) {
+ body.inside-3d #table-labels:has(.table-inventory):not(:has(.dining-detail)) {top:3.4rem;left:.35rem;bottom:auto}
+ body.inside-3d .table-inventory {display:flex;flex-wrap:wrap;gap:2px}
+ body.inside-3d .table-inventory .dining-text-entry {font-size:10px;min-height:24px;padding:2px 5px}
+}

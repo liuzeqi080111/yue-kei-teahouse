@@ -57,10 +57,10 @@ export function createAmbience({button = null, sound} = {}) {
   if (snapshot.location === 'interior' && !timer) timer = setTimeout(tick, 2500 + Math.random() * 2000);
  }
 
- function clink() {
+ function clink(direction=(Math.random() - .5) * 1.3) {
   if (!canSchedule() || snapshot.location !== 'interior') return;
   const start = ctx.currentTime, pan = ctx.createStereoPanner();
-  pan.pan.value = (Math.random() - .5) * 1.3;
+  pan.pan.value = direction;
   pan.connect(master);
   const base = 1500 + Math.random() * 650;
   let remaining = 3;
@@ -203,5 +203,15 @@ export function createAmbience({button = null, sound} = {}) {
  window.addEventListener('pagehide', destroy);
  unsubscribe = controller.subscribe(applySound);
 
- return {destroy};
+ function step(direction) {
+  if(!canSchedule() || snapshot.location!=='interior')return;
+  const now=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain(),pan=ctx.createStereoPanner();
+  osc.frequency.setValueAtTime(135,now);osc.frequency.exponentialRampToValueAtTime(54,now+.085);
+  pan.pan.value=direction;
+  gain.gain.setValueAtTime(.0001,now);gain.gain.linearRampToValueAtTime(.065,now+.009);
+  gain.gain.exponentialRampToValueAtTime(.0001,now+.10);
+  osc.connect(gain);gain.connect(pan);pan.connect(master);osc.start();osc.stop(now+.11);
+  osc.onended=()=>{osc.disconnect();gain.disconnect();pan.disconnect();};
+ }
+ return {destroy,clink,step};
 }
