@@ -14,7 +14,11 @@ function play(actions, world={...freshWorld(),streetView:{...COUNTER,heading:3.3
 }
 
 test('第一人称买衣由阿晴付款，应急与和解是两个事件',()=>{
- const initial=play([['qing','coat-start'],['fang','shop-check'],['fang','coat-route-buy']]);
+ const picked=play([['qing','coat-start'],['fang','shop-check']]);
+ assert.equal(applyWorldAction(picked,'fang','coat-route-buy').ok,false);
+ const inspected=play([['qing','coat-inspect']],picked);
+ assert.equal(applyWorldAction(inspected,'qing','coat-inspect').ok,false);
+ const initial=play([['fang','coat-route-buy']],inspected);
  assert.equal(initial.items.includes('ticket'),false);
  assert.equal(applyWorldAction(initial,'qing','coat-buy').ok,false);
  assert.equal(applyWorldAction(initial,'ling','coat-buy').ok,false);
@@ -26,7 +30,7 @@ test('第一人称买衣由阿晴付款，应急与和解是两个事件',()=>{
  assert.ok(emergency.flags.includes('coat-misunderstanding'));
  assert.deepEqual(emergency.items,['wrongCoat']);
  assert.equal(applyWorldAction(emergency,'fang','laundry-reconcile').ok,false);
- const solved=play([['ming','guest-found'],['qing','coat-detail'],['guest','coat-swap'],['qing','coat-return-original'],['fang','laundry-reconcile']],restEvent(emergency));
+ const solved=play([['ming','guest-found'],['guest','coat-swap'],['qing','coat-return-original'],['fang','laundry-reconcile']],restEvent(emergency));
  assert.ok(solved.flags.includes('laundry-reconciled'));
  assert.equal(solved.flags.includes('coat-misunderstanding'),false);
  assert.equal(solved.coatOutcome,'emergency');

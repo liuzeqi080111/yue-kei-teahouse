@@ -18,6 +18,7 @@ export function atFangCounter(position){
  const {x,z}=position;
  if(typeof x!=='number'||typeof z!=='number')return false;
  if(!Number.isFinite(x)||!Number.isFinite(z))return false;
+ if(x>=14.28&&x<=14.82&&z>=.66&&z<=1.58)return true;
  if(x<COUNTER_AREA.minX||x>COUNTER_AREA.maxX)return false;
  if(z<COUNTER_AREA.minZ||z>COUNTER_AREA.maxZ)return false;
  return Math.hypot(x-FANG_MODEL.x,z-FANG_MODEL.z)<=COUNTER_AREA.maxDistance;

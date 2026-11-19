@@ -1,7 +1,7 @@
 import { rackStatus } from './neighborhood-state.js';
 
 export const HOME = { x: 12.22, z: 8.94, heading: 1.56 };
-export const COUNTER = { x: 16.70, z: -0.45 };
+export const COUNTER = { x: 14.60, z: 1.15 };
 export const LAUNDRY_DOOR = { x: 13.86, z: -0.50 };
 export const RESTAURANT = { x: -13.56, z: 9.22, heading: -1.48 };
 export const REST = { x: 13.45, z: -12.9 };
@@ -23,7 +23,7 @@ export const ACTORS = Object.freeze({
  fang: { model:'fang', point:COUNTER },
  ming: { model:'aming', point:{x:-13.86,z:8.43}, zone:[-14.65,-13.22,7.60,9.34] },
  guest: { model:'regular', point:{x:-13.33,z:10.38}, zone:[-14.05,-12.50,9.60,11.78] },
- lam: { model:'lin', point:REST, zone:[13.0,14.63,-14.78,-11.56] },
+ lam: { model:'lin', point:{x:14.14,z:-12.88}, zone:[13.38,15.56,-14.78,-11.42] },
  lok: { model:'ale', point:{x:-13.68,z:-6.38}, zone:[-14.61,-12.83,-7.48,-5.78] },
  buyer: { model:'buyer', point:{x:-12.70,z:-5.03}, zone:[-13.60,-11.38,-5.76,-3.62] },
  ling: { model:'ling', point:{x:-14.02,z:-10.46}, zone:[-14.84,-13.07,-11.98,-9.19] },

@@ -101,10 +101,11 @@ export function optionsFor(s,npc){
  const take=(d,k)=>{d.items=d.items.filter(v=>v!==k);};
  const coatEnd=(d,kind)=>{d.coatOutcome=kind;flag(d,'interview-left');d.period=(d.period+1)%3;if(d.period===0)d.day++;note(d,'阿晴已穿着外套去面试。回住处时可以再问问她。');};
   if(npc==='qing'){
-   if(!f('coat-start'))add('coat-start','发生什么事了？','我一陣要去見工，攞返嚟件褸唔係我嗰件。','我一会儿要去面试，拿回来的外套不是我的。',d=>{flag(d,'coat-start');give(d,'ticket');give(d,'wrongCoat');note(d,'阿晴把取件单和拿错的外套交给了你。');});
+   if(!f('coat-start'))add('coat-start','发生什么事了？',firstPerson?'我聽日見工，陪我去芳姐度攞件褸，好唔好？':'我一陣要去見工，攞返嚟件褸唔係我嗰件。',firstPerson?'我明天面试，陪我去芳姐那里取外套好吗？':'我一会儿要去面试，拿回来的外套不是我的。',d=>{flag(d,'coat-start');give(d,'ticket');if(firstPerson){flag(d,'coat-pickup-visit');note(d,'阿晴把取件单交给你，请你陪她取面试外套。');}else{give(d,'wrongCoat');note(d,'阿晴把取件单和拿错的外套交给了你。');}});
    else{
     // 特征线索：只要还没问过就可以问；离场期间由外层提前返回屏蔽。
-    if(!f('coat-detail'))add('coat-detail','你的外套有什么特征？','右邊袖口補過一小塊，內袋有我個名。','右边袖口补过一小块，内袋有我的名字。',d=>{flag(d,'coat-detail');note(d,'外套特征：右袖补痕、内袋名字。');});
+    if(f('coat-pickup-visit')&&f('shop-check')&&!f('coat-inspected'))add('coat-inspect','让阿晴看看刚取的外套','咦？我件褸右邊袖口補過㗎，呢件冇。芳姐，呢件唔係我嘅喎。','咦？我的右袖口补过，这件没有。芳姐，这件不是我的。',d=>{flag(d,'coat-inspected');flag(d,'coat-detail');note(d,'阿晴检查刚取的外套，发现右袖口没有她的补痕。');});
+    if(!f('coat-pickup-visit')&&!f('coat-detail'))add('coat-detail','你的外套有什么特征？','右邊袖口補過一小塊，內袋有我個名。','右边袖口补过一小块，内袋有我的名字。',d=>{flag(d,'coat-detail');note(d,'外套特征：右袖补痕、内袋名字。');});
     if(!s.coatOutcome){
      if(firstPerson&&f('coat-quoted')&&f('coat-route-buy')&&!f('qing-paid-coat')&&!has('loanCoat')&&!has('newCoat')){
       add('coat-buy','听阿晴确认价格并付款 · 她付 HK$80',
@@ -129,16 +130,16 @@ export function optionsFor(s,npc){
   }
  if(npc==='fang'){
   add('laundry-chat','这里平时忙吗？','放工前最多人攞衫，記得帶單呀。','下班前取衣的人最多，记得带单。');
-  if(has('ticket')&&!f('shop-check'))add('shop-check',firstPerson?'亲手递上取件单':'出示取件单，核对外套','兩件深色褸好似。周生啱啱攞走一件，佢成日去粵記。','两件深色外套很像。周先生刚拿走一件，他常去粤记。',d=>{flag(d,'shop-check');if(firstPerson){take(d,'ticket');flag(d,'ticket-filed');}note(d,'芳姐核对记录：另一位取衣客人是常去粤记的周叔。');});
-  if(firstPerson&&f('shop-check')&&!s.coatOutcome&&!s.flags.some(k=>k.startsWith('coat-route-'))){
+  if(has('ticket')&&!f('shop-check'))add('shop-check',firstPerson?'凭单取外套':'出示取件单，核对外套',f('coat-pickup-visit')?'張單啱喇。阿晴，你件褸，睇吓先。':'兩件深色褸好似。周生啱啱攞走一件，佢成日去粵記。',f('coat-pickup-visit')?'单号对了。阿晴，你的外套，看看吧。':'两件深色外套很像。周先生刚拿走一件，他常去粤记。',d=>{flag(d,'shop-check');if(firstPerson){take(d,'ticket');flag(d,'ticket-filed');give(d,'wrongCoat');}note(d,f('coat-pickup-visit')?'芳姐凭单交出一件深色外套。':'芳姐核对记录：另一位取衣客人是常去粤记的周叔。');});
+  if(firstPerson&&f('shop-check')&&(!f('coat-pickup-visit')||f('coat-inspected'))&&!s.coatOutcome&&!s.flags.some(k=>k.startsWith('coat-route-'))){
    const plans=[
-    ['recover','先找回原来的外套','去粵記問阿明，佢認得周生。','去粤记问阿明，他认得周叔。'],
+    ['recover','去粤记找周先生','周生頭先都攞咗件深色褸。去粵記問阿明，佢認得周生。','去粤记问阿明，他认得周叔。'],
     ['borrow','先向玲姐借一件','可以去衣檔問玲姐借件褸，記住要還。','可以去衣摊问玲姐借件外套，记得归还。'],
     ['buy','先陪阿晴去买一件','可以陪阿晴去問價。件舊褸仲要查清楚。','可以陪阿晴去问价。原衣的误会还有待解决。'],
    ];
    for(const [id,label,text,meaning] of plans)add('coat-route-'+id,label,text,meaning,d=>{flag(d,'coat-route-'+id);note(d,label+'。');});
   }
-  if(f('shop-check')&&!f('shop-contact')&&!s.coatOutcome)add('shop-contact','请联系周叔，一起核对解决','我打畀佢，請佢帶件褸返嚟，大家核對清楚。','我联系他，请他带外套回来，大家核对。',d=>{flag(d,'shop-contact');note(d,'芳姐已联系周叔，可以请阿晴来共同核对。');});
+  if(f('shop-check')&&(!f('coat-pickup-visit')||f('coat-inspected'))&&!f('shop-contact')&&!s.coatOutcome)add('shop-contact','请联系周叔，一起核对解决','我打畀佢，請佢帶件褸返嚟，大家核對清楚。','我联系他，请他带外套回来，大家核对。',d=>{flag(d,'shop-contact');note(d,'芳姐已联系周叔，可以请阿晴来共同核对。');});
   if(s.coatOutcome){
    if(firstPerson&&f('coat-misunderstanding')){
     add('laundry-after','问起那件拿错的外套','你哋搵到見工衫就好。我呢邊，仲未知道件原本嘅褸去咗邊。','你们有面试用的外套就好。我这边还不知道原衣去了哪里。');
@@ -149,7 +150,7 @@ export function optionsFor(s,npc){
   }
  }
   if(npc==='ming'){
-   if(f('coat-start')&&!f('guest-found'))add('guest-found','有没有客人说衣服不合身？',
+   if(f('coat-start')&&(!f('coat-pickup-visit')||f('coat-inspected'))&&!f('guest-found'))add('guest-found','有没有客人说衣服不合身？',
     firstPerson?'周叔話件褸有啲窄。佢就喺門口左手邊，行過去問吓佢。':'周叔話件褸有啲窄，佢出去坐陣，你去長櫈嗰邊睇吓。',
     firstPerson?'周叔说外套偏紧。他就在粤记门口另一侧，可以当面问。':'周叔说外套有点紧，出去坐了，你到长椅那边看看。',
     d=>{flag(d,'guest-found');note(d,firstPerson?'阿明说周叔就在粤记门口另一侧。':'阿明说周叔在街边长椅附近。');});

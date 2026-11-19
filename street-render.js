@@ -34,10 +34,10 @@ export async function loadStreet(canvas) {
  function refreshShadows(){renderer.shadowMap.needsUpdate=true;}
  async function load(name) {
   const {scene:model,animations}=await loader.loadAsync('./assets/street/'+name);
-  model.traverse(o=>{if(o.isMesh){o.castShadow=!(o.material.transparent&&o.material.opacity<.4);o.receiveShadow=true;}});
+  model.traverse(o=>{if(o.isMesh){o.castShadow=!(o.material.transparent&&o.material.opacity<.4);o.receiveShadow=name==='district.glb';}});
   if(!animations.length)return {model};
   const mixer=new T.AnimationMixer(model),clip=animations[0];
-  if(name==='friend-styled-v3.glb'){
+  if(name==='friend-styled-v3.glb'||name==='aqing-styled-v3.glb'){
    const hips=clip.tracks.find(track=>/Hips\.position$/i.test(track.name));
    if(hips){
     const {times,values}=hips,last=times.length-1;
@@ -96,21 +96,102 @@ export async function loadStreet(canvas) {
   actor.model.scale.setScalar(spec.height);actor.model.rotation.y=spec.rotationY;
   actors.set(spec.id,actor);scene.add(actor.model);
  }));
+ const lin=actors.get('lin');
+ lin.model.position.set(15.68,-.24,-13.20);lin.model.rotation.y=0;
+ lin.model.updateMatrixWorld(true);
+ const bones={};lin.model.traverse(o=>{if(o.isBone)bones[o.name.replace(/^mixamorig[:_]?/i,'')]=o;});
+ function pointBone(bone,child,dir){
+  if(!bone||!child)return;
+  const from=child.getWorldPosition(new T.Vector3()).sub(bone.getWorldPosition(new T.Vector3())).normalize();
+  const rotation=new T.Quaternion().setFromUnitVectors(from,dir.clone().normalize());
+  const parent=bone.parent.getWorldQuaternion(new T.Quaternion());
+  bone.quaternion.premultiply(parent.clone().invert().multiply(rotation).multiply(parent));
+  bone.updateMatrixWorld(true);
+ }
+ for(const side of ['Left','Right']){
+  const b=name=>bones[side+name],sign=side==='Left'?1:-1;
+  pointBone(b('UpLeg'),b('Leg'),new T.Vector3(sign*.14,-.08,.99));
+  pointBone(b('Leg'),b('Foot'),new T.Vector3(0,-1,.02));
+  pointBone(b('Arm'),b('ForeArm'),new T.Vector3(sign*.24,-.93,.25));
+  pointBone(b('ForeArm'),b('Hand'),new T.Vector3(-sign*.25,-.04,.97));
+ }
+ const board=new T.Group();board.position.set(15.68,1.009,-12.20);scene.add(board);
+ const base=new T.Mesh(new T.BoxGeometry(.57,.032,.57),new T.MeshStandardMaterial({color:0xceac76,roughness:.88}));board.add(base);
+ const grid=[],step=.061;
+ for(let n=-4;n<=4;n++){grid.push(n*step,.017,-4*step,n*step,.017,4*step,-4*step,.017,n*step,4*step,.017,n*step);}
+ const gridGeo=new T.BufferGeometry();gridGeo.setAttribute('position',new T.Float32BufferAttribute(grid,3));
+ board.add(new T.LineSegments(gridGeo,new T.LineBasicMaterial({color:0x4c3524})));
+ const stones=new T.Group();board.add(stones);
+ const stoneMesh=new T.SphereGeometry(.027,14,9),stoneMats=[0x252524,0xf4e8ce].map(color=>new T.MeshStandardMaterial({color,roughness:.51}));
+ function placeStones(cells){
+  stones.clear();cells.forEach((color,i)=>{if(!color)return;const stone=new T.Mesh(stoneMesh,stoneMats[color-1]);stone.scale.y=.48;
+   stone.position.set((i%9-4)*step,.026,(Math.floor(i/9)-4)*step);stones.add(stone);});
+ }
+ placeStones(Array(81).fill(0));
  const palette=new Map();
  env.model.traverse(o=>{if(o.isMesh&&o.material?.name)palette.set(o.material.name,o.material);});
- for(const [id,shop] of Object.entries(SHOPS)){
-  if(id==='juiceCart'){actors.set(id,actors.get('vendor'));continue;}
+ const working=[];
+ const heights={eastBread:1.66,radio:1.81,herbs:1.52,westBread:1.70,arcade:1.61,marketBack:1.63,riceCorner:1.75,banyanCloth:1.58,lanePrint:1.68,southPrint:1.72,southRice:1.59,southCloth:1.74,eastPrint:1.70,eastRice:1.68,westCorner:1.51,workshop:1.80,gardenHomes:1.58,northTurn:1.82,eastTurn:1.67};
+ await Promise.all(Object.entries(SHOPS).map(async ([id,shop],index)=>{
+  if(id==='juiceCart'){actors.set(id,actors.get('vendor'));return;}
   furnishShop(scene,shop,palette);
-  const source=actors.get(shop.cast), original=source.model,model=original.clone(true);
-  const originals=[],copies=[];original.traverse(o=>originals.push(o));model.traverse(o=>copies.push(o));
-  const cloned=new Map(originals.map((o,i)=>[o,copies[i]]));
-  originals.forEach(o=>{if(o.isSkinnedMesh){
-   const copy=cloned.get(o),skeleton=o.skeleton.clone();
-   skeleton.bones=o.skeleton.bones.map(b=>cloned.get(b));copy.bind(skeleton,o.bindMatrix);
-  }});
-  const depth=shop.stall?-.31:-1.25,side=shop.stall?.95:.38;
+  const {model}=await load('shopkeepers/'+id+'.glb');
+  const bounds=new T.Box3().setFromObject(model);
+  model.scale.setScalar(heights[id]/(bounds.max.y-bounds.min.y));
+  const depth=shop.stall?-.31:-1.06,side=shop.stall?.95:.49;
   model.position.set(shop.x+depth*shop.sin+side*shop.cos,shop.stall?.105:.225,shop.z+depth*shop.cos-side*shop.sin);
-  model.rotation.set(0,shop.yaw,0);scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
+  model.rotation.y=shop.yaw;scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
+  const hands=[];model.traverse(o=>{if(o.morphTargetDictionary?.workLeft!==undefined)hands.push(o.morphTargetInfluences);});
+  working.push({id,model,hands,phase:index*1.73,pace:({bakery:1.65,radio:.84,rice:1.06,cloth:.73,print:1.31,herbs:.94,fruit:1.15})[shop.kind],amount:0});
+ }));
+ const chores=[];
+ for(const [id,actor] of actors){
+  if(!['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].includes(id))continue;
+  const limbs={};
+  actor.model.traverse(bone=>{
+   if(!bone.isBone)return;
+   const name=bone.name.replace(/^mixamorig[:_]?/i,'');
+   if(['Head','LeftForeArm','RightForeArm'].includes(name))limbs[name]={bone,rest:bone.quaternion.clone()};
+  });
+  chores.push({id,actor,limbs,weight:0,phase:chores.length*1.1});
+ }
+ const axis=new T.Vector3(1,0,0),turn=new T.Quaternion();
+ function animateWork(point,engaged,now){
+  let bodiesChanged=false;
+  for(const c of chores){
+   const p=c.actor.model.position;
+   if(!c.actor.model.visible||Math.hypot(p.x-point.x,p.z-point.z)>10)continue;
+   if(c.id==='friend'||c.id==='aqing'){
+    const moved=c.previous&&c.previous.distanceToSquared(p)>.00001;
+    (c.previous??=new T.Vector3()).copy(p);
+    if(moved){c.weight=0;continue;}
+   }
+   const busy=engaged!==c.id&&!(c.id==='vendor'&&engaged==='juiceCart');
+   if(!busy&&c.weight===0)continue;
+   c.weight+=T.MathUtils.clamp((busy?1:0)-c.weight,-.16,.16);
+   const t=now*.001+c.phase;
+   for(const [name,{bone,rest}] of Object.entries(c.limbs)){
+    const offset=name==='Head'?.10+.055*Math.sin(t*.82):name==='RightForeArm'?-.24-.18*Math.sin(t*1.57):-.13+.10*Math.sin(t);
+    bone.quaternion.copy(rest).multiply(turn.setFromAxisAngle(axis,offset*c.weight));
+   }
+   bodiesChanged=true;
+  }
+  let changed=false;
+  for(const actor of working){
+   if(Math.hypot(actor.model.position.x-point.x,actor.model.position.z-point.z)>9)continue;
+   const t=actor.phase+now*.001*actor.pace,active=engaged!==actor.id;
+   const target=active?1:0;
+   if(!active&&actor.amount===0)continue;
+   actor.amount+=T.MathUtils.clamp(target-actor.amount,-.16,.16);
+   for(const weights of actor.hands){
+    weights[0]=actor.amount*(.61+.32*Math.sin(t));
+    weights[1]=actor.amount*(.52+.39*Math.sin(t*1.12+.8));
+    weights[2]=actor.amount*(.60+.28*Math.cos(t*.65));
+   }
+   if(active)face(actor.id,null,.06);
+   changed=true;
+  }
+  return changed||bodiesChanged;
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
  const laundryMaterial=new Map();
@@ -143,6 +224,17 @@ export async function loadStreet(canvas) {
  }
  const paper=new T.Mesh(new T.BoxGeometry(.27,.025,.32),new T.MeshStandardMaterial({color:0xf3e1bc}));
  paper.position.set(15.61,1.30,.98);scene.add(paper);
+ const coat=new T.Group(),cloth=new T.MeshStandardMaterial({color:0x37495a,roughness:.94});
+ function panel(points,material,y){
+  const shape=new T.Shape();points.forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath();
+  const geo=new T.ExtrudeGeometry(shape,{depth:.011,bevelEnabled:true,bevelSize:.005,bevelThickness:.004,bevelSegments:2});
+  geo.rotateX(-Math.PI/2);const part=new T.Mesh(geo,material);part.position.y=y;coat.add(part);
+ }
+ panel([[-.14,-.25],[-.06,-.28],[.06,-.28],[.14,-.25],[.28,.065],[.22,.10],[.145,-.034],[.16,.26],[-.16,.26],[-.145,-.034],[-.22,.10],[-.28,.065]],cloth,0);
+ const trim=new T.MeshStandardMaterial({color:0x506475,roughness:.89});
+ for(const s of [-1,1])panel([[s*.066,-.27],[s*.121,-.22],[s*.076,-.145],[s*.104,-.13],[0,.015]],trim,.016);
+ coat.position.set(15.54,1.335,1.19);coat.rotation.y=-Math.PI/2;scene.add(coat);
+ function showCoat(visible){coat.visible=visible;}
  illuminate(false);
  function face(id,point,dt){
   const actor=actors.get(id);
@@ -154,7 +246,7 @@ export async function loadStreet(canvas) {
   model.rotation.y+=Math.atan2(Math.sin(delta),Math.cos(delta))*Math.min(1,dt*8);
   return true;
  }
- return {layout,actors,render,face,illuminate,placeRack,refreshShadows};
+ return {layout,actors,render,face,showCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
 }
 
 function storeSign(text,w,h){
@@ -207,9 +299,12 @@ function furnishShop(scene,shop,palette){
  }
  box(teal,0,.49,-.73,1.44,.84,.57);box(cream,0,.934,-.73,1.51,.065,.63);
  box(iron,-.16,.987,-.64,.97,.035,.40);
- for(let i=0;i<3;i++)stock(-.49+i*.32,1.01,-.62,i);
- for(const x of [-.69,.69])box(wood,x,1.23,-.88,.042,.55,.042);
- if(shop.kind==='bakery')box(cream,0,1.51,-.88,1.46,.055,.29);
+ const stockCount=shop.kind==='bakery'?3:2;
+ for(let i=0;i<stockCount;i++)stock(-.50+i*.29,1.01,-.62,i);
+ if(shop.kind==='bakery'){
+  for(const x of [-.67,-.15])box(wood,x,1.12,-.88,.04,.32,.04);
+  box(cream,-.41,1.29,-.88,.58,.045,.29);
+ }
  for(let j=0;j<(shop.stall?0:3);j++){
   const y=.77+j*.48;box(wood,0,y,-3.23,2.85,.065,.42);
   for(let i=0;i<6;i++)stock(-1.17+i*.47,y+.04,-3.2,i+j);

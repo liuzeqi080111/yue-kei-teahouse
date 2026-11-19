@@ -25,8 +25,8 @@ for(const [id,shop] of Object.entries(SHOPS)){
  if(shop.stall){add(id,shop.line,shop.cast);add(id,shop.reply,shop.cast);}
 }
 const base={...freshWorld(),streetView:{x:12.22,z:8.94,heading:1.56,pitch:0}};
-const pickup='coat-start shop-check coat-route-';
-const enquiries='guest-found coat-detail coat-swap';
+const pickup='coat-start shop-check coat-inspect coat-route-';
+const enquiries='guest-found coat-swap';
 const visits=[
  pickup+'recover '+enquiries+' coat-return rest',
  pickup+'borrow coat-loan coat-emergency rest coat-collect-loan loan-returned',
@@ -51,6 +51,8 @@ for(const visit of visits){
  }
 }
 for(const [id,text] of [
+ ['lam','阿樂嗰邊，有冇我老友嘅消息呀？'],['lam','嚟，坐低捉盤五子棋。你揸黑，畀你行先。'],['lam','你揸黑，揀個交叉位落子啦。'],['lam','唔使急，望清楚啲先落。'],['lam','以前我同個老友都係咁，一邊捉棋，一邊聽唱片。'],['lam','好棋！五粒連埋一行，你贏喇。'],['lam','睇吓呢邊，連成五粒喇。再嚟一盤？'],['lam','滿晒喇，和棋。'],
+ ['qing','我聽日見工，件褸仲喺洗衣舖。陪我行一轉，好唔好？'],
  ['qing','我見完工返嚟喇。'],['qing','件褸我想試多次，睇吓啱唔啱身。'],['qing','多謝你肯幫手。你問到啲咩呀？'],
  ['fang','有事嘅話，你慢慢講。'],['fang','張單已經入咗簿。'],['lam','隻碟我收好咗。唔該晒你。'],['lam','我已經留咗口訊畀老朋友。'],
  ...['ming','ling'].flatMap(id=>[[id,'未到飯點，衫架照擺出嚟。'],[id,'你睇，而家條路闊咗。']]),
