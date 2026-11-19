@@ -110,7 +110,7 @@ export async function loadStreet(canvas) {
   }});
   const depth=shop.stall?-.31:-1.25,side=shop.stall?.95:.38;
   model.position.set(shop.x+depth*shop.sin+side*shop.cos,shop.stall?.105:.225,shop.z+depth*shop.cos-side*shop.sin);
-  model.rotation.y=shop.yaw;scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
+  model.rotation.set(0,shop.yaw,0);scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
  const laundryMaterial=new Map();
