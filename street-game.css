@@ -40,3 +40,6 @@
  .street-dialogue{bottom:9px;padding:.5rem .6rem;font-size:.88rem;max-height:49dvh;overflow:auto}
  .street-line{font-size:1rem}
 }
+.street-ticket{position:absolute;left:50%;top:48%;pointer-events:none;background:#f2e2b8;color:#294639;padding:.75rem .55rem;border:1px solid #74664f;border-radius:3px;font-family:serif;animation:street-ticket-pass .65s ease-in both}
+@keyframes street-ticket-pass{from{transform:translate(30px,160px) rotate(-9deg) scale(1.25);opacity:1}to{transform:translate(-20px,-30px) rotate(7deg) scale(.30);opacity:0}}
+@media(prefers-reduced-motion:reduce){.street-ticket{animation-duration:.01s}}

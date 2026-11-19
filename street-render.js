@@ -81,6 +81,7 @@ export async function loadStreet(canvas) {
   const delta=target-model.rotation.y;
   if(Math.abs(Math.sin(delta))+Math.abs(1-Math.cos(delta))<.005)return;
   model.rotation.y+=Math.atan2(Math.sin(delta),Math.cos(delta))*Math.min(1,dt*8);
+  return true;
  }
  return {layout,actors,render,face,illuminate,placeRack,refreshShadows};
 }
