@@ -20,6 +20,7 @@ test('第一人称买衣由阿晴付款，应急与和解是两个事件',()=>{
  assert.equal(applyWorldAction(initial,'ling','coat-buy').ok,false);
  const paid=play([['ling','coat-quote'],['qing','coat-buy']],initial);
  assert.equal(paid.money,initial.money);
+ assert.equal(paid.items.includes('newCoat'),false);
  assert.equal(applyWorldAction(paid,'qing','coat-buy').ok,false);
  const emergency=play([['qing','coat-emergency']],paid);
  assert.ok(emergency.flags.includes('coat-misunderstanding'));

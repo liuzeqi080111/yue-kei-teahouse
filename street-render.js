@@ -48,13 +48,25 @@ export async function loadStreet(canvas) {
  wear?.traverse(mesh=>{
   if(!mesh.isMesh||!['metal','bronze','red','sun'].includes(mesh.material.name))return;
   const piece=mesh.clone();
+  piece.geometry.computeBoundingBox();
   piece.position.z+=.27;
   rack.add(piece);
  });
  scene.add(rack);
  function placeRack({x,z,length,visible}){
   rack.position.set(x,0,z);rack.rotation.y=Math.PI/2;
-  rack.scale.set(length/3.8,.82,.82);rack.visible=visible;refreshShadows();
+  const horizontal=length/3.8;
+  rack.scale.set(horizontal,.82,.82);rack.visible=visible;
+  for(const piece of rack.children){
+   const garment=piece.material.name;
+   if(garment!=='red'&&garment!=='sun')continue;
+   piece.visible=garment!=='sun'||length>1;
+   piece.scale.x=.72/horizontal;
+   const box=piece.geometry.boundingBox;
+   const center=(box.min.x+box.max.x)/2;
+   piece.position.x=length<=1?-center*piece.scale.x:center*(1-piece.scale.x);
+  }
+  refreshShadows();
  }
  function render({x,y,z,heading,pitch}){
   if(width!==canvas.clientWidth||height!==canvas.clientHeight){

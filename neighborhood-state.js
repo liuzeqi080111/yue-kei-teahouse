@@ -109,10 +109,10 @@ export function optionsFor(s,npc){
      if(firstPerson&&f('coat-quoted')&&f('coat-route-buy')&&!f('qing-paid-coat')&&!has('loanCoat')&&!has('newCoat')){
       add('coat-buy','听阿晴确认价格并付款 · 她付 HK$80',
        '八十蚊啱啦，我自己畀。唔該晒你陪我嚟試。','八十元可以，我自己付。谢谢你陪我来试衣。',
-       d=>{flag(d,'qing-paid-coat');give(d,'newCoat');note(d,'阿晴试穿后自己支付了 HK$80。原衣仍待找回。');});
+       d=>{flag(d,'qing-paid-coat');note(d,'阿晴试穿后自己支付了 HK$80，新外套由她自己拿着。原衣仍待找回。');});
      }
      if(has('coat'))add('coat-return','把找回的外套交给阿晴，让她去面试（推进一个时段）','就係呢件！多謝你，我而家出發喇。','就是这件！谢谢你，我现在出发了。此选择推进一个时段。',d=>{take(d,'coat');coatEnd(d,'returned');});
-     if(has('loanCoat')||has('newCoat'))add('coat-emergency',firstPerson&&f('qing-paid-coat')?'阿晴穿新衣去面试（推进一个时段）':'先穿这件去面试，原衣服稍后找（推进一个时段）','啱身呀，咁我先去見工，返嚟再處理。','合身，那我先去面试，回来再处理。原衣服仍可继续找。此选择推进一个时段。',d=>{if(d.items.includes('loanCoat')){take(d,'loanCoat');flag(d,'qing-wore-loan');}else take(d,'newCoat');if(firstPerson)flag(d,'coat-misunderstanding');coatEnd(d,'emergency');});
+     if(has('loanCoat')||has('newCoat')||firstPerson&&f('qing-paid-coat'))add('coat-emergency',firstPerson&&f('qing-paid-coat')?'阿晴穿新衣去面试（推进一个时段）':'先穿这件去面试，原衣服稍后找（推进一个时段）','啱身呀，咁我先去見工，返嚟再處理。','合身，那我先去面试，回来再处理。原衣服仍可继续找。此选择推进一个时段。',d=>{if(d.items.includes('loanCoat')){take(d,'loanCoat');flag(d,'qing-wore-loan');}else take(d,'newCoat');if(firstPerson)flag(d,'coat-misunderstanding');coatEnd(d,'emergency');});
      if(f('shop-contact')&&has('wrongCoat'))add('coat-cooperate','芳姐会换回衣服，你过去核对后出发（推进一个时段）','好，我同芳姐一齊核對，唔再鬧交喇。','好，我和芳姐一起核对，不再争吵了。此选择推进一个时段。',d=>{take(d,'wrongCoat');coatEnd(d,'cooperate');});
     }else{
      if(has('coat')&&f('qing-returned')&&!f('original-returned'))add('coat-return-original','把找回的原衣交给阿晴','原來搵返咗，真係唔該晒你。','原来找回来了，真的太谢谢你了。',d=>{take(d,'coat');flag(d,'original-returned');note(d,'阿晴收回了原衣，应急经历已记下。');});
@@ -169,7 +169,7 @@ export function optionsFor(s,npc){
     if((has('ticket')||f('ticket-filed'))&&f('shop-check')&&f('coat-detail')&&has('wrongCoat')&&!has('coat')&&(!firstPerson||f('guest-found')))add('coat-swap',firstPerson?'说明芳姐的核对记录，看袖口并换衣':'出示取件单和特征，当面交换外套','個名對得上，袖口都係。原來真係攞錯咗。','名字和袖口都对得上，原来真的拿错了。',d=>{take(d,'wrongCoat');give(d,'coat');flag(d,'coat-swapped');note(d,'已与周叔核对并换回阿晴的外套。');});
  }
  if(npc==='ling'){
-   if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&!f('loan-returned')){
+   if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&!f('loan-returned')&&!f('qing-paid-coat')){
    add('coat-loan','邻居急着面试，可以借件外套吗？','借畀佢應急先，見完工記得帶返嚟。','先借给她应急，面试后记得还。',d=>{give(d,'loanCoat');flag(d,'loan-due');note(d,'向玲姐借了外套，答应面试后归还。');});
    if(firstPerson&&f('shop-check')&&f('coat-route-buy')&&!f('coat-quoted')){
     add('coat-quote','替阿晴问这件外套的价格','呢件八十蚊，阿晴你試吓先。','这件八十元。阿晴，你先试一下。',d=>{flag(d,'coat-quoted');note(d,'玲姐报价 HK$80，由阿晴试穿后决定是否自己付款。');});

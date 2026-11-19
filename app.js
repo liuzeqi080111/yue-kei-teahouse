@@ -321,7 +321,10 @@ function syncWorldTitle(){
  const button=$('[data-world-save-state]'),hasProgress=worldSaveExists||worldStarted;
  const label=worldSaveLocked?'无法继续':hasProgress?'继续游戏':'开始游戏';
  updateText($('#world-start-label'),label);
- if(button)button.dataset.worldSaveState=worldSaveLocked?'error':worldSaveExists?'saved':worldStarted?'unsaved':'empty';
+ if(button){
+  button.dataset.worldSaveState=worldSaveLocked?'error':worldSaveExists?'saved':worldStarted?'unsaved':'empty';
+  button.disabled=false;
+ }
  const restart=$('#world-title-restart');if(restart)restart.hidden=!hasProgress&&!worldSaveLocked;
  const status=$('#world-save-status'),message=worldStorageError||worldSaveStatus;
  if(status){updateText(status,message);status.hidden=!message;}

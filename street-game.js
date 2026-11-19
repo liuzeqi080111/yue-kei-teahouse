@@ -1,6 +1,5 @@
 import { ACTORS, HOME, COUNTER, LAUNDRY_DOOR, REST, RESTAURANT, createStreetNav, distance, within, rackLayout, rackBlocks } from './street-space.js';
 import { atFangCounter, createFangCounter } from './street-fang.js';
-import { loadStreet } from './street-render.js';
 import { createFp1Travel } from './fp1-travel.js';
 import { createNeighborhoodVoice } from './neighborhood-voice.js';
 import { FP1_CLIPS } from './fp1-clips.js';
@@ -163,7 +162,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(has('coat'))return '把找回的原衣交给阿晴';
   if(worldFlag('qing-wore-loan')&&!worldFlag('loan-returned'))return worldFlag('qing-returned')?'取回借衣，还给夜市衣摊的玲姐':'阿晴在面试。可到树下等她回来';
   if(world.coatOutcome){return worldFlag('coat-misunderstanding')?'阿晴解决了面试用衣，洗衣店的误会还没说清':localGoal()||'自由逛街，看看街坊还有什么事';}
-  if(has('newCoat')&&worldFlag('qing-paid-coat'))return '在衣摊确认阿晴穿新衣去面试';
+  if(worldFlag('qing-paid-coat'))return '在衣摊确认阿晴穿新衣去面试';
   if(has('loanCoat')||has('newCoat'))return route()==='buy'?'把应急外套交给衣摊旁的阿晴':'把应急外套带给安和楼旁的阿晴';
   if(route()==='borrow')return '到夜市衣摊找玲姐借外套';
   if(route()==='buy'&&!worldFlag('guest-found'))return worldFlag('coat-quoted')?'在夜市衣摊听阿晴试穿后决定':'到夜市衣摊陪阿晴问价';
@@ -422,7 +421,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function load(initial){
   active=true;host.hidden=false;status.textContent='正在打开街区…';
   const run=++restoreId;
-  loading??=loadStreet(canvas).then(value=>{
+  loading??=import('./street-render.js').then(({loadStreet})=>loadStreet(canvas)).then(value=>{
    scene=value;
    nav=createStreetNav(scene.layout,point=>{
     const rack=rackLayout(getState());
