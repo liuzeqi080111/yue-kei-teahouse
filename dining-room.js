@@ -76,44 +76,119 @@ function dish(item,remaining) {
 // two booth rows. Enter it from the central aisle, never across a bench.
 function aisle(points){
  const route=new T.CurvePath();
- for(let i=1;i<points.length;i++){
-  const at=([x,z])=>new T.Vector3(x,.17,z);
-  route.add(new T.LineCurve3(at(points[i-1]),at(points[i])));
+ const knots=points.map(([x,z])=>new T.Vector3(x,.195,z));
+ let start=knots[0];
+ for(let i=1;i<knots.length-1;i++){
+  const corner=knots[i],radius=Math.min(.24,corner.distanceTo(start)*.35,corner.distanceTo(knots[i+1])*.35);
+  const entry=corner.clone().addScaledVector(start.clone().sub(corner).normalize(),radius);
+  const exit=corner.clone().addScaledVector(knots[i+1].clone().sub(corner).normalize(),radius);
+  route.add(new T.LineCurve3(start,entry));route.add(new T.QuadraticBezierCurve3(entry,corner,exit));start=exit;
  }
- return route;
+ route.add(new T.LineCurve3(start,knots.at(-1)));return route;
 }
-const serviceRoute=aisle([[.53,-4.45],[.55,-3.48],[.54,-2.64],[2.06,-2.64]]);
+const serviceRoute=aisle([[-.74,-4.03],[.56,-4.03],[.56,-2.64],[2.06,-2.64]]);
 const leadRoute=aisle([[.34,-1.12],[.54,-2.64],[2.06,-2.64]]);
 const seatingRoute=aisle([[.18,.27],[.26,-.61],[.54,-2.64],[2.72,-2.64],[2.73,-1.55]]);
 
-export function furnishKitchen(scene){
- const box=(color,x,y,z,w,h,d)=>part(scene,cube,color,x,y,z,w,h,d);
- const steel=0xa4ada5, enamel=0xe8debe, tile=0x2e6456;
- // Reuse the shell's rear counters. The serving hatch opens to the bakery;
- // its right-hand end leaves the central aisle open into the kitchen.
- box(tile,-1.90,.68,-3.13,3.15,1.02,.12);
- box(steel,-1.90,1.21,-3.13,3.28,.065,.32);
- box(enamel,-1.90,2.56,-3.13,3.15,.38,.12);
- for(const x of [-3.41,-.39])box(tile,x,1.78,-3.13,.10,1.18,.12);
- box(steel,-1.88,2.34,-3.98,1.74,.25,.71);
- box(steel,-1.88,2.84,-4.18,.40,.79,.32);
- // The range sits over the existing rear counter in the same bay as the hood.
- box(steel,-1.88,1.19,-3.92,1.63,.09,.66);
- for(const x of [-2.31,-1.48]){
-  const dial=part(scene,disc,0x343c35,x,1.18,-3.575,.059,.024,.059);
-  dial.rotation.x=Math.PI/2;
-  part(scene,disc,0x292b26,x,1.25,-3.92,.33,.045,.33);
-  part(scene,cup,0x565e58,x,1.36,-3.92,.31,.18,.31);
-  box(0x383936,x+.19,1.4,-3.92,.14,.034,.045);
+export function furnishKitchen(scene,district){
+ // The original bakery and tea equipment were baked into multi-material
+ // meshes. Vacate just the rear service bay before building the kitchen.
+ district.traverse(node=>{
+  if(!node.isMesh||!/(service_counter|tea_room_wall_fittings)/i.test(node.parent.name))return;
+  const g=node.geometry,index=g.index,pos=g.attributes.position;
+  if(!index)return;
+  const kept=[];
+  for(let i=0;i<index.count;i+=3){
+   const a=index.getX(i),b=index.getX(i+1),c=index.getX(i+2);
+   const x=(pos.getX(a)+pos.getX(b)+pos.getX(c))/3;
+   const z=(pos.getZ(a)+pos.getZ(b)+pos.getZ(c))/3;
+   if(z< -3.03 && (x<1.16||(/wall_fittings/i.test(node.parent.name)&&z< -4.65)))continue;
+   kept.push(a,b,c);
+  }
+  if(kept.length!==index.count)g.setIndex(kept);
+ });
+ const kitchen=new T.Group();kitchen.name='Kitchen';scene.add(kitchen);
+ const box=(color,x,y,z,w,h,d)=>part(kitchen,cube,color,x,y,z,w,h,d);
+ const metal=new T.MeshStandardMaterial({color:0xadbcbb,metalness:.43,roughness:.31});
+ const stainless=(x,y,z,w,h,d)=>{const m=box(0xabb9ba,x,y,z,w,h,d);m.material=metal;return m;};
+ const round=(color,x,y,z,w,h,d)=>part(kitchen,disc,color,x,y,z,w,h,d);
+ const enamel=0xe8e2ca, teal=0x47776d, ink=0x283b39;
+ // Full-height partition, a recessed pass on the left and a separate 1.10 m
+ // personnel doorway on the right. All dimensions use the same local frame
+ // as the waiter path and both rendered views of the shop.
+ const tileCanvas=document.createElement('canvas');tileCanvas.width=256;tileCanvas.height=128;
+ const ctx=tileCanvas.getContext('2d');ctx.fillStyle='#9ba69c';ctx.fillRect(0,0,256,128);
+ for(let i=0;i<2;i++){ctx.fillStyle=i?'#dedfd0':'#e6e6d8';ctx.fillRect(i*128+2,2,125,125);}
+ const tiles=new T.CanvasTexture(tileCanvas);tiles.colorSpace=T.SRGBColorSpace;
+ tiles.wrapS=tiles.wrapT=T.RepeatWrapping;
+ const tile=(x,y,z,w,h,d)=>{
+  const mesh=box(enamel,x,y,z,w,h,d);
+  // World-scaled UVs keep grout lines the same size on jambs and lintels.
+  const g=cube.clone(),uv=g.attributes.uv,pos=g.attributes.position,n=g.attributes.normal;
+  for(let i=0;i<uv.count;i++){
+   const X=x+pos.getX(i)*w,Y=y+pos.getY(i)*h,Z=z+pos.getZ(i)*d;
+   uv.setXY(i,(Math.abs(n.getX(i))>.5?Z:X)/.44,(Math.abs(n.getY(i))>.5?Z:Y)/.22);
+  }
+  mesh.geometry=g;mesh.material=new T.MeshStandardMaterial({map:tiles,roughness:.36});return mesh;
+ };
+ tile(-1.76,.65,-3.10,3.42,.98,.18);
+ tile(-3.17,1.73,-3.10,.60,1.20,.18);
+ tile(-.28,1.73,-3.10,.46,1.20,.18);
+ tile(-1.15,2.78,-3.10,4.65,.92,.18);
+ tile(1.17,1.71,-4.23,.12,3.08,2.43);
+ tile(-1.17,1.70,-5.23,4.68,3.09,.12);
+ stainless(-1.69,1.16,-3.10,2.61,.065,.53);
+ for(const x of [-.055,1.11])box(teal,x,1.27,-3.10,.045,2.22,.20);
+ box(teal,.53,2.34,-3.10,1.19,.07,.20);
+ // Cabinet fronts, inset burner deck, wok rings and a hood with baffle filters.
+ stainless(-1.40,.62,-4.91,3.18,.87,.57);stainless(-1.40,1.075,-4.91,3.28,.05,.68);
+ for(const x of [-2.63,-2.01,-1.39,-.77,-.15]){
+  box(0x708584,x,.64,-4.612,.59,.72,.022);stainless(x,.91,-4.585,.20,.023,.032);
  }
- box(steel,-.77,1.85,-4.71,.85,.045,.27);
- for(let i=0;i<6;i++)part(scene,disc,enamel,-.74,1.89+i*.021,-4.71,.22,.02,.22);
- const board=document.createElement('canvas');board.width=384;board.height=96;
- const ctx=board.getContext('2d');ctx.fillStyle='#18483e';ctx.fillRect(0,0,384,96);
- ctx.fillStyle='#efe4c4';ctx.font='bold 52px serif';ctx.textAlign='center';ctx.fillText('廚 房 出 餐',192,65);
- const map=new T.CanvasTexture(board);map.colorSpace=T.SRGBColorSpace;
- const sign=new T.Mesh(new T.PlaneGeometry(1.12,.28),new T.MeshBasicMaterial({map}));
- sign.position.set(-1.58,2.54,-3.064);scene.add(sign);
+ for(const x of [-2.54,-1.94]){
+  round(ink,x,1.12,-4.90,.43,.06,.43);
+  part(kitchen,cup,0x384543,x,1.19,-4.90,.40,.12,.40);
+  round(0x302e24,x,1.253,-4.90,.37,.011,.37);
+  box(0x594233,x+.22,1.24,-4.90,.15,.032,.038);
+ }
+ stainless(-2.24,2.13,-4.84,1.63,.22,.76);
+ stainless(-2.24,2.68,-4.95,.51,.88,.42);
+ for(let i=0;i<15;i++)box(0x656f68,-2.94+i*.10,2.12,-4.45,.043,.145,.015);
+ // Wall-mounted utensil rail and a condiment shelf beside the wok station.
+ stainless(-1.58,1.87,-5.09,1.19,.025,.035);
+ for(const [i,x] of [-2.02,-1.84,-1.66,-1.48].entries()){
+  const drop=.20+(i%2)*.04;
+  stainless(x,1.86-drop/2,-5.06,.014,drop,.014);
+  part(kitchen,sphere,i===3?0x85613d:0x899b99,x,1.82-drop,-5.05,.075,.09,.033);
+ }
+ stainless(-.72,1.76,-5.00,.88,.025,.24);
+ for(let i=0;i<5;i++){
+  const x=-1.02+i*.147,h=i%2?.18:.22;
+  round(i%2?0x805032:0x624230,x,1.78+h/2,-5.0,.08,h,.08);
+  round(0xebe1bc,x,1.80+h/2,-5.0,.081,.063,.081);
+  round(i%2?0x974a32:0x373e35,x,1.79+h,-5.0,.049,.034,.049);
+ }
+ // A chopping station and deep sink share the rear wall.
+ box(0xb78c5a,-1.20,1.123,-4.84,.55,.043,.39);
+ for(let i=0;i<5;i++)box(0x628447,-1.22+i*.019,1.152,-4.86,.015,.01,.135).rotation.y=.27;
+ box(0x9aa9a3,-1.01,1.155,-4.81,.12,.008,.048);
+ box(0x704b33,-.92,1.155,-4.81,.075,.018,.018);
+ box(0x4b5c58,-.39,1.103,-4.90,.50,.012,.38);
+ stainless(-.39,1.113,-5.096,.56,.024,.03);
+ stainless(-.39,1.113,-4.704,.56,.024,.03);
+ for(const x of [-.66,-.12])stainless(x,1.113,-4.90,.026,.024,.40);
+ stainless(-.39,1.28,-5.07,.026,.33,.026);stainless(-.39,1.44,-4.99,.026,.026,.18);
+ stainless(-.39,1.41,-4.90,.026,.07,.026);
+ for(const x of [-1.10,-.78,-.46])for(let i=0;i<4;i++)round(enamel,x,1.18+i*.019,-3.16,.22,.019,.22);
+ const strip=box(0xffefd0,-1.74,2.29,-3.23,2.18,.031,.05);
+ strip.material=new T.MeshStandardMaterial({color:0xffefd0,emissive:0xffdc9b,emissiveIntensity:1.1});
+ const passLight=new T.PointLight(0xffe3bb,6,3);passLight.position.set(-1.68,2.15,-3.72);kitchen.add(passLight);
+ // Dockets clipped to the pass rail.
+ stainless(-1.59,2.22,-3.01,1.61,.032,.042);
+ for(let i=0;i<4;i++){
+  const x=-2.18+i*.23;box(enamel,x,2.121,-2.99,.133,.18,.005);
+  for(let j=0;j<3;j++)box(0x968571,x,2.16-j*.026,-2.986,.087,.006,.003);
+ }
 }
 
 export async function createDiningRoom(canvas) {
@@ -143,14 +218,26 @@ export async function createDiningRoom(canvas) {
   geometry.setIndex(kept);
  });
  scene.add(district.scene);
- furnishKitchen(scene);
+ furnishKitchen(scene,district.scene);
  const sky=new T.HemisphereLight(0xffeed4,0xab9680,1.75);
  const sun=new T.DirectionalLight(0xffdfaf,2.1);
  sun.position.set(2,7,4);scene.add(sun,sky);
  const warm=new T.PointLight(0xffddac,10,8);warm.position.set(1.6,2.65,-1.5);scene.add(warm);
  const actor=ming.scene;actor.scale.setScalar(1.72);scene.add(actor);
  const mixer=new T.AnimationMixer(actor);
- if(ming.animations.length)mixer.clipAction(ming.animations[0]).play();
+ const stride=ming.animations[0];
+ let walkAction,idleAction;
+ if(stride){
+  walkAction=mixer.clipAction(stride).play();
+  // Sample each leg in its planted phase. Freezing a single walking frame
+  // leaves the back foot in the air while the waiter stands at the stove.
+  const planted=stride.tracks.map(track=>{
+   const phase=/Right(UpLeg|Leg|Foot|Toe)/i.test(track.name) ? 0.60 : 0;
+   const value=track.createInterpolant().evaluate(phase);
+   return new track.constructor(track.name,[0],value);
+  });
+  idleAction=mixer.clipAction(new T.AnimationClip('Standing',1,planted)).play();
+ }
  const bones={};actor.traverse(o=>{if(o.isBone)bones[o.name.replace(/^mixamorig[:_]?/i,'')]=o;});
  // Undo the previous procedural offsets before sampling animation. Mixers
  // can skip writing unchanged tracks on repeated renders of the same time.
@@ -191,10 +278,21 @@ export async function createDiningRoom(canvas) {
   serviceRoute.getPoint(arrive,actor.position);
   const walking=['approach','depart'].includes(pose);
   const heading=serviceRoute.getTangent(Math.min(.9999,Math.max(.0001,arrive)));
-  const restingYaw=arrive>0 ? .5 : -1.7;
-  actor.rotation.y=walking ? Math.atan2(heading.x,heading.z)+(pose==='depart'?Math.PI:0) : restingYaw;
+  const kitchenYaw=-2.70,tableYaw=.54,departing=pose==='depart';
+  const travelYaw=Math.atan2(heading.x,heading.z)+(departing?Math.PI:0);
+  const blendYaw=(from,to,fraction)=>from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*fraction;
+  if(walking){
+   const startYaw=departing?tableYaw:kitchenYaw,endYaw=departing?kitchenYaw:tableYaw;
+   actor.rotation.y=blendYaw(startYaw,travelYaw,T.MathUtils.smootherstep(progress,0,.14));
+   actor.rotation.y=blendYaw(actor.rotation.y,endYaw,T.MathUtils.smootherstep(progress,.86,1));
+  }else actor.rotation.y=arrive>0?tableYaw:kitchenYaw;
   for(const {bone,base} of poseBones)bone.quaternion.copy(base);
-  mixer.setTime(['approach','depart'].includes(pose)?progress*1.5:.21);
+  const walkRoute=view.camera==='walk'?leadRoute:serviceRoute;
+  const walkProgress=view.camera==='walk'?Math.min(1,progress*1.24):progress;
+  const strideWeight=walking?T.MathUtils.smoothstep(walkProgress,0,.07)*(1-T.MathUtils.smoothstep(walkProgress,.92,1)):0;
+  walkAction?.setEffectiveWeight(strideWeight);
+  idleAction?.setEffectiveWeight(1-strideWeight);
+  mixer.setTime(walkProgress*walkRoute.getLength()/1.05);
   for(const {bone,base} of poseBones)base.copy(bone.quaternion);
   const writing=pose==='talk'&&['order-review','food'].includes(beat.kind);
   if(bones.Head)bones.Head.rotateX(pose==='place'||writing?.23:.035);
@@ -212,12 +310,18 @@ export async function createDiningRoom(canvas) {
   if(['walk','entrance'].includes(view.camera)){
    const t=view.camera==='walk'?progress:0;
    seatingRoute.getPoint(t,eye);eye.y=1.78-.30*T.MathUtils.smoothstep(t,.82,1);
-   leadRoute.getPoint(Math.min(1,t*1.24),actor.position);
+   const leadProgress=Math.min(1,t*1.24);
+   leadRoute.getPoint(leadProgress,actor.position);
    focus.copy(actor.position);focus.y=1.55;
-   const direction=leadRoute.getTangent(Math.min(.999,t*1.24));
-   actor.rotation.y=t>0&&t<.80?Math.atan2(direction.x,direction.z):t===0?.13:.5;
+   const direction=leadRoute.getTangent(Math.min(.999,leadProgress));
+   const leadYaw=blendYaw(.13,Math.atan2(direction.x,direction.z),T.MathUtils.smootherstep(leadProgress,0,.14));
+   actor.rotation.y=blendYaw(leadYaw,tableYaw,T.MathUtils.smootherstep(leadProgress,.86,1));
   }
-  camera.position.copy(eye);camera.lookAt(focus);camera.rotateY(yaw);camera.rotateX(pitch);camera.updateMatrixWorld();
+  camera.position.copy(eye);
+  const dx=focus.x-eye.x,dy=focus.y-eye.y,dz=focus.z-eye.z;
+  const elevation=Math.atan2(dy,Math.hypot(dx,dz));
+  camera.rotation.set(T.MathUtils.clamp(elevation+pitch,-1.43,1.32),Math.atan2(-dx,-dz)+yaw,0,'YXZ');
+  camera.updateMatrixWorld();
   sky.intensity=view.weather==='rain'?1.16:1.75;
   water.visible=!!view.water;sticks.forEach(stick=>stick.visible=!!view.utensils);
   const items=state.items.filter(i=>i.status==='served'||(pose==='place'&&beat.orderItemId===i.id)).slice(view.tablePage*6,view.tablePage*6+6);

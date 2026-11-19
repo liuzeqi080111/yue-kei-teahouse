@@ -58,7 +58,7 @@ export async function loadStreet(canvas) {
  scene.add(env.model);
  const kitchen=new T.Group();
  kitchen.position.set(-15.72,0,8.8);kitchen.rotation.y=Math.PI/2;
- furnishKitchen(kitchen);scene.add(kitchen);
+ furnishKitchen(kitchen,env.model);scene.add(kitchen);
  const rack=new T.Group();
  const wear=env.model.getObjectByName('clothesclothes')||env.model.children.find(o=>o.name.includes('clothes'));
  wear?.traverse(mesh=>{

@@ -19,8 +19,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   await route.fulfill({json:{decision:'execute',intents,reply:'测试提案，不能代替业务执行结果。',meaning:'测试提案'}});
  });
  const type=async text=>{
-  if(!await page.locator('.voice-text').isVisible()){await page.locator('[data-hud="more"]').click();await page.locator('[data-hud="type"]').click();}
-  await page.locator('.voice-text').fill(text);await page.locator('.voice-send').click();
+  // Inject deterministic recognized text at the existing submission boundary.
+  await page.evaluate(value=>{const field=document.querySelector('.voice-text');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.voice-send').click();},text);
  };
  const fallback=async()=>{
   if(!await page.locator('#hud-help').isVisible())await page.locator('[data-hud="help"]').click();
@@ -47,9 +47,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   await type('就这些，正式下单');await page.waitForFunction(()=>document.querySelector('#scene-hint').textContent.includes('正在服务'));
   await page.waitForFunction(()=>!document.querySelector('#scene-hint').textContent.includes('正在服务'),{timeout:25000});
   assert.equal(requests.at(-1).context.state.items.length,2);
-  await page.locator('.voice-text-close').click();
-  await page.locator('[data-hud="more"]').click();await page.locator('[data-explore="window"]').click();await page.waitForTimeout(600);assert.equal(await page.locator('#explore-note').isVisible(),true);
-  await page.locator('.hud-return').click();await page.locator('[data-hud-camera="table"]').click();
+  await page.locator('[data-hud="more"]').click();
+  assert.deepEqual(await page.locator('.hud-more-grid button').allTextContents(),['教我怎么说','粤语拼音','重放']);
+  await page.locator('[data-hud="original"]').click();assert.ok(await page.locator('.hud-original').isVisible());
+  await page.locator('[data-hud="close-more"]').click();await page.locator('[data-hud-camera="table"]').click();
   const itemIds=await page.locator('.table-inventory [data-dining-select]').evaluateAll(items=>items.map(el=>el.dataset.diningSelect));assert.equal(itemIds.length,2);
   for(const [index,id] of itemIds.entries()){
    if(index===1)await page.setViewportSize({width:390,height:844});
@@ -63,27 +64,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   await page.setViewportSize({width:1366,height:768});
   await page.locator('[data-hud-camera="room"]').click();await fallback();await page.locator('#actions [data-action="REQUEST_BILL"]').click();
   await page.locator('#panel [data-action="PAY_BILL"]').waitFor();assert.match(await page.locator('.total').innerText(),/40\.00/);
-  await page.locator('#panel [data-action="PAY_BILL"]').click();await page.locator('#ending').waitFor();
-  assert.match(await page.locator('#summary').innerText(),/柠茶已喝完/);assert.match(await page.locator('#summary').innerText(),/菠萝油已吃完/);
-  assert.doesNotMatch(await page.locator('#round-review').innerText(),/发音.*\d+分|声调.*\d+分/);
-  for(const [width,height] of [[1366,768],[1920,1080],[320,568],[390,844],[430,932],[844,390]]){
-   await page.setViewportSize({width,height});
-   for(const size of ['standard','large','xlarge']){
-    await page.evaluate(size=>{document.body.dataset.fontSize=size;},size);
-    const bounds=await page.locator('#ending').boundingBox();
-    assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=width&&bounds.y+bounds.height<=height,'receipt fits viewport');
-    assert.ok(await page.locator('#ending').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'receipt has no horizontal overflow');
-    assert.ok(await page.locator('#summary').evaluate(e=>parseFloat(getComputedStyle(e).fontSize)>=18),'receipt body remains readable');
-    await page.locator('#ending [data-open-review]').scrollIntoViewIfNeeded();
-   }
-  }
-  await page.setViewportSize({width:1366,height:768});await page.evaluate(()=>{document.body.dataset.fontSize='standard';});
-  await fs.mkdir('output/ux3',{recursive:true});await page.screenshot({path:'output/ux3/journey-receipt.png'});
-  await page.locator('#ending [data-open-review]').click();await page.locator('[data-challenge-next]').click();await page.locator('[data-challenge-next]').click();
-  await page.locator('#review-dialog [data-dismiss]').click();await page.locator('#ending [data-action="RESTART"]').click();assert.equal(await page.locator('#welcome').isVisible(),true);
+  await page.locator('#panel [data-action="PAY_BILL"]').click();await page.locator('#welcome').waitFor();
+  assert.equal(await page.locator('#ending').count(),0);
+  await fs.mkdir('output/ux3',{recursive:true});
   assert.deepEqual(errors,[]);
   await fs.writeFile('output/ux3/journey.json',JSON.stringify({type:'deterministic-interpretation-fixture-real-UI-queue-and-business',requests:requests.map(r=>({text:r.text,phase:r.context.state.phase,items:r.context.state.items.length})),passed:true},null,2));
-  console.log('PASS complete UI journey: teaching isolation, two-person seating, merged service correction, one correct drink, food, window, consumption, HK$40 payment, factual recap, two review skips, restart.');
+  console.log('PASS complete UI journey: teaching isolation, two-person seating, merged service correction, one correct drink, food, three dialogue aids, consumption, HK$40 payment and direct chapter exit.');
  }catch(error){await fs.mkdir('output/ux3',{recursive:true});await page.screenshot({path:'output/ux3/journey-failure.png'});await fs.writeFile('output/ux3/journey-failure.json',JSON.stringify({requests,caption:await page.locator('.hud-subtitle').textContent(),status:await page.locator('.voice-status').textContent()},null,2));throw error;
  }finally{await browser.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

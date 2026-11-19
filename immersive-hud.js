@@ -19,10 +19,8 @@ export function createImmersiveHud({game,guide,voice,preview}){
  </section>
  <section class="hud-card hud-more" id="hud-more" aria-label="更多对话方式" hidden>
   <header><strong>更多对话方式</strong><button type="button" data-hud="close-more" aria-label="关闭更多选项">×</button></header>
-  <div class="hud-more-grid"><button data-explore="window">望向窗边</button><button data-explore="cashier">望向收银处</button><button type="button" data-hud="type">文字输入</button><button type="button" data-hud="transcript" aria-pressed="false">识别文字</button><button type="button" data-hud="original" aria-pressed="false">粤语原句与粤拼</button><button type="button" data-hud="previous" aria-pressed="false">查看上一句</button><button type="button" data-hud="replay">重播</button><button type="button" data-hud="slow">慢速重听</button><button type="button" data-hud="mute" aria-pressed="false">静音</button><button type="button" data-hud="devices">检查麦克风</button><button type="button" data-hud="history" aria-expanded="false">对话记录</button></div>
-  <div class="hud-original" hidden></div><div class="hud-history" aria-label="本局对话记录" hidden></div>
-  <div class="hud-font-setting" role="group" aria-label="字幕和界面字号"><span>字号</span><button type="button" data-font-size="standard" aria-pressed="true">标准</button><button type="button" data-font-size="large" aria-pressed="false">大号</button><button type="button" data-font-size="xlarge" aria-pressed="false">特大</button></div>
-  <label class="hud-auto-setting"><input type="checkbox" id="hud-auto-hint" checked> 等待回应时提醒我求助</label><p class="hud-static-note" hidden>当前版本未开放在线语音，可以使用帮助里的情境选项继续。</p>
+  <div class="hud-more-grid"><button type="button" data-hud="teach">教我怎么说</button><button type="button" data-hud="original" aria-pressed="false">粤语拼音</button><button type="button" data-hud="replay">重放</button></div>
+  <div class="hud-original" aria-live="polite" hidden></div>
  </section>
  <button type="button" id="hud-intro" hidden>点麦克风说话；需要帮助点这里或按 H</button>
  <button type="button" id="hud-idle-hint" hidden>不知道怎么说？</button>
@@ -36,10 +34,10 @@ export function createImmersiveHud({game,guide,voice,preview}){
  dockObserver.observe($('.hud-bottom'));
  let snapshot=game.snapshot(),kind='goal',pinned=false,turnKey='',offered=false,lastActivity=performance.now();
  let auto=true,fontSize='standard',introSeen=true,destroyed=false,voiceError=false,errorTurn='',hintTimer=0,introTimer=0;
- let currentNpc=null,previousNpc=null,viewingPrevious=false,subtitleExpanded=false,history=[];
+ let currentNpc=null,subtitleExpanded=false,moreDetail=null;
  const activity=new Map();
  try{auto=localStorage.getItem('yuekei-auto-hint')!=='off';fontSize=localStorage.getItem('yuekei-font-size')||'standard';introSeen=localStorage.getItem('yuekei-hud-intro-seen')==='1';}catch{}
- $('#hud-auto-hint').checked=auto;
+
  const write=(el,text)=>{if(el.textContent!==text)el.textContent=text;};
  const activeAudio=()=>[...activity.values()].some(Boolean);
  const isNpcLine=line=>Boolean(line?.[0]?.startsWith('阿明')&&line?.[1]);
@@ -71,7 +69,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
   $('[data-hud="help"]').setAttribute('aria-expanded',String(value));
  }
  function showMore(value){
-  if(value){closeHelp(true);hideIdle();hideIntro();more.hidden=false;renderMore();}
+  if(value){closeHelp(true);hideIdle();hideIntro();more.hidden=false;moreDetail=null;renderCaption();}
   else more.hidden=true;
   $('[data-hud="more"]').setAttribute('aria-expanded',String(value));
  }
@@ -84,7 +82,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
   content.replaceChildren();controls.replaceChildren();document.body.dataset.helpGoal=String(!card.hidden&&kind==='goal');
   const line=(text,cls,lang)=>{if(!text)return null;const p=document.createElement('p');p.textContent=text;if(cls)p.className=cls;if(lang)p.lang=lang;content.append(p);return p;};
   if(kind==='meaning'){
-   const npc=currentNpc||previousNpc;
+   const npc=currentNpc;
    if(npc){line(npc.text,'hud-example','yue');line(npc.jyutping?'粤拼：'+npc.jyutping:'','hud-jyutping');line('普通话：'+systemText(npc.meaning||'这句话暂时没有释义。'));}
    else line('阿明还没有说话。等他先说一句，再来查看解释。');
    controls.append(makeButton('重播阿明原句',{hud:'npc-replay'},{disabled:!npc||(!voice&&!preview)}),makeButton('让阿明慢点说',{hud:'npc-slow'},{disabled:!npc||!voice}));
@@ -98,7 +96,6 @@ export function createImmersiveHud({game,guide,voice,preview}){
   root.querySelectorAll('[data-help]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.help===kind)));
  }
  function shownLine(){
-  if(viewingPrevious&&previousNpc)return previousNpc;
   const line=snapshot.view.line||[];
   return {speaker:line[0]||'',text:line[1]||'',jyutping:line[2]||'',meaning:line[3]||''};
  }
@@ -106,16 +103,19 @@ export function createImmersiveHud({game,guide,voice,preview}){
   const line=shownLine(),explore=exploring(),panel=readingPanel();
   let caption=line.meaning?systemText(line.meaning):line.speaker?.startsWith('阿明')?'这句话暂时没有普通话释义，可在“更多”中查看粤语原句。':systemText(line.text||'');
   if(!caption&&waitingForReply())caption='阿明正在等你回应。';
-  write($('.hud-speaker'),viewingPrevious?'阿明 · 上一句':line.speaker?.startsWith('阿明')?'阿明 · 服务员':'');
+  write($('.hud-speaker'),line.speaker?.startsWith('阿明')?'阿明 · 服务员':'');
   write($('.hud-subtitle'),caption);write($('.hud-notice'),document.querySelector('#notice')?.textContent||'');
   $('.hud-caption').hidden=explore||panel||!caption;
   const long=caption.length>64,toggle=$('[data-hud="subtitle"]');toggle.hidden=!long;toggle.textContent=subtitleExpanded?'收起字幕':'展开完整字幕';
   toggle.setAttribute('aria-expanded',String(subtitleExpanded));$('.hud-caption').dataset.long=String(long);$('.hud-caption').classList.toggle('expanded',subtitleExpanded);
   $('.hud-subtitle').tabIndex=long&&subtitleExpanded?0:-1;
-  write($('.hud-original'),[line.text,line.jyutping].filter(Boolean).join('\n'));
-  const previous=$('[data-hud="previous"]');previous.disabled=!previousNpc;previous.textContent=viewingPrevious?'返回当前句':'查看上一句';previous.setAttribute('aria-pressed',String(viewingPrevious));
-  const audio=viewingPrevious?previousNpc:currentNpc;
-  $('[data-hud="replay"]').disabled=!audio||(!voice&&!preview);$('[data-hud="slow"]').disabled=!audio||!voice;
+  const practice=guide.getPractice();
+  const detail=$('.hud-original');
+  detail.hidden=!moreDetail;
+  if(moreDetail==='teach')write(detail,[practice.example,practice.meaning].filter(Boolean).join('\n'));
+  if(moreDetail==='original')write(detail,line.jyutping?[line.text,line.jyutping].join('\n'):['本步示范',practice.example,practice.jyutping].filter(Boolean).join('\n'));
+  for(const key of ['teach','original'])root.querySelector('[data-hud="'+key+'"]').setAttribute('aria-pressed',String(moreDetail===key));
+  $('[data-hud="replay"]').disabled=!currentNpc||(!voice&&!preview);
  }
  function renderDirect(){
   const {state,view}=snapshot,box=$('.hud-direct'),buttons=$('.hud-direct-actions');
@@ -126,18 +126,6 @@ export function createImmersiveHud({game,guide,voice,preview}){
 
   if(review)buttons.append(makeButton('继续选餐',{action:'CONTINUE_ORDER'}),makeButton('就这些，下单',{action:'FINISH_ORDER'}));
   if(greeting)buttons.append(makeButton('教我回答',{hud:'first-answer'}),makeButton('一位',{action:'START_SEATING'}),makeButton('两位',{action:'START_SEATING',partySize:'2'}));
- }
- function renderHistory(){
-  const box=$('.hud-history');box.replaceChildren();
-  if(!history.length){const empty=document.createElement('p');empty.textContent='本局还没有对话。';box.append(empty);return;}
-  for(const item of history){const p=document.createElement('p'),strong=document.createElement('strong');strong.textContent=item.speaker+'：';p.append(strong,document.createTextNode(item.text));box.append(p);}
-  box.scrollTop=box.scrollHeight;
- }
- function renderMore(){
-  const type=$('[data-hud="type"]'),transcript=$('[data-hud="transcript"]'),mute=$('[data-hud="mute"]'),devices=$('[data-hud="devices"]');
-  type.disabled=!voice;transcript.disabled=!voice;mute.disabled=!voice;devices.disabled=!voice;$('.hud-static-note').hidden=Boolean(voice);
-  transcript.setAttribute('aria-pressed',String(Boolean(voice?.transcriptEnabled)));mute.setAttribute('aria-pressed',String(Boolean(voice?.muted)));mute.textContent=voice?.muted?'取消静音':'静音';
-  renderCaption();if(!$('.hud-history').hidden)renderHistory();
  }
  function hintBlocked(){
   return destroyed||document.hidden||root.hidden||!waitingForReply()||snapshot.view.busy||activeAudio()||!card.hidden||!more.hidden||document.querySelector('dialog[open]')||exploring()||readingPanel()||voice?.textMode||voiceError||(errorTurn&&errorTurn===turnKey);
@@ -164,7 +152,6 @@ export function createImmersiveHud({game,guide,voice,preview}){
   root.hidden=!active;$('.hud-return').hidden=!exploring();root.dataset.exploring=String(exploring());root.dataset.panel=String(readingPanel());root.dataset.voiceError=String(voiceError);document.body.dataset.immersive='true';
   const viewControls=$('.hud-view-controls'),canLook=[P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
   $('[data-action="CALL_WAITER"]').hidden=!canLook||state.waiterPresent||view.busy||readingPanel()||exploring()||state.isPaid;
-  root.querySelectorAll('[data-explore]').forEach(button=>button.hidden=!canLook||view.camera!=='room'||view.busy||state.isPaid);
   viewControls.hidden=!canLook||exploring();
   root.querySelectorAll('[data-hud-camera]').forEach(button=>{
    const camera=button.dataset.hudCamera;
@@ -173,7 +160,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
    button.setAttribute('aria-pressed',String(view.camera===camera));
   });
   if(previousRound!==state.round){
-   turnKey='';offered=false;errorTurn='';voiceError=false;currentNpc=null;previousNpc=null;history=[];viewingPrevious=false;subtitleExpanded=false;pinned=false;
+   turnKey='';offered=false;errorTurn='';voiceError=false;currentNpc=null;moreDetail=null;subtitleExpanded=false;pinned=false;
    clearHint();hideIdle();hideIntro();closeHelp(true);showMore(false);voice?.setTextMode(false);
   }
   if(exploring())showMore(false);
@@ -182,9 +169,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
   if(isNpcLine(line)){
    const key=JSON.stringify([state.round,line[0],line[1]]);
    if(currentNpc?.key!==key){
-    if(currentNpc&&currentNpc.round===state.round)previousNpc=currentNpc;
     currentNpc={key,round:state.round,speaker:line[0],text:line[1],jyutping:line[2]||'',meaning:line[3]||''};
-    history.push({speaker:'阿明',text:line[3]?systemText(line[3]):line[1]});if(history.length>30)history=history.slice(-30);viewingPrevious=false;subtitleExpanded=false;
    }
    const nextTurn=JSON.stringify([state.round,state.phase,line[1]]);
    if(nextTurn!==turnKey){
@@ -212,20 +197,14 @@ export function createImmersiveHud({game,guide,voice,preview}){
    case 'more':showMore(more.hidden);break;
    case 'close-more':showMore(false);$('[data-hud="more"]').focus({preventScroll:true});scheduleHint();break;
    case 'first-answer':kind='expression';guide.noteHint('full');showHelp(true,true);renderDirect();break;
-   case 'type':if(readingPanel())game.camera('room');voice?.setTextMode(true);showMore(false);scheduleHint();break;
-   case 'transcript':voice?.toggleTranscript();renderMore();break;
-   case 'original':{const original=$('.hud-original');original.hidden=!original.hidden;button.setAttribute('aria-pressed',String(!original.hidden));break;}
-   case 'previous':viewingPrevious=!viewingPrevious&&Boolean(previousNpc);subtitleExpanded=false;renderCaption();break;
-   case 'replay':playLine(shownLine().text,1);break;
-   case 'slow':playLine(shownLine().text,.72);break;
-   case 'mute':voice?.toggleMute();renderMore();break;
-   case 'devices':voice?.showDevices();showMore(false);break;
-   case 'history':{const box=$('.hud-history');box.hidden=!box.hidden;button.setAttribute('aria-expanded',String(!box.hidden));if(!box.hidden)renderHistory();break;}
+   case 'teach':
+   case 'original':moreDetail=moreDetail===button.dataset.hud?null:button.dataset.hud;if(moreDetail==='teach')guide.noteHint('full');renderCaption();break;
+   case 'replay':playLine(currentNpc?.text,1);break;
    case 'subtitle':subtitleExpanded=!subtitleExpanded;renderCaption();break;
    case 'listen':guide.noteHint('audio');playLine(guide.getPractice().example,1);break;
    case 'listen-slow':guide.noteHint('audio');playLine(guide.getPractice().example,.72);break;
-   case 'npc-replay':playLine((currentNpc||previousNpc)?.text,1);break;
-   case 'npc-slow':playLine((currentNpc||previousNpc)?.text,.72);break;
+   case 'npc-replay':playLine((currentNpc)?.text,1);break;
+   case 'npc-slow':playLine((currentNpc)?.text,.72);break;
   }
   renderDirect();
  }
@@ -250,19 +229,15 @@ export function createImmersiveHud({game,guide,voice,preview}){
   if(voiceError){errorTurn=turnKey;hideIdle();hideIntro();clearHint();}
   scheduleHint();
  }
- function onPlayerMessage(event){
-  const text=String(event.detail?.text||'').trim();if(!text)return;history.push({speaker:'你',text});if(history.length>30)history=history.slice(-30);if(!$('.hud-history').hidden)renderHistory();
- }
  function onVisibility(){lastActivity=performance.now();if(document.hidden){clearHint();hideIdle();hideIntro();}else scheduleHint();}
- function onAutoChange(event){auto=event.target.checked;hideIdle();lastActivity=performance.now();try{localStorage.setItem('yuekei-auto-hint',auto?'on':'off');}catch{}scheduleHint();}
  function destroy(){
   if(destroyed)return;destroyed=true;clearHint();hideIntro();
   root.removeEventListener('click',onRootClick);document.removeEventListener('keydown',onKeydown);document.removeEventListener('pointerdown',interacted);document.removeEventListener('keydown',interacted);
-  dockObserver.disconnect();document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('voice-activity',onVoiceActivity);window.removeEventListener('voice-status',onVoiceStatus);window.removeEventListener('voice-player-message',onPlayerMessage);
-  $('#hud-auto-hint').removeEventListener('change',onAutoChange);window.removeEventListener('pagehide',destroy);
+  dockObserver.disconnect();document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('voice-activity',onVoiceActivity);window.removeEventListener('voice-status',onVoiceStatus);
+  window.removeEventListener('pagehide',destroy);
  }
  root.addEventListener('click',onRootClick);document.addEventListener('keydown',onKeydown);document.addEventListener('pointerdown',interacted,{passive:true});document.addEventListener('keydown',interacted);
- document.addEventListener('visibilitychange',onVisibility);window.addEventListener('voice-activity',onVoiceActivity);window.addEventListener('voice-status',onVoiceStatus);window.addEventListener('voice-player-message',onPlayerMessage);
- $('#hud-auto-hint').addEventListener('change',onAutoChange);window.addEventListener('pagehide',destroy,{once:true});
+ document.addEventListener('visibilitychange',onVisibility);window.addEventListener('voice-activity',onVoiceActivity);window.addEventListener('voice-status',onVoiceStatus);
+ window.addEventListener('pagehide',destroy,{once:true});
  return {sync,setFontSize,openHelp(){showHelp(true,true);},destroy};
 }
