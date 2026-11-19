@@ -245,7 +245,7 @@ body.inside-3d .menu-row {grid-template-columns:minmax(0,1fr) auto auto}
 body.inside-3d .table-inventory {pointer-events:none}
 body.inside-3d .table-inventory button {pointer-events:auto}
 @media(max-width:600px),(max-height:500px) {
- body.inside-3d #table-labels:has(.table-inventory):not(:has(.dining-detail)) {top:3.4rem;left:.35rem;bottom:auto}
- body.inside-3d .table-inventory {display:flex;flex-wrap:wrap;gap:2px}
- body.inside-3d .table-inventory .dining-text-entry {font-size:10px;min-height:24px;padding:2px 5px}
+ body.inside-3d #game #table-labels {inset:0}
+ body.inside-3d #game #table-labels .table-inventory {position:absolute;left:4px;top:4px;right:98px;max-width:none;display:flex;flex-direction:row;flex-wrap:wrap;gap:2px;padding:2px;pointer-events:none;background:transparent}
+ body.inside-3d #game #table-labels .table-inventory button {background:#183b31d9;width:auto;min-height:22px;font-size:10px;padding:2px 5px}
 }
