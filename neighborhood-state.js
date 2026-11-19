@@ -153,7 +153,7 @@ export function optionsFor(s,npc){
     firstPerson?'周叔話件褸有啲窄。佢就喺門口左手邊，行過去問吓佢。':'周叔話件褸有啲窄，佢出去坐陣，你去長櫈嗰邊睇吓。',
     firstPerson?'周叔说外套偏紧。他就在粤记门口另一侧，可以当面问。':'周叔说外套有点紧，出去坐了，你到长椅那边看看。',
     d=>{flag(d,'guest-found');note(d,firstPerson?'阿明说周叔就在粤记门口另一侧。':'阿明说周叔在街边长椅附近。');});
-   if(!f('stall-ming'))add('stall-ming','门口怎么回事？','個衫架擋住出入，捧住熱嘢都唔知點行。','衣架挡住出入，端着热东西都不知道怎么走。',d=>{flag(d,'stall-ming');note(d,'阿明在意通道安全，希望门口留出空间。');});
+   if(!f('stall-ming'))add('stall-ming','门口怎么回事？',firstPerson?'玲姐個衫架擋住出入。你得閒，去夜市衣檔問吓佢。':'個衫架擋住出入，捧住熱嘢都唔知點行。',firstPerson?'玲姐的衣架挡住了出入。你有空的话，可以去夜市衣摊听听她怎么说。':'衣架挡住出入，端着热东西都不知道怎么走。',d=>{flag(d,'stall-ming');note(d,'阿明在意通道安全，希望门口留出空间。');});
    if(!s.stallOutcome)add('stall-observe','观察一下门口通道','衫架佔咗大半條路，捧住熱嘢真係難行。','衣架占了大半条路，端着热食确实难走。',d=>{flag(d,'stall-observed');note(d,'通道被衣架占去大半，端热食经过危险。');});
    const proposal=f('stall-propose-compact')?'compact':f('stall-propose-move')?'move':f('stall-propose-hours')?'hours':null;
     if(proposal&&!s.stallOutcome)add('stall-agree','向阿明转达玲姐的方案，请他同意','得，咁樣行得通，通道留返出嚟。','行，这样行得通，通道留出来了。我已向阿明转达方案，他同意了。',d=>{flag(d,'stall-ming-agreed');note(d,'已向阿明转达玲姐的方案，他同意了；还要回玲姐那边落实。');});
@@ -177,8 +177,8 @@ export function optionsFor(s,npc){
    if(!firstPerson&&s.money>=8000)add('coat-buy','买一件应急外套 · HK$80','呢件八十蚊，試啱就攞去啦。','这件八十元，合适就拿去。',d=>{d.money-=8000;give(d,'newCoat');});
   }
     if(has('loanCoat')&&!f('loan-returned'))add('loan-returned','归还玲姐借出的外套','有借有還，下次有事再搵我。','有借有还，下次有事再找我。',d=>{take(d,'loanCoat');flag(d,'loan-returned');note(d,'已把借用的外套还给玲姐。');});
-  if(!f('stall-ling'))add('stall-ling','为什么把衣架放这里？','縮入去冇人睇到，但我都唔想阻住人。','缩进去没人看见，但我也不想挡路。',d=>{flag(d,'stall-ling');note(d,'玲姐担心挪摊后没人看见，也愿意讨论办法。');});
-    if(f('stall-ming')&&f('stall-ling')&&f('stall-observed')&&!s.stallOutcome)for(const [id,label,text] of [['compact','缩小陈列，留出通道','我收起外面個架，留條路畀大家。'],['move','把衣架移到摊位侧边','咁我移去側邊，招牌留喺前面。'],['hours','约定饭点收起衣架','食飯最忙嗰陣我收起，大家就唔使爭。']])add('stall-propose-'+id,label,text,'好，就照这个方式调整；还要问过阿明先算数。',d=>{d.flags=d.flags.filter(x=>!x.startsWith('stall-propose-')&&x!=='stall-ming-agreed');flag(d,'stall-propose-'+id);note(d,'已与玲姐商定方案（'+label+'），还需阿明同意并由玩家回玲姐处落实。');});
+  if(!f('stall-ling'))add('stall-ling',firstPerson?'粤记门口的衣架为什么放那儿？':'为什么把衣架放这里？','縮入去冇人睇到，但我都唔想阻住人。','缩进去没人看见，但我也不想挡路。',d=>{flag(d,'stall-ling');note(d,'玲姐担心挪摊后没人看见，也愿意讨论办法。');});
+    if(f('stall-ming')&&f('stall-ling')&&f('stall-observed')&&!s.stallOutcome)for(const [id,label,text] of [['compact','缩小陈列，留出通道','我收起外面個架，留條路畀大家。'],['move','把衣架移到摊位侧边','咁我移去側邊，招牌留喺前面。'],['hours','约定上午和入夜收起衣架','朝早同入夜食飯最忙，我嗰陣收起個架。']])add('stall-propose-'+id,label,text,'好，就照这个方式调整；还要问过阿明先算数。',d=>{d.flags=d.flags.filter(x=>!x.startsWith('stall-propose-')&&x!=='stall-ming-agreed');flag(d,'stall-propose-'+id);note(d,'已与玲姐商定方案（'+label+'），还需阿明同意并由玩家回玲姐处落实。');});
    if(f('stall-ming-agreed')&&!s.stallOutcome){const plan=f('stall-propose-compact')?'compact':f('stall-propose-move')?'move':'hours';add('stall-finalize','告诉玲姐：阿明同意了，按方案落实','阿明都同意？咁我依家調整，通道留返出嚟。','阿明也同意？那我现在调整，通道留出来了。',d=>{d.stallOutcome=plan;note(d,'已向玲姐转达阿明的同意，门口通道方案落实。');});}
    if(s.stallOutcome){
     const waiting=s.stallOutcome==='hours'&&rackStatus(s).blocked;

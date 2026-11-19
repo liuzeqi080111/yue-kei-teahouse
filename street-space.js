@@ -1,8 +1,22 @@
+import { rackStatus } from './neighborhood-state.js';
+
 export const HOME = { x: 12.22, z: 8.94, heading: 1.56 };
 export const COUNTER = { x: 16.70, z: -0.45 };
 export const LAUNDRY_DOOR = { x: 13.86, z: -0.50 };
 export const RESTAURANT = { x: -13.56, z: 9.22, heading: -1.48 };
 export const REST = { x: 13.45, z: -12.9 };
+
+const ORIGINAL_RACK={x:-13.20,z:7.18,length:2.25};
+export function rackLayout(world){
+ const status=rackStatus(world);
+ if(status.placement==='compact')return {...ORIGINAL_RACK,x:-13.72,length:1,visible:true};
+ if(status.placement==='move')return {x:-13.32,z:4.90,length:1.85,visible:true};
+ return {...ORIGINAL_RACK,visible:status.blocked};
+}
+
+export function rackBlocks(rack,point){
+ return rack.visible&&Math.abs(point.x-rack.x)<.43&&Math.abs(point.z-rack.z)<rack.length/2+.19;
+}
 
 export const ACTORS = Object.freeze({
  qing: { model:'aqing', point:HOME, zone:[11.65,13.20,7.60,9.81] },

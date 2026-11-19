@@ -1,4 +1,4 @@
-import { ACTORS, HOME, COUNTER, LAUNDRY_DOOR, REST, RESTAURANT, createStreetNav, distance, within } from './street-space.js';
+import { ACTORS, HOME, COUNTER, LAUNDRY_DOOR, REST, RESTAURANT, createStreetNav, distance, within, rackLayout, rackBlocks } from './street-space.js';
 import { atFangCounter, createFangCounter } from './street-fang.js';
 import { loadStreet } from './street-render.js';
 import { createFp1Travel } from './fp1-travel.js';
@@ -20,7 +20,7 @@ const GREETINGS={
  ling:['揀件褸？啱身先好攞呀。','挑外套？合身再拿。'],
 };
 const LABELS=['上午','午后','入夜'];
-const rackArea={x:-13.20,z:7.18,length:2.25};
+const POINTS=['北','东北','东','东南','南','西南','西','西北'];
 const pointOf=model=>({x:model.position.x,z:model.position.z});
 const angle=(from,to)=>Math.atan2(to.x-from.x,from.z-to.z);
 const deltaAngle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
@@ -28,13 +28,6 @@ const canon=entryPosition('home');
 const QING_AT_MARKET={x:-14.57,z:-9.42};
 const QING_MARKET_ZONE=[-14.42,-12.98,-9.88,-8.18];
 const keymap={KeyW:[1,0],KeyS:[-1,0],KeyA:[0,-1],KeyD:[0,1],ArrowUp:[1,0],ArrowDown:[-1,0],ArrowLeft:[0,0,-1],ArrowRight:[0,0,1]};
-
-function rackLayout(world){
- const status=rackStatus(world);
- if(status.placement==='compact')return {...rackArea,x:-13.63,length:1.00,visible:true};
- if(status.placement==='move')return {...rackArea,x:-14.20,z:5.24,visible:true};
- return {...rackArea,visible:status.blocked};
-}
 
 export function createStreetGame({getState,onAction,onRest,onLocation,onView,onHome,onHistoryChange,getStorageStatus,onTransition,onEnterRestaurant}){
  const host=document.createElement('section');
@@ -89,6 +82,12 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function actionList(npc){
   if(npc==='intro')return [{id:'go-out',label:'出门'}];
   const legal=optionsFor(getState(),npc);
+  if(npc==='fang'){
+   const check=legal.find(option=>option.id==='shop-check');
+   if(check)return [check];
+   const plans=legal.filter(option=>option.id.startsWith('coat-route-'));
+   if(plans.length)return plans;
+  }
   if(npc==='qing'&&!worldFlag('coat-start'))return [
    {...legal.find(o=>o.id==='coat-start'),label:'答应，陪她去洗衣店'},
    {id:'defer',label:'稍后再来'},
@@ -146,12 +145,24 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  }
  function goal(){
   const world=getState();
-  if(!worldFlag('coat-start'))return '在安和楼梯口听阿晴说外套的事';
+  const localGoal=()=>{
+   if(worldFlag('record-start')&&!world.recordOutcome){
+    if(has('contact'))return '回榕荫小坐，告诉林伯旧友的消息';
+    return '去夜市唱片摊问阿乐旧唱片的来历';
+   }
+   if(worldFlag('stall-ming')&&!world.stallOutcome){
+    if(worldFlag('stall-ming-agreed'))return '去衣摊把阿明的答复转告玲姐';
+    if(world.flags.some(flag=>flag.startsWith('stall-propose-')))return '回粤记门口问阿明愿不愿意按方案调整';
+    if(worldFlag('stall-observed'))return '去夜市衣摊，听听玲姐怎么说';
+   }
+   return null;
+  };
+  if(!worldFlag('coat-start'))return localGoal()||'在安和楼梯口听阿晴说外套的事';
   if(!worldFlag('shop-check'))return atFangCounter(current)?'与芳姐交谈，亲手递上取件单':'去芳姐洗衣店，从侧门走到柜台';
   if(!route()&&!world.coatOutcome)return '向芳姐选定处理外套的下一步';
   if(has('coat'))return '把找回的原衣交给阿晴';
   if(worldFlag('qing-wore-loan')&&!worldFlag('loan-returned'))return worldFlag('qing-returned')?'取回借衣，还给夜市衣摊的玲姐':'阿晴在面试。可到树下等她回来';
-  if(world.coatOutcome){return worldFlag('coat-misunderstanding')?'阿晴解决了面试用衣，洗衣店的误会还没说清':'自由逛街，看看街坊还有什么事';}
+  if(world.coatOutcome){return worldFlag('coat-misunderstanding')?'阿晴解决了面试用衣，洗衣店的误会还没说清':localGoal()||'自由逛街，看看街坊还有什么事';}
   if(has('newCoat')&&worldFlag('qing-paid-coat'))return '在衣摊确认阿晴穿新衣去面试';
   if(has('loanCoat')||has('newCoat'))return route()==='buy'?'把应急外套交给衣摊旁的阿晴':'把应急外套带给安和楼旁的阿晴';
   if(route()==='borrow')return '到夜市衣摊找玲姐借外套';
@@ -162,7 +173,8 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function drawHud(){
   setText('#street-goal',goal());
   const w=getState();
-  setText('#street-clock','第 '+w.day+' 天 · '+LABELS[w.period]+' · HK$'+(w.money/100).toFixed(2));
+  const direction=POINTS[(Math.round(current.heading/(Math.PI/4))%8+8)%8];
+  setText('#street-clock','第 '+w.day+' 天 · '+LABELS[w.period]+' · HK$'+(w.money/100).toFixed(2)+' · 朝'+direction);
   const key=JSON.stringify([w.period,rackStatus(w).placement,rackStatus(w).blocked,qingStatus(w).presence,route()]);
   if(scene&&key!==styleKey){
    styleKey=key;scene.illuminate(w.period===2);scene.placeRack(rackLayout(w));
@@ -230,7 +242,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  }
  function openDialogue(npc){
   if(talking)return false;
-  keys.clear();travel.pause();talking=npc;dirty=true;tray.hidden=true;
+  keys.clear();travel.pause();talking=npc;dirty=true;tray.hidden=true;publish('');
   host.dataset.conversation='true';dialogue.hidden=false;
   for(const detail of dialogue.querySelectorAll('details'))detail.open=false;
   for(const selector of ['#street-mic','#street-write','#street-help'])$(selector).hidden=npc==='intro';
@@ -256,7 +268,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(!actionList(npc).some(o=>o.id===id))return {ok:false,message:'现在还不能这样做。'};
   const result=id==='shop-check'&&npc==='fang'?counter.handTicket():onAction(npc,id);
   if(result.ok){
-   if(!fromVoice)setLine(result.text,result.meaning,true);
+   if(!fromVoice){setText('#street-voice-state','');setLine(result.text,result.meaning,true);}
    if(id==='stall-observe')pendingLook={heading:angle(current,rackLayout(getState())),pitch:-.19};
    if(id==='shop-check'){
     const paper=document.createElement('span');paper.className='street-ticket';
@@ -414,7 +426,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    scene=value;
    nav=createStreetNav(scene.layout,point=>{
     const rack=rackLayout(getState());
-    return rack.visible&&Math.abs(point.x-rack.x)<.43&&Math.abs(point.z-rack.z)<rack.length/2+.19;
+    return rackBlocks(rack,point)||route()==='buy'&&!getState().coatOutcome&&distance(point,QING_AT_MARKET)<.36;
    });
    return value;
   }).catch(error=>{loading=null;throw error;});
