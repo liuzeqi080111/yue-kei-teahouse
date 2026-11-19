@@ -8,6 +8,38 @@
   <div class="scene-top"><span id="location" tabindex="-1">街邊 · 粵記門外</span><span id="stage">01 / 抵達</span></div>
   <div id="shop-sign">粵記茶餐廳<small>YUE KEI TEA RESTAURANT</small></div>
   <div id="welcome" class="landing-stage">
+   <template id="vinyl-template">
+    <div class="vinyl-frame">
+     <svg viewBox="0 0 1672 941" aria-hidden="true">
+      <defs>
+       <image id="cover-photo" href="./assets/vinyl-title.png" width="1672" height="941"/>
+       <clipPath id="exposed-vinyl"><path d="M925 0 L1672 0 1672 941 1096 941Z"/></clipPath>
+       <clipPath id="paper-gap"><path d="M920 0 L1095 941 H700 V0Z"/></clipPath>
+       <clipPath id="red-label"><circle cx="1113" cy="440" r="157"/></clipPath>
+       <clipPath id="spindle"><path d="M1095 440 Q1097 428 1100 411 Q1101 400 1112 401 Q1124 402 1124 413 L1121 440 Q1119 453 1105 449 Q1096 449 1095 440Z"/></clipPath>
+      </defs>
+      <use href="#cover-photo"/>
+      <g clip-path="url(#exposed-vinyl)">
+       <g class="vinyl-rotation">
+        <g clip-path="url(#red-label)">
+         <use href="#cover-photo"/>
+         <g clip-path="url(#paper-gap)"><use href="#cover-photo" transform="translate(2226 0) scale(-1 1)"/></g>
+         <g clip-path="url(#spindle)"><use href="#cover-photo" transform="translate(24 -4)"/></g>
+        </g>
+        <g fill="none" stroke="#fff0da" opacity=".16" stroke-width="1">
+         <circle cx="1113" cy="440" r="192" stroke-dasharray="25 1182"/>
+         <circle cx="1113" cy="440" r="243" stroke-dasharray="12 1516" stroke-dashoffset="610"/>
+         <circle cx="1113" cy="440" r="289" stroke-dasharray="39 1777" stroke-dashoffset="215"/>
+        </g>
+       </g>
+      </g>
+      <g clip-path="url(#spindle)"><use href="#cover-photo"/></g>
+     </svg>
+     <button type="button" class="vinyl-hit vinyl-continue" aria-label="繼續遊戲">繼續遊戲</button>
+     <button type="button" class="vinyl-hit vinyl-new" aria-label="新開一局">新開一局</button>
+     <button type="button" class="vinyl-hit vinyl-motor" aria-label="唱片旋轉" aria-pressed="true" title="按唱片可暫停或繼續旋轉">唱片旋轉</button>
+    </div>
+   </template>
    <div class="landing-scene" role="img" aria-label="傍晚的香港街道，沿街店铺、行人与暖灯，粤记茶餐厅是其中一间店"></div>
    <div class="landing-shade" aria-hidden="true"></div>
    <div class="landing-content">

@@ -1059,3 +1059,33 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => { cancelAnimationFrame(frame); frame = 0; stopDiningSound(); });
 window.addEventListener('pageshow', scheduleSceneFrame);
+
+if (new URLSearchParams(location.search).get('cover') === 'vinyl') {
+ const welcome = document.querySelector('#welcome');
+ const content = document.querySelector('#vinyl-template').content.cloneNode(true);
+ const frame = content.querySelector('.vinyl-frame');
+ const resume = content.querySelector('.vinyl-continue');
+ const fresh = content.querySelector('.vinyl-new');
+ const motor = content.querySelector('.vinyl-motor');
+ const start = welcome.querySelector('[data-world-save-state]');
+ const restart = welcome.querySelector('#world-title-restart');
+ function updateCoverButtons() {
+  resume.disabled = start.disabled || start.dataset.worldSaveState === 'empty';
+  resume.title = resume.disabled ? '未有存檔，請選「新開一局」' : '繼續遊戲';
+  fresh.disabled = start.disabled;
+ }
+ new MutationObserver(updateCoverButtons).observe(start, {attributes:true});
+ updateCoverButtons();
+ resume.addEventListener('click', () => start.click());
+ fresh.addEventListener('click', () => (restart.hidden ? start : restart).click());
+ const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+ function setMotor(running) {
+  frame.classList.toggle('vinyl-stopped', !running);
+  motor.setAttribute('aria-pressed', String(running));
+ }
+ setMotor(!reduced.matches);
+ reduced.addEventListener('change', () => setMotor(!reduced.matches));
+ motor.addEventListener('click', () => setMotor(frame.classList.contains('vinyl-stopped')));
+ welcome.prepend(content);
+ welcome.classList.add('vinyl-edition');
+}

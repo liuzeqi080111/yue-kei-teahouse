@@ -91,3 +91,33 @@
  #welcome.landing-stage .landing-chapters{min-height:36px;font-size:12px}
 }
 @media(prefers-reduced-motion:reduce){#welcome.landing-stage button{transition:none}}
+
+#welcome.vinyl-edition {container-type:size;background:#211710;overflow:hidden}
+.vinyl-edition .vinyl-frame {
+ position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+ width:min(100cqw,177.6833cqh);aspect-ratio:1672/941;
+}
+.vinyl-frame svg {width:100%;height:100%;display:block}
+.vinyl-rotation {transform-origin:1113px 440px;animation:vinyl-revolution 1.8s linear infinite}
+@keyframes vinyl-revolution {to{transform:rotate(1turn)}}
+.vinyl-stopped .vinyl-rotation,body[data-page-hidden] .vinyl-rotation {animation-play-state:paused}
+#welcome.vinyl-edition .landing-scene,#welcome.vinyl-edition .landing-shade,
+#welcome.vinyl-edition .landing-heading,#welcome.vinyl-edition [data-world-save-state],
+#welcome.vinyl-edition #world-title-restart {display:none}
+#welcome.vinyl-edition .landing-content {position:absolute;bottom:1%;right:1%;width:auto;min-height:0;padding:0;gap:0;align-items:end}
+#welcome.vinyl-edition .landing-actions,#welcome.vinyl-edition .landing-secondary-actions {
+ width:auto;display:flex;flex-direction:row;align-items:center;gap:6px
+}
+#welcome.vinyl-edition .landing-actions .landing-button {
+ min-height:32px;white-space:nowrap;padding:4px 9px;background:#2a1c12db;color:#f9e5c1;border:1px solid #ead5ac54;font-size:14px;line-height:1.3
+}
+#welcome.vinyl-edition .vinyl-hit {
+ position:absolute;border:0;background:transparent;padding:0;margin:0;color:transparent;
+ font-size:0;box-shadow:none;cursor:pointer;border-radius:3px
+}
+#welcome.vinyl-edition .vinyl-hit:focus-visible {outline:3px solid #da491e;outline-offset:1px}
+#welcome.vinyl-edition .vinyl-continue {left:9%;top:46%;width:26%;height:13%}
+#welcome.vinyl-edition .vinyl-new {left:15%;top:59%;width:20%;height:11%}
+#welcome.vinyl-edition .vinyl-continue:disabled {cursor:default;background:#e8c08044}
+#welcome.vinyl-edition .vinyl-new:hover,#welcome.vinyl-edition .vinyl-continue:enabled:hover {background:#fff2c324}
+#welcome.vinyl-edition .vinyl-motor {left:62%;top:30%;width:14%;height:32%;border-radius:50%}
