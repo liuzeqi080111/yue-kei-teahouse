@@ -131,6 +131,14 @@ export function createOccupations(scene,actors,kit){
   const {box,cyl,piece,ball}=kit;
   if(id==='fang'){
    piece(right,ball,0x636c70,0,-.039,.022,.087,.033,.18);box(right,0x994c3c,0,-.016,.007,.072,.045,.109);box(right,0x42372c,0,.017,0,.024,.021,.08);
+  }else if(id==='aqing'){
+   const shape=new T.Shape();
+   [[-.15,.02],[-.25,-.04],[-.34,-.30],[-.25,-.34],[-.16,-.18],[-.16,-.52],[.16,-.52],[.16,-.18],[.25,-.34],[.34,-.30],[.25,-.04],[.15,.02],[0,-.04]].forEach(([x,y],i)=>i?shape.lineTo(x,y):shape.moveTo(x,y));
+   shape.closePath();
+   const jacket=new T.Mesh(new T.ExtrudeGeometry(shape,{depth:.008,bevelEnabled:true,bevelSize:.002,bevelThickness:.002,bevelSegments:2}),new T.MeshStandardMaterial({color:0x374958,roughness:.92}));
+   jacket.position.set(-.13,-.005,.035);left.add(jacket);
+   for(const sign of [-1,1])box(left,0x647682,-.13+sign*.045,-.13,.083,.035,.15,.012).rotation.z=sign*.35;
+   for(let n=0;n<3;n++)piece(left,ball,0xbbaa86,-.13,-.24-n*.085,.083,.015,.015,.009);
   }else if(id==='ale'){
    const lp=cyl(left,0x282324,.085,.018,.028,.27,.013,.27);cyl(lp,0xc46946,0,.66,0,.31,.12,.31);
    box(right,0xddc7a4,0,-.008,0,.077,.016,.066);
@@ -215,8 +223,13 @@ export function createOccupations(scene,actors,kit){
    const {model,id}=j;
    if(!model.visible||Math.hypot(model.position.x-point.x,model.position.z-point.z)>10){j.left.visible=j.right.visible=false;continue;}
    const moved=j.still.distanceToSquared(model.position)>.00001;j.still.copy(model.position);
-   if((id==='aqing'||id==='friend')&&moved){j.weight=0;j.left.visible=j.right.visible=false;continue;}
-   const working=engaged!==id&&!(id==='vendor'&&engaged==='juiceCart');
+   if(moved&&id!=='aqing'){j.weight=0;j.left.visible=j.right.visible=false;continue;}
+   if(id==='friend'){
+    j.left.visible=j.right.visible=false;
+    const head=j.bones.Head;head.quaternion.copy(j.base.get(head));head.rotateY((engaged===id?.025:.09)*Math.sin(now*.00055));head.rotateX(.012*Math.sin(now*.0011));changed=true;
+    continue;
+   }
+   const working=id==='aqing'||engaged!==id&&!(id==='vendor'&&engaged==='juiceCart');
    if(!working&&!j.weight)continue;
    if(working&&['fang','ale','aming','ling','regular'].includes(id)){
     const delta=j.actor.spec.rotationY-model.rotation.y;
@@ -227,6 +240,7 @@ export function createOccupations(scene,actors,kit){
    const t=now*.001+j.index*.86,swing=Math.sin(t*1.6),lift=(1-Math.cos(t*1.6))*.5;
    let l=v().set(.07,.59,.18),r=v().set(-.042+.035*swing,.62,.18);
    switch(id){
+    case 'aqing':l.set(.17,.65+.003*Math.sin(t),.27);r.set(-.18,.40,.12);break;
     case 'fang': l.set(.12,.55,.22);r.set(-.073+.102*swing,.55+.032*Math.max(0,-Math.cos(t*1.6)),.24);break;
     case 'ale':l.set(.115,.56,.22);r.set(-.038+.056*Math.cos(t*2.5),.624,.26+.026*Math.sin(t*2.5));break;
     case 'ling':r.set(-.05+.08*lift,.625,.225+.035*lift);break;
@@ -236,7 +250,7 @@ export function createOccupations(scene,actors,kit){
     case 'regular':r.set(-.064+.05*lift,.615,.235+.037*lift);break;
     default:r.set(-.071+.073*lift,.613+.033*Math.abs(swing),.23+.027*lift);break;
    }
-   leanForward(j.bones.Head,model,.19*j.weight);
+   leanForward(j.bones.Head,model,(id==='aqing'?(engaged===id?.025:.10):.19)*j.weight);
    if(id==='fang')leanForward(j.bones.Spine1,model,.21*j.weight);
    if(id==='fang'){
     l=model.worldToLocal(v().set(15.89,1.10,1.37));
@@ -246,7 +260,7 @@ export function createOccupations(scene,actors,kit){
     r=model.worldToLocal(v().set(15.56+.10*lift,1.043+.085*lift,-12.32+.106*lift));
    }
    j.left.position.copy(reach(j,'Left',model.localToWorld(l),j.weight));
-   if(id!=='aming'&&id!=='fang'&&id!=='lin')openPalm(j,'Left');
+   if(id!=='aming'&&id!=='fang'&&id!=='lin'&&id!=='aqing')openPalm(j,'Left');
    j.left.rotation.y=j.right.rotation.y=model.rotation.y;
    if(id==='aming'){
     const wrist=j.bones.LeftHand,knuckle=j.bones.LeftHandMiddle1;
@@ -267,6 +281,7 @@ export function createOccupations(scene,actors,kit){
     j.right.quaternion.setFromUnitVectors(v().set(0,1,0),fingers.getWorldPosition(v()).sub(tip).normalize());
    }else j.right.position.copy(reach(j,'Right',model.localToWorld(r),j.weight));
    j.left.visible=j.right.visible=j.weight>.045;
+   if(id==='aqing')j.right.visible=false;
    if(id==='aming'&&!working)j.left.visible=j.right.visible=false;
    if(id==='fang'&&!working){j.right.position.set(15.84,1.116,1.33);j.right.visible=true;}
    changed=true;

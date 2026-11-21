@@ -171,14 +171,14 @@ export function optionsFor(s,npc){
     if((has('ticket')||f('ticket-filed'))&&f('shop-check')&&f('coat-detail')&&has('wrongCoat')&&!has('coat')&&(!firstPerson||f('guest-found')))add('coat-swap',firstPerson?'说明芳姐的核对记录，看袖口并换衣':'出示取件单和特征，当面交换外套','個名對得上，袖口都係。原來真係攞錯咗。','名字和袖口都对得上，原来真的拿错了。',d=>{take(d,'wrongCoat');give(d,'coat');flag(d,'coat-swapped');note(d,'已与周叔核对并换回阿晴的外套。');});
  }
  if(npc==='ling'){
-   if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&!f('loan-returned')&&!f('qing-paid-coat')){
-   add('coat-loan','邻居急着面试，可以借件外套吗？','借畀佢應急先，見完工記得帶返嚟。','先借给她应急，面试后记得还。',d=>{give(d,'loanCoat');flag(d,'loan-due');note(d,'向玲姐借了外套，答应面试后归还。');});
+   if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&(!f('loan-returned')||!f('qing-wore-loan'))&&!f('qing-paid-coat')){
+   add('coat-loan','邻居急着面试，可以借件外套吗？','借畀佢應急先，見完工記得帶返嚟。','先借给她应急，面试后记得还。',d=>{d.flags=d.flags.filter(x=>x!=='loan-returned');give(d,'loanCoat');flag(d,'loan-due');note(d,'向玲姐借了外套，答应面试后归还。');});
    if(firstPerson&&f('shop-check')&&f('coat-route-buy')&&!f('coat-quoted')){
     add('coat-quote','替阿晴问这件外套的价格','呢件八十蚊，阿晴你試吓先。','这件八十元。阿晴，你先试一下。',d=>{flag(d,'coat-quoted');note(d,'玲姐报价 HK$80，由阿晴试穿后决定是否自己付款。');});
    }
    if(!firstPerson&&s.money>=8000)add('coat-buy','买一件应急外套 · HK$80','呢件八十蚊，試啱就攞去啦。','这件八十元，合适就拿去。',d=>{d.money-=8000;give(d,'newCoat');});
   }
-    if(has('loanCoat')&&!f('loan-returned'))add('loan-returned','归还玲姐借出的外套','有借有還，下次有事再搵我。','有借有还，下次有事再找我。',d=>{take(d,'loanCoat');flag(d,'loan-returned');note(d,'已把借用的外套还给玲姐。');});
+    if(has('loanCoat')&&f('qing-returned')&&f('qing-loan-back')&&!f('loan-returned'))add('loan-returned','归还玲姐借出的外套','有借有還，下次有事再搵我。','有借有还，下次有事再找我。',d=>{take(d,'loanCoat');flag(d,'loan-returned');note(d,'已把借用的外套还给玲姐。');});
   if(!f('stall-ling'))add('stall-ling',firstPerson?'粤记门口的衣架为什么放那儿？':'为什么把衣架放这里？','縮入去冇人睇到，但我都唔想阻住人。','缩进去没人看见，但我也不想挡路。',d=>{flag(d,'stall-ling');note(d,'玲姐担心挪摊后没人看见，也愿意讨论办法。');});
     if(f('stall-ming')&&f('stall-ling')&&f('stall-observed')&&!s.stallOutcome)for(const [id,label,text] of [['compact','缩小陈列，留出通道','我收起外面個架，留條路畀大家。'],['move','把衣架移到摊位侧边','咁我移去側邊，招牌留喺前面。'],['hours','约定上午和入夜收起衣架','朝早同入夜食飯最忙，我嗰陣收起個架。']])add('stall-propose-'+id,label,text,'好，就照这个方式调整；还要问过阿明先算数。',d=>{d.flags=d.flags.filter(x=>!x.startsWith('stall-propose-')&&x!=='stall-ming-agreed');flag(d,'stall-propose-'+id);note(d,'已与玲姐商定方案（'+label+'），还需阿明同意并由玩家回玲姐处落实。');});
    if(f('stall-ming-agreed')&&!s.stallOutcome){const plan=f('stall-propose-compact')?'compact':f('stall-propose-move')?'move':'hours';add('stall-finalize','告诉玲姐：阿明同意了，按方案落实','阿明都同意？咁我依家調整，通道留返出嚟。','阿明也同意？那我现在调整，通道留出来了。',d=>{d.stallOutcome=plan;note(d,'已向玲姐转达阿明的同意，门口通道方案落实。');});}

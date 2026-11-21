@@ -441,7 +441,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    scene.actors.get('friend').path=null;guideHeadStart=.8;
   }
   const first=steps.find(point=>distance(current,point)>.20);
-  if(first)pendingLook={heading:angle(current,first),pitch:.02};
+  pendingLook=null;
   scene.actors.get('friend').model.visible=true;
   publish(to===COUNTER?'走进侧门，前往芳姐的柜台。':'老朋友：我陪你去芳姐那儿。可以边走边看。');
   dirty=true;
@@ -553,7 +553,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    const old={...current},next=travel.tick(dt).position;
    Object.assign(current,next);
    if(distance(old,next)>.0001){
-    if(!drag&&!turn&&travel.snapshot().mode==='following')current.heading+=deltaAngle(current.heading,angle(old,next))*Math.min(1,dt*4);
+    // Following changes position while the player keeps control of the view.
     dirty=true;
    }
   }
@@ -591,9 +591,9 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   const dt=Math.min(.045,Math.max(0,(now-previousTime)/1000));
   previousTime=now;
   advance(dt);
-  const targetY=1.64+(nav.cell(current.x,current.z)-11)/100;
-  if(Math.abs(targetY-cameraY)>.001){cameraY+=(targetY-cameraY)*Math.min(1,dt*13);dirty=true;}
-  const workDue=now-lastWorkFrame>=65;
+  const targetY=1.64;
+  if(Math.abs(targetY-cameraY)>.001){cameraY+=(targetY-cameraY)*Math.min(1,dt*2);dirty=true;}
+  const workDue=true;
   const working=workDue&&scene.animateWork(current,ACTORS[talking]?.model||talking,now);
   if(workDue)lastWorkFrame=now;
   if(dirty||working)scene.render(chess?{x:15.68,y:1.32,z:-11.02,heading:0,pitch:-.105}:{...current,y:cameraY});

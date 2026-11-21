@@ -63,3 +63,22 @@ test('guided walks between story destinations reach the interaction point',()=>{
   assert.equal(travel.snapshot().mode,'arrived',a+' → '+b);
  }
 });
+
+test('borrowed coat cannot be returned before the interview and old early returns can recover',()=>{
+ let w=firstPerson();
+ while(streetQuests(w)[0].action!=='coat-route-recover')w=takeStep(w,'coat');
+ w=applyWorldAction(w,'fang','coat-route-borrow').state;
+ w=applyWorldAction(w,'ling','coat-loan').state;
+ const refused=applyWorldAction(w,'ling','loan-returned');
+ assert.equal(refused.ok,false);
+ assert.ok(w.items.includes('loanCoat'));
+ const old={...w,items:w.items.filter(x=>x!=='loanCoat'),flags:[...w.flags,'loan-returned']};
+ const retry=applyWorldAction(parseSave(JSON.stringify(old)),'ling','coat-loan');
+ assert.equal(retry.ok,true);
+ w=retry.state;
+ assert.equal(w.flags.includes('loan-returned'),false);
+ for(let i=0;i<25&&!streetQuests(w)[0].done;i++)w=takeStep(w,'coat');
+ assert.equal(streetQuests(w)[0].done,true);
+ assert.ok(w.flags.includes('loan-returned'));
+ assert.equal(applyWorldAction(w,'ling','loan-returned').ok,false);
+});

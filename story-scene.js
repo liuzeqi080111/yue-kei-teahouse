@@ -70,12 +70,22 @@ export async function createStoryScene(canvas,chapter){
  function actor(id,x,y,z,yaw,sit=false){
   const {model,bones,rest}=cast[id];model.visible=true;model.position.set(x,y,z);model.rotation.y=yaw;
   for(const [n,b] of Object.entries(bones))b.quaternion.copy(rest[n]);
+  model.updateMatrixWorld(true);
+  if(!sit){
+   for(const side of ['Left','Right']){
+    const sign=side==='Left'?1:-1;
+    const direction=d=>v(...d).applyQuaternion(model.quaternion);
+    const arm=bones[side+'Arm'],elbow=bones[side+'ForeArm'],hand=bones[side+'Hand'];
+    point(arm,elbow,arm.getWorldPosition(v()).add(direction([sign*.18,-1,.035])));
+    point(elbow,hand,elbow.getWorldPosition(v()).add(direction([sign*.035,-1,.075])));
+   }
+  }
   if(sit){
    for(const side of ['Left','Right']){
     const sign=side==='Left'?1:-1;
     const at=(joint,dx,dy,dz)=>joint.getWorldPosition(v()).add(v(dx,dy,dz).applyAxisAngle(v(0,1,0),yaw));
     const up=bones[side+'UpLeg'],knee=bones[side+'Leg'],foot=bones[side+'Foot'];
-    point(up,knee,at(up,sign*.085,-.16,.55));point(knee,foot,at(knee,0,-.44,-.04));
+    point(up,knee,at(up,sign*.055,-.23,.55));point(knee,foot,at(knee,0,-.44,-.04));
    }
    // Match the actual skinned trouser underside to the top of the cushion.
    // Measure a patch on the upper thighs, excluding the knees, hands and coat hem.
@@ -108,8 +118,8 @@ export async function createStoryScene(canvas,chapter){
     const shoulder=bones[side+'Arm'],elbow=bones[side+'ForeArm'],wrist=bones[side+'Hand'];
     const front=v(Math.sin(yaw),0,Math.cos(yaw)),across=v(Math.cos(yaw),0,-Math.sin(yaw));
     const sign=side==='Left'?1:-1;
-    const restAt=bones.Hips.getWorldPosition(v()).addScaledVector(front,.19).addScaledVector(across,sign*.13);
-    restAt.y=seat+.16;
+    const restAt=bones.Hips.getWorldPosition(v()).addScaledVector(front,.19).addScaledVector(across,sign*.22);
+    restAt.y=seat+.25;
     const origin=shoulder.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
     const l1=origin.distanceTo(joint),l2=joint.distanceTo(wrist.getWorldPosition(v()));
     const axis=restAt.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);
@@ -128,7 +138,7 @@ export async function createStoryScene(canvas,chapter){
  }
  for(const entry of Object.values(cast))entry.neutral={};
  let serviceTake;
- let frontage,oldSign,newSign,windowPhoto,bench,meal,carry,cups=[],cupTea,cupLemon,extraSticks,looseNews;
+ let frontage,oldSign,newSign,windowPhoto,bench,meal,carry,cups=[],cupTea,cupLemon,extraSticks,looseNews,newsFold;
  function chair(parent,x,z){
   const g=group(parent);g.position.set(x,0,z);
   box(g,colors.wood,0,.50,0,.50,.065,.40);
@@ -217,7 +227,14 @@ export async function createStoryScene(canvas,chapter){
   }
   extraSticks=group();for(const offset of [0,.013])box(extraSticks,0x865530,1.89,.955,-1.44+offset,.192,.008,.008);
   carry=group();box(carry,0xcbae80,2.03,1.012,-1.50,.16,.12,.13);box(carry,0xe0c695,2.03,1.078,-1.50,.171,.013,.14);
-  looseNews=print(scene,plaque('街 坊 日 報','EVENING EDITION','#a69983'),1.97,.958,-1.51,.26,.19);looseNews.rotation.x=-Math.PI/2;
+  const news=texture((c,w,h)=>{
+   c.fillStyle='#d9d0b7';c.fillRect(0,0,w,h);c.fillStyle='#393831';c.textAlign='center';c.font='bold 42px KaiTi';c.fillText('街 坊 日 報',w/2,51);
+   for(let col=0;col<4;col++)for(let row=0;row<23;row++)c.fillRect(18+col*w/4,78+row*9,w/4-31,2);
+  },512,320);
+  looseNews=group();looseNews.position.set(1.97,.97,-1.51);looseNews.rotation.y=Math.PI/2;
+  const leftPage=print(looseNews,news,-.095,0,0,.19,.25);leftPage.rotation.x=-Math.PI/2;
+  newsFold=group(looseNews);
+  const rightPage=print(newsFold,news,.095,0,0,.19,.25);rightPage.rotation.x=-Math.PI/2;
  }
  let mode='',view={},eye=v(),aim=v(),focus=v(),entered=0,photoTexture,photoURL,photoVersion=0;
  function shot(pos,target,fov=49){
@@ -248,16 +265,15 @@ export async function createStoryScene(canvas,chapter){
    bench.position.set(chairX,.16,old?.44:.26);
    actor('regular',old?-.55:sit?-.60:chairX,.16,old?.10:sit?-.05:.26,old?.38:.31,!old&&!sit);
    actor('fang',old?.67:sit?-.03:.04,.16,old?.02:-.24,old?-.42:-.31);
-   portraitLean('regular',-.055,-.19);portraitLean('fang',.075,.20);
-   portraitArm('fang','Left',[.43,-1,.12],[-.52,-.15,.45]);
+   
+   
    if(!old){
     actor('aqing',sit?chairX:.67,.16,sit?.26:.08,-.35,sit);
     actor('ale',sit?-1.18:-.92,.16,-.16,.40);actor('ling',sit?.91:1.16,.16,-.19,-.46);
-    portraitLean('ale',-.16,-.26);portraitLean('aqing',.06,.23);portraitLean('ling',.17,.31);
-    portraitArm('ale','Right',[-.59,-.16,.20],[-.16,.80,.42],[-.12,.94,.05]);
-    portraitArm('ling','Right',[-.26,-1,.12],[.61,-.20,.46]);
-    if(!sit)portraitArm('aqing','Left',[.27,-.95,.15],[-.4,.28,.5]);
-    else portraitArm('regular','Right',[-.28,-1,.12],[.21,-.37,.47]);
+    
+    
+    
+    
    }
    shot([0,1.58,4.38],[0,1.63,-.12],48);
    if(id==='hung'){
@@ -283,6 +299,7 @@ export async function createStoryScene(canvas,chapter){
   if(entry&&id!=='morning'){
    actor('friend',.38,.18,-.51,.37);actor('aming',-.58,.18,-1.19,.24);actor('regular',1.61,.19,-1.81,1.55,true);
    shot([.24,1.58,.97],[-.18,1.43,-1.07],54);
+   if(id==='ask')shot([2.57,1.70,-2.63],[1.61,1.38,-1.81],54);
   }else if(id==='farewell'){
    actor('friend',.65,.15,1.24,.35);
    shot([1.27,1.62,2.98],[.42,1.52,.96],55);
@@ -306,7 +323,7 @@ export async function createStoryScene(canvas,chapter){
    if(id==='tea'||id==='lemon')shot([2.05,1.64,-1.17],[2.12,1.12,-2.13],54);
    if(id==='morning')shot([2.16,1.64,-.17],[1.42,1.35,-1.92],53);
   }
-  looseNews.position.set(1.97,.958,-1.51);looseNews.rotation.set(-Math.PI/2,0,0);
+  looseNews.position.set(1.97,.958,-1.51);looseNews.rotation.set(0,Math.PI/2,0);newsFold.rotation.z=0;
   cupTea.position.set(2.21-.070*1.72,.944,-2.42+.25*1.72);cupLemon.position.copy(cupTea.position);
   const serving=id==='tea'||id==='lemon';
   serviceTake.rig.visible=serving;
@@ -318,7 +335,7 @@ export async function createStoryScene(canvas,chapter){
   const ordered=!serving&&Boolean(state.drink)&&(!entry||id==='morning');
   cupTea.visible=ordered&&state.drink==='tea';cupLemon.visible=ordered&&state.drink==='lemon';
   cups[0].visible=true;cups[1].visible=ordered;cups[2].visible=Boolean((eating&&state.invited)||id==='morning');
-  looseNews.visible=['ask','door','seat'].includes(id);extraSticks.visible=cups[2].visible;
+  looseNews.visible=true;if(!['ask','door','seat'].includes(id)){looseNews.position.set(1.77,.96,-1.84);newsFold.rotation.z=Math.PI-.025;}extraSticks.visible=cups[2].visible;
   meal.visible=eating;carry.visible=eating&&!state.invited&&id!=='invite';
  }
  function set(id,state){
@@ -382,6 +399,29 @@ export async function createStoryScene(canvas,chapter){
    b.parent.getWorldQuaternion(parentQ);b.quaternion.copy(parentQ.invert().multiply(q));
   }
  }
+ function newspaper(a,time){
+  const t=T.MathUtils.clamp((time-entered)/3600,0,1);
+  const fold=T.MathUtils.smoothstep(t,.22,.66),reach=T.MathUtils.smoothstep(t,0,.20)*(1-T.MathUtils.smoothstep(t,.76,1));
+  looseNews.position.set(T.MathUtils.lerp(1.97,1.77,fold),.97+.06*Math.sin(Math.PI*fold),T.MathUtils.lerp(-1.51,-1.84,fold));
+  newsFold.rotation.z=(Math.PI-.025)*fold;
+  for(const side of ['Left','Right']){
+   const b=a.bones,arm=b[side+'Arm'],elbow=b[side+'ForeArm'],hand=b[side+'Hand'],middle=b[side+'HandMiddle1'];
+   for(const name of [side+'Arm',side+'ForeArm',side+'Hand'])b[name].quaternion.copy(a.neutral[name]);
+   const edge=v(side==='Right'?-.13:.13*Math.cos(Math.PI*fold),.028+(side==='Left'?.13*Math.sin(Math.PI*fold):0),0);
+   const goal=looseNews.localToWorld(edge);
+   const wristOrientation=hand.getWorldQuaternion(new T.Quaternion());
+   const offset=middle.getWorldPosition(v()).sub(hand.getWorldPosition(v()));
+   const target=hand.getWorldPosition(v()).lerp(goal.sub(offset),reach);
+   const origin=arm.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
+   const l1=origin.distanceTo(joint),l2=joint.distanceTo(hand.getWorldPosition(v()));
+   const axis=target.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);axis.normalize();
+   const along=(l1*l1-l2*l2+d*d)/(2*d);
+   const pole=v(0,-1,side==='Left'?-1:1);pole.addScaledVector(axis,-pole.dot(axis)).normalize();
+   point(arm,elbow,origin.clone().addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,l1*l1-along*along))));
+   point(elbow,hand,target);
+   hand.quaternion.copy(hand.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(wristOrientation));
+  }
+ }
  function speech(id,value,shape){speaker=id;level=value;speechShape=shape;}
  function tick(time){
   if(serviceTake?.rig.visible){
@@ -392,14 +432,10 @@ export async function createStoryScene(canvas,chapter){
    if(!a.model.visible)continue;
    a.mouth(id===speaker?level:0,speechShape);
    const head=a.bones.Head;if(!head||!a.neutral.Head)continue;
-   if(perform[mode]===id){
+   if(id==='regular'&&mode==='seat'){newspaper(a,time);continue;}
+   if(perform[mode]===id&&id!=='regular'){
     const phase=T.MathUtils.clamp((time-entered)/2600,0,1);
     gesture(id,a,phase);
-    if(id==='regular'&&mode==='seat'){
-     const grip=a.bones.RightHandMiddle1?.getWorldPosition(v());
-     if(grip&&phase<.9){looseNews.visible=true;looseNews.position.copy(grip);looseNews.rotation.set(-.9,1.4,0);}
-     else looseNews.visible=false;
-    }
     continue;
    }
    head.quaternion.copy(a.neutral.Head);

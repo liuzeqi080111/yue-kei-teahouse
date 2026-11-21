@@ -3,7 +3,7 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 import {furnishKitchen,mouthPose,plantedStance} from './dining-room.js';
-import {SHOPS} from './street-space.js';
+import {SHOPS,ACTORS,createStreetNav} from './street-space.js';
 
 export async function loadStreet(canvas) {
  const scene=new T.Scene(),camera=new T.PerspectiveCamera(59,1,.055,200);
@@ -40,7 +40,7 @@ export async function loadStreet(canvas) {
   if(!animations.length)return {model};
   const mixer=new T.AnimationMixer(model),clip=animations[0];
   const walk=mixer.clipAction(clip).play();
-  if(name==='friend-styled-v3.glb'||name==='aqing-styled-v3.glb'){
+  if(animations.length){
    const hips=clip.tracks.find(track=>/Hips\.position$/i.test(track.name));
    if(hips){
     const {times,values}=hips,last=times.length-1;
@@ -55,7 +55,7 @@ export async function loadStreet(canvas) {
     const next=T.MathUtils.clamp(weight+(distance>0?1:-1)*dt*7,0,1);
     if(!next&&!weight)return false;
     weight=next;walk.setEffectiveWeight(weight);stand.setEffectiveWeight(1-weight);
-    mixer.update(distance/1.12);
+    mixer.update(distance>0?distance/1.12:dt);
     return true;
    }};
   }
@@ -160,8 +160,33 @@ export async function loadStreet(canvas) {
   const hands=[];model.traverse(o=>{if(o.morphTargetDictionary?.workLeft!==undefined)hands.push(o.morphTargetInfluences);});
   working.push({id,model,hands,phase:index*1.73,pace:({bakery:1.65,radio:.84,rice:1.06,cloth:.73,print:1.31,herbs:.94,fruit:1.15})[shop.kind],amount:0});
  }));
+ const pedestrianNav=createStreetNav(layout);
+ const strolls=[];
+ for(const [id,dx,dz] of [['buyer',.9,1.6],['regular',.9,1.0],['ale',.4,1.15],['ling',.35,1.1]]){
+  const actor=actors.get(id),start={...ACTORS[({buyer:'buyer',regular:'guest',ale:'lok',ling:'ling'})[id]].point};
+  const end={x:start.x+dx,z:start.z+dz};
+  if(pedestrianNav.line(start,end))strolls.push({id,actor,start,end,phase:0,last:0});
+ }
  const workNearby=createOccupations(scene,actors,fittings);
  function animateWork(point,engaged,now){
+  let strolling=false;
+  for(const walk of strolls){
+   const dt=walk.last?Math.min(.1,(now-walk.last)/1000):0;walk.last=now;
+   if(engaged===walk.id){walk.actor.step(0,dt);continue;}
+   if(!walk.lastPlaced){walk.actor.model.position.set(walk.start.x,(pedestrianNav.cell(walk.start.x,walk.start.z)-11)/100,walk.start.z);walk.lastPlaced=true;}
+   walk.phase+=dt;
+   const cycle=walk.phase%18;
+   const progress=cycle<4?cycle/4:cycle<9?1:cycle<13?1-(cycle-9)/4:0;
+   const next=new T.Vector3(T.MathUtils.lerp(walk.start.x,walk.end.x,progress),walk.actor.model.position.y,T.MathUtils.lerp(walk.start.z,walk.end.z,progress));
+   const distance=next.distanceTo(walk.actor.model.position);
+   if(distance>.00001){
+    const delta=next.clone().sub(walk.actor.model.position);
+    const target=Math.atan2(delta.x,delta.z);
+    walk.actor.model.rotation.y+=Math.atan2(Math.sin(target-walk.actor.model.rotation.y),Math.cos(target-walk.actor.model.rotation.y))*Math.min(1,dt*3);
+    walk.actor.model.position.copy(next);strolling=true;
+   }
+   walk.actor.step(distance,dt);
+  }
   const bodiesChanged=workNearby(point,engaged,now);
   let changed=false;
   for(const actor of working){
@@ -178,7 +203,8 @@ export async function loadStreet(canvas) {
    if(active)face(actor.id,null,.06);
    changed=true;
   }
-  return changed||bodiesChanged;
+  if(strolling)refreshShadows();
+  return changed||bodiesChanged||strolling;
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
  const laundryMaterial=new Map();

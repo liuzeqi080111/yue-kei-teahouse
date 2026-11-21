@@ -36,7 +36,17 @@ def reach(w):
  rotate_world(wrist,palm_orientation@wrist.matrix.to_quaternion().inverted())
 def solid(name,verts,faces,color):
  mesh=bpy.data.meshes.new(name);mesh.from_pydata(verts,[],faces);mesh.update()
- bm=bmesh.new();bm.from_mesh(mesh);bmesh.ops.recalc_face_normals(bm,faces=bm.faces[:]);bm.to_mesh(mesh);bm.free()
+ bm=bmesh.new();bm.from_mesh(mesh);bmesh.ops.triangulate(bm,faces=[f for f in bm.faces if len(f.verts)>4]);bmesh.ops.recalc_face_normals(bm,faces=bm.faces[:]);bm.to_mesh(mesh);bm.free()
+ uv=mesh.uv_layers.new(name='Surface')
+ tiles=math.ceil(math.sqrt(len(mesh.polygons)))
+ for poly in mesh.polygons:
+  origin=mesh.vertices[poly.vertices[0]].co
+  u=(mesh.vertices[poly.vertices[1]].co-origin).normalized();v=poly.normal.cross(u).normalized()
+  coords=[((mesh.vertices[mesh.loops[i].vertex_index].co-origin).dot(u),(mesh.vertices[mesh.loops[i].vertex_index].co-origin).dot(v)) for i in poly.loop_indices]
+  minx=min(x for x,y in coords);miny=min(y for x,y in coords)
+  span=max(max(x for x,y in coords)-minx,max(y for x,y in coords)-miny,.000001)
+  for i,(x,y) in zip(poly.loop_indices,coords):
+   uv.data[i].uv=((poly.index%tiles+.08+.84*(x-minx)/span)/tiles,(poly.index//tiles+.08+.84*(y-miny)/span)/tiles)
  o=bpy.data.objects.new(name,mesh);s.collection.objects.link(o)
  mat=bpy.data.materials.new(name);mat.diffuse_color=(*color,1);mat.use_nodes=True
  shader=next(n for n in mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED');shader.inputs['Base Color'].default_value=(*color,1);shader.inputs['Roughness'].default_value=.38
@@ -81,37 +91,38 @@ for o in [hot,tea,handle,cold,liquid,lemon]:o.parent=saucer;o.location.z+=pedest
 table=(.945-.19)/1.72
 keys=[
  (1,(-.105,-.135,.595),0,.05),(15,(-.100,-.158,.584),0,.12),
- (32,(-.081,-.218,.498),0,.37),(43,(-.070,-.246,table+.012),0,.53),
- (48,(-.070,-.25,table),0,.56),(54,(-.070,-.25,table),0,.56),
- (64,(-.070,-.25,table),.48,.45),(74,(-.070,-.25,table),.90,.19),
+ (32,(-.081,-.218,.498),0,.50),(43,(-.070,-.246,table+.024),0,.83),
+ (48,(-.070,-.25,table+.018),0,.90),(54,(-.070,-.25,table+.018),0,.90),
+ (64,(-.070,-.25,table+.009),.48,.78),(74,(-.070,-.25,table),.90,.28),
  (85,(-.070,-.25,table),1,.04)]
-for frame,center,release,lean in keys:
+samples=[]
+for frame in range(1,86):
+ index=next((i for i in range(1,len(keys)) if keys[i][0]>=frame),len(keys)-1)
+ a,b=keys[index-1],keys[index]
+ t=(frame-a[0])/(b[0]-a[0]);t=t*t*(3-2*t)
+ samples.append((frame,tuple(V(a[1]).lerp(V(b[1]),t)),a[2]+(b[2]-a[2])*t,a[3]+(b[3]-a[3])*t))
+for frame,center,release,lean in samples:
  s.frame_set(frame)
  for n,b in bones.items():b.matrix_basis=base[n]
  update()
  for n,factor in [('Spine',.67),('Spine1',.32),('Head',-.28)]:
   rotate_world(bones[n],Quaternion((1,0,0),lean*factor))
- c=V(center);knuckle=c+V((-.002,.083,.006))
+ c=V(center);knuckle=c+V((-.002,.074,-.009))
  knuckle+=V((-.055*release,.126*release,.035*release**2))
  reach(knuckle-to_knuckle)
  retreat=V((-.055*release,.126*release,.035*release**2))
- for digit in ['Index','Middle','Ring','Pinky','Thumb']:
+ # Extend each joint along its own segment. Keep finger spacing and length.
+ for digit in ['Index','Middle','Ring','Pinky']:
   chain=[bones['RightHand'+digit+str(j)] for j in range(1,5)]
-  if digit=='Thumb':
-   # The thumb pad meets the upper rim before the wrist withdraws.
-   tip=c+V((-.022,.045,.031))+retreat
-   for j in range(3):
-    aim(chain[j],chain[j+1],tip+V((-.004*(2-j),.004*(2-j),.003*(2-j))))
-  else:
-   x={'Index':-.020,'Middle':-.005,'Ring':.010,'Pinky':.021}[digit]
-   for j,z in enumerate((.002,-.001,-.003)):
-    aim(chain[j],chain[j+1],c+V((x,.072-.013*j,z))+retreat)
+  for j in range(3):
+   aim(chain[j],chain[j+1],chain[j].head+V((0,-1,.08 if j==2 else .02)))
+
  for n,b in bones.items():
   b.rotation_mode='QUATERNION';b.keyframe_insert(data_path='rotation_quaternion',frame=frame)
   if n=='Hips':b.keyframe_insert(data_path='location',frame=frame)
  saucer.location=c;saucer.keyframe_insert(data_path='location',frame=frame)
 s.frame_set(1);update()
-for label,frame in [('托住碟边',1),('碟底落桌',48),('松开手指',55),('撤手完成',85)]:
+for label,frame in [('托住碟边',1),('放低杯碟',48),('松开手指',55),('碟底落桌',74),('撤手完成',85)]:
  s.timeline_markers.new(label,frame=frame)
 # Measure actual deformed skin against both vessels (not just against bone origins).
 body=max((o for o in s.objects if o.type=='MESH' and o.find_armature()),key=lambda o:len(o.data.vertices))
