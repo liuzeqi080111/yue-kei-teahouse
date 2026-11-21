@@ -20,7 +20,7 @@ def basis(along,across):
 wrist=bones['RightHand'];middle=bones['RightHandMiddle1'];index=bones['RightHandIndex1'];pinky=bones['RightHandPinky1']
 orientation=wrist.matrix.to_quaternion()
 inverse_basis=basis(middle.head-wrist.head,index.head-pinky.head).inverted()
-palm=basis(V((0,-1,.025)),V((-1,0,0)))@inverse_basis
+palm=basis(V((.98,-.18,.025)),V((-.18,-.98,0)))@inverse_basis
 palm_orientation=palm@orientation
 to_knuckle=palm@(middle.head-wrist.head)
 def rotate_world(b,q):
@@ -31,7 +31,7 @@ def aim(b,child,goal):
 def reach(w):
  a=bones['RightArm'];el=bones['RightForeArm'];l=(el.head-a.head).length;r=(wrist.head-el.head).length
  axis=w-a.head;d=min(axis.length,l+r-.0001);axis.normalize();along=(l*l-r*r+d*d)/(2*d)
- p=V((-.85,.25,-.55));p=(p-axis*axis.dot(p)).normalized()
+ p=V((-.85,-.30,-.55));p=(p-axis*axis.dot(p)).normalized()
  aim(a,el,a.head+axis*along+p*math.sqrt(max(0,l*l-along*along)));aim(el,wrist,w)
  rotate_world(wrist,palm_orientation@wrist.matrix.to_quaternion().inverted())
 def solid(name,verts,faces,color):
@@ -88,13 +88,13 @@ lemon.location=(.005,-.002,.086);lemon.rotation_euler.y=.25
 for o in [hot,tea,handle,cold,liquid,lemon]:o.parent=saucer;o.location.z+=pedestal
 # One continuous take. The plate rests on the table from frame 48; fingers leave along its edge.
 # Distances in the normalized character's space; the restaurant applies its 1.72 m scale.
-table=(.945-.19)/1.72
+table=(.9425-.19)/1.72
 keys=[
  (1,(-.105,-.135,.595),0,.05),(15,(-.100,-.158,.584),0,.12),
- (32,(-.081,-.218,.498),0,.50),(43,(-.070,-.246,table+.024),0,.83),
- (48,(-.070,-.25,table+.018),0,.90),(54,(-.070,-.25,table+.018),0,.90),
- (64,(-.070,-.25,table+.009),.48,.78),(74,(-.070,-.25,table),.90,.28),
- (85,(-.070,-.25,table),1,.04)]
+ (32,(-.081,-.165,.498),0,.42),(43,(-.070,-.172,table+.020),0,.60),
+ (48,(-.070,-.173,table),0,.72),(54,(-.070,-.173,table),0,.72),
+ (64,(-.070,-.173,table),.48,.50),(74,(-.070,-.173,table),.90,.20),
+ (85,(-.070,-.173,table),1,.04)]
 samples=[]
 for frame in range(1,86):
  index=next((i for i in range(1,len(keys)) if keys[i][0]>=frame),len(keys)-1)
@@ -107,51 +107,77 @@ for frame,center,release,lean in samples:
  update()
  for n,factor in [('Spine',.67),('Spine1',.32),('Head',-.28)]:
   rotate_world(bones[n],Quaternion((1,0,0),lean*factor))
- c=V(center);knuckle=c+V((-.002,.074,-.009))
- knuckle+=V((-.055*release,.126*release,.035*release**2))
+ c=V(center);knuckle=c+V((-.0544,.0605,.0087))
+ knuckle+=V((-.13*release,.055*release,.035*release**2))
  reach(knuckle-to_knuckle)
- retreat=V((-.055*release,.126*release,.035*release**2))
  # Extend each joint along its own segment. Keep finger spacing and length.
  for digit in ['Index','Middle','Ring','Pinky']:
   chain=[bones['RightHand'+digit+str(j)] for j in range(1,5)]
   for j in range(3):
-   aim(chain[j],chain[j+1],chain[j].head+V((0,-1,.08 if j==2 else .02)))
+   aim(chain[j],chain[j+1],chain[j].head+V([(1,-.1,.12),(.7,-.08,-.7),(-.6,.05,-.7)][j]))
+ tip=bones['RightHandThumb4']
+ aim(bones['RightHandThumb2'],tip,tip.head+V((0,0,.010)))
 
  for n,b in bones.items():
   b.rotation_mode='QUATERNION';b.keyframe_insert(data_path='rotation_quaternion',frame=frame)
   if n=='Hips':b.keyframe_insert(data_path='location',frame=frame)
  saucer.location=c;saucer.keyframe_insert(data_path='location',frame=frame)
 s.frame_set(1);update()
-for label,frame in [('托住碟边',1),('放低杯碟',48),('松开手指',55),('碟底落桌',74),('撤手完成',85)]:
+for label,frame in [('托住碟边',1),('碟底落桌',48),('松开手指',55),('撤手完成',85)]:
  s.timeline_markers.new(label,frame=frame)
 # Measure actual deformed skin against both vessels (not just against bone origins).
 body=max((o for o in s.objects if o.type=='MESH' and o.find_armature()),key=lambda o:len(o.data.vertices))
+arm_groups={g.index for g in body.vertex_groups if 'RightHand' in g.name or 'RightForeArm' in g.name}
+torso_groups={g.index for g in body.vertex_groups if any(n in g.name for n in ('Spine','Hips'))}
+arm_weight=[sum(g.weight for g in vertex.groups if g.group in arm_groups) for vertex in body.data.vertices]
+torso_weight=[sum(g.weight for g in vertex.groups if g.group in torso_groups) for vertex in body.data.vertices]
+arm_faces=[tuple(face.vertices) for face in body.data.polygons if all(arm_weight[i]>.8 for i in face.vertices)]
+torso_faces=[tuple(face.vertices) for face in body.data.polygons if all(torso_weight[i]>.8 for i in face.vertices)]
 def tree(o):
  dg=bpy.context.evaluated_depsgraph_get();e=o.evaluated_get(dg);m=e.to_mesh()
  tr=BVHTree.FromPolygons([e.matrix_world@v.co for v in m.vertices],[tuple(f.vertices) for f in m.polygons]);e.to_mesh_clear();return tr
-checks=[];rim=[];depth=[];gap=[]
+checks=[];rim=[];depth=[];gap=[];table_hits=[];body_hits=[];rim_detail=[]
+table_tree=BVHTree.FromPolygons([(x,y,z) for z in (table-.034,table) for y in (-.74,-.145) for x in (-.37,.37)],[(0,2,3,1),(4,5,7,6),(0,1,5,4),(2,6,7,3),(0,4,6,2),(1,3,7,5)])
 for f in range(1,s.frame_end+1):
  s.frame_set(f);skin=tree(body)
+ table_count=len(skin.overlap(table_tree))
+ if table_count:table_hits.append((f,table_count))
  for obj in (hot,handle,cold):
   count=len(skin.overlap(tree(obj)))
   if count:checks.append((f,obj.name,count))
  plate=tree(saucer)
- rim.append(len(skin.overlap(plate)))
+ overlaps=skin.overlap(plate);rim.append(len(overlaps))
+ if overlaps and f in (1,48):
+  dg=bpy.context.evaluated_depsgraph_get();ev=body.evaluated_get(dg)
+  for face_index in sorted(set(a for a,b in overlaps)):
+   face=ev.data.polygons[face_index]
+   ids=list(face.vertices)
+   point=sum((ev.matrix_world@ev.data.vertices[i].co for i in ids),V())/len(ids)-saucer.location
+   groups=[body.vertex_groups[max(body.data.vertices[i].groups,key=lambda g:g.weight).group].name for i in ids]
+   rim_detail.append({'frame':f,'point':tuple(round(x,5) for x in point),'bones':groups})
  # Signed skin-to-ceramic distance in the grip region. Check both a
  # convincing hold and how far the skinned fingertips enter the rim.
  d=bpy.context.evaluated_depsgraph_get();evaluated=body.evaluated_get(d)
- nearest=[]
+ coordinates=[evaluated.matrix_world@vertex.co for vertex in evaluated.data.vertices]
+ body_count=len(BVHTree.FromPolygons(coordinates,arm_faces).overlap(BVHTree.FromPolygons(coordinates,torso_faces)))
+ if body_count:body_hits.append((f,body_count))
+ nearest=[];closest=(1,None)
  for vertex in evaluated.data.vertices:
   point=evaluated.matrix_world@vertex.co
   local=point-saucer.location
   if local.xy.length>.080 or not -.025<local.z<.042:continue
   surface,normal,_,distance=plate.find_nearest(point)
   nearest.append(((point-surface).dot(normal),distance))
+  if distance<closest[0]:closest=(distance,{'skin':tuple(round(n,5) for n in local),'ceramic':tuple(round(n,5) for n in surface-saucer.location)})
+ if f==48:print('CLOSEST_GRIP',closest,flush=True)
  depth.append(round(max((max(0,-x) for x,_ in nearest),default=0),5))
  gap.append(round(min((dist for _,dist in nearest),default=.080),5))
 print('HAND_CHECK',len(checks),checks[:8],'rim',max(rim),'depth',max(depth),'set-down gap',min(gap[46:54]),flush=True)
-(out/'contact.json').write_text(json.dumps({'frames':s.frame_end,'cupIntersections':checks,'saucerContact':rim,'rimPenetration':depth,'nearestRim':gap}))
-if checks or any(rim[70:]) or min(gap[46:54])>.003 or max(depth)>.0018:
+(out/'contact.json').write_text(json.dumps({'frames':s.frame_end,'cupIntersections':checks,'saucerContact':rim,'rimPenetration':depth,'nearestRim':gap,'tableIntersections':table_hits,'forearmTorsoIntersections':body_hits,'supportedFromFrame':48}))
+(out/'rim-detail.json').write_text(json.dumps(rim_detail,indent=2))
+print('TABLE_CHECK',table_hits[:10],flush=True)
+print('BODY_CHECK',body_hits[:10],flush=True)
+if checks or any(rim) or table_hits or body_hits or max(gap[:54])>.003 or max(depth)>.0018:
  raise RuntimeError('Inspect the grip, landing and release before using this take.')
 s.frame_set(1);update()
 # Export the same armature and animated saucer that will be rendered for review.
@@ -166,8 +192,8 @@ if '--render' in sys.argv:
   for v in attr.data:v.color=o.data.materials[0].diffuse_color
   o.data.color_attributes.active_color=attr
  for o in (cold,liquid,lemon):o.hide_render=True;o.hide_set(True)
- bpy.ops.mesh.primitive_cube_add(size=1,location=(0,-.46,table-.017))
- support=bpy.context.object;support.name='Preview table';support.dimensions=(.74,.56,.034)
+ bpy.ops.mesh.primitive_cube_add(size=1,location=(0,-.4425,table-.017))
+ support=bpy.context.object;support.name='Preview table';support.dimensions=(.74,.595,.034)
  tint=support.data.color_attributes.new(name='Laminate',type='FLOAT_COLOR',domain='POINT')
  for pt in tint.data:pt.color=(.42,.33,.23,1)
  support.data.color_attributes.active_color=tint

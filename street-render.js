@@ -68,6 +68,7 @@ export async function loadStreet(canvas) {
  ]);
  scene.add(env.model);
  const fittings=dressStoryShops(scene,env.model);
+ fittings.heldCoat=(await load('held-coat.glb')).model;
  const kitchen=new T.Group();
  kitchen.position.set(-15.72,0,8.8);kitchen.rotation.y=Math.PI/2;
  furnishKitchen(kitchen,env.model);scene.add(kitchen);
@@ -109,6 +110,7 @@ export async function loadStreet(canvas) {
  await Promise.all(layout.characters.map(async spec=>{
   const actor=await load(spec.id+'-styled-v3.glb');
   actor.spec=spec;actor.model.position.fromArray(spec.position);
+  if(spec.id==='fang')actor.model.position.x-=.09;
   actor.model.scale.setScalar(spec.height);actor.model.rotation.y=spec.rotationY;
   actors.set(spec.id,actor);scene.add(actor.model);
  }));
@@ -165,27 +167,41 @@ export async function loadStreet(canvas) {
  for(const [id,dx,dz] of [['buyer',.9,1.6],['regular',.9,1.0],['ale',.4,1.15],['ling',.35,1.1]]){
   const actor=actors.get(id),start={...ACTORS[({buyer:'buyer',regular:'guest',ale:'lok',ling:'ling'})[id]].point};
   const end={x:start.x+dx,z:start.z+dz};
-  if(pedestrianNav.line(start,end))strolls.push({id,actor,start,end,phase:0,last:0});
+  if(pedestrianNav.line(start,end)){
+   const index=strolls.length;
+   actor.model.position.set(start.x,(pedestrianNav.cell(start.x,start.z)-11)/100,start.z);
+   strolls.push({id,actor,start,end,index,state:'wait',wait:.25+index*1.1,target:end,speed:0,last:null});
+  }
  }
  const workNearby=createOccupations(scene,actors,fittings);
  function animateWork(point,engaged,now){
   let strolling=false;
   for(const walk of strolls){
-   const dt=walk.last?Math.min(.1,(now-walk.last)/1000):0;walk.last=now;
-   if(engaged===walk.id){walk.actor.step(0,dt);continue;}
-   if(!walk.lastPlaced){walk.actor.model.position.set(walk.start.x,(pedestrianNav.cell(walk.start.x,walk.start.z)-11)/100,walk.start.z);walk.lastPlaced=true;}
-   walk.phase+=dt;
-   const cycle=walk.phase%18;
-   const progress=cycle<4?cycle/4:cycle<9?1:cycle<13?1-(cycle-9)/4:0;
-   const next=new T.Vector3(T.MathUtils.lerp(walk.start.x,walk.end.x,progress),walk.actor.model.position.y,T.MathUtils.lerp(walk.start.z,walk.end.z,progress));
-   const distance=next.distanceTo(walk.actor.model.position);
-   if(distance>.00001){
-    const delta=next.clone().sub(walk.actor.model.position);
-    const target=Math.atan2(delta.x,delta.z);
-    walk.actor.model.rotation.y+=Math.atan2(Math.sin(target-walk.actor.model.rotation.y),Math.cos(target-walk.actor.model.rotation.y))*Math.min(1,dt*3);
-    walk.actor.model.position.copy(next);strolling=true;
+   const dt=walk.last===null?0:T.MathUtils.clamp((now-walk.last)/1000,0,.1);walk.last=now;
+   walk.actor.walking=engaged!==walk.id&&walk.state!=='wait';
+   if(engaged===walk.id){walk.speed=0;walk.actor.step(0,dt);continue;}
+   if(walk.state==='wait'){
+    walk.wait-=dt;walk.actor.step(0,dt);
+    if(walk.wait<=0){walk.state='turn';walk.actor.walking=true;}
+    continue;
    }
-   walk.actor.step(distance,dt);
+   const model=walk.actor.model,dx=walk.target.x-model.position.x,dz=walk.target.z-model.position.z;
+   const remaining=Math.hypot(dx,dz),heading=Math.atan2(dx,dz);
+   const angle=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
+   if(Math.abs(angle)>.025){
+    model.rotation.y+=T.MathUtils.clamp(angle,-1.05*dt,1.05*dt);
+    walk.speed=0;walk.actor.step(.38*dt,dt);strolling=true;continue;
+   }
+   walk.state='walk';
+   const desired=Math.min(.56+walk.index*.035,Math.sqrt(2*.85*remaining));
+   walk.speed+=T.MathUtils.clamp(desired-walk.speed,-1.1*dt,.75*dt);
+   const distance=Math.min(remaining,walk.speed*dt);
+   if(remaining>0){model.position.x+=dx/remaining*distance;model.position.z+=dz/remaining*distance;}
+   strolling=walk.actor.step(distance,dt)||strolling;
+   if(remaining-distance<.0001){
+    walk.state='wait';walk.wait=3.2+walk.index*.83+(walk.target===walk.end?1.1:0);
+    walk.target=walk.target===walk.end?walk.start:walk.end;walk.speed=0;walk.actor.walking=false;
+   }
   }
   const bodiesChanged=workNearby(point,engaged,now);
   let changed=false;
@@ -237,17 +253,10 @@ export async function loadStreet(canvas) {
  }
  const paper=new T.Mesh(new T.BoxGeometry(.27,.025,.32),new T.MeshStandardMaterial({color:0xf3e1bc}));
  paper.position.set(15.61,1.06,.69);scene.add(paper);
- const coat=new T.Group(),cloth=new T.MeshStandardMaterial({color:0x37495a,roughness:.94});
- function panel(points,material,y){
-  const shape=new T.Shape();points.forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath();
-  const geo=new T.ExtrudeGeometry(shape,{depth:.011,bevelEnabled:true,bevelSize:.005,bevelThickness:.004,bevelSegments:2});
-  geo.rotateX(-Math.PI/2);const part=new T.Mesh(geo,material);part.position.y=y;coat.add(part);
- }
- panel([[-.14,-.25],[-.06,-.28],[.06,-.28],[.14,-.25],[.28,.065],[.22,.10],[.145,-.034],[.16,.26],[-.16,.26],[-.145,-.034],[-.22,.10],[-.28,.065]],cloth,0);
- const trim=new T.MeshStandardMaterial({color:0x506475,roughness:.89});
- for(const s of [-1,1])panel([[s*.066,-.27],[s*.121,-.22],[s*.076,-.145],[s*.104,-.13],[0,.015]],trim,.016);
- coat.position.set(15.54,1.075,1.19);coat.rotation.y=-Math.PI/2;scene.add(coat);
- function showCoat(visible){coat.visible=visible;fittings.pressing.visible=!visible;}
+ const coat=new T.Group(),laidCoat=fittings.heldCoat.clone(true);
+ laidCoat.rotation.x=-Math.PI/2;coat.add(laidCoat);
+ coat.position.set(15.28,1.103,1.19);coat.rotation.y=Math.PI/2;coat.visible=false;scene.add(coat);
+ function showCoat(visible){coat.visible=visible;fittings.coatShown=visible;fittings.pressing.visible=!visible;}
  illuminate(false);
  function face(id,point,dt){
   const actor=actors.get(id);

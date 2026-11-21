@@ -19,7 +19,7 @@ with sync_playwright() as playwright:
         source = route.fetch().text()
         source = source.replace(
             "function frame(now){",
-            "window.reviewView=()=>({...current,mode:travel.snapshot().mode});function frame(now){",
+            "window.reviewView=()=>({...current,y:cameraY,mode:travel.snapshot().mode});function frame(now){",
         )
         route.fulfill(body=source, content_type="text/javascript")
     def observe_scene(route):
@@ -30,6 +30,13 @@ with sync_playwright() as playwright:
         route.fulfill(body=source, content_type="text/javascript")
     page.route("**/street-game.js", observe_game)
     page.route("**/street-render.js", observe_scene)
+    def observe_props(route):
+        source=route.fetch().text().replace(
+            ' return (point,engaged,now)=>{',
+            " window.reviewProps=()=>({coatOnCounter:!!kit.coatShown,qingHeld:jobs.find(j=>j.id==='aqing').left.visible});return (point,engaged,now)=>{",
+        )
+        route.fulfill(body=source,content_type='text/javascript')
+    page.route('**/street-fixtures.js',observe_props)
     page.goto("http://127.0.0.1:4236/?street=3d")
     page.locator(".vinyl-new").click()
     page.locator('[data-learning-mode="experienced"]').click()
@@ -52,16 +59,32 @@ with sync_playwright() as playwright:
     assert abs(end["heading"] - start["heading"]) < .001, (start, end)
     assert abs(end["pitch"] - start["pitch"]) < .001, (start, end)
     assert abs(end["x"]-start["x"]) + abs(end["z"]-start["z"]) > .1
-    after = page.evaluate("reviewActors()")
-    moved = [
-        name for name in ("buyer", "regular", "ale", "ling")
-        if sum(abs(x-y) for x,y in zip(before[name],after[name])) > .05
-    ]
-    assert len(moved) == 4, moved
+    moved=set()
+    samples=[]
+    for _ in range(480):
+        page.wait_for_timeout(250)
+        view=page.evaluate("reviewView()")
+        after=page.evaluate("reviewActors()")
+        moved.update(name for name in ('buyer','regular','ale','ling') if sum(abs(x-y) for x,y in zip(before[name],after[name]))>.05)
+        samples.append(view)
+        if view['mode']!='following':break
+        assert abs(view['heading']-start['heading'])<.001,view
+        assert abs(view['pitch']-start['pitch'])<.001,view
+        assert abs(view['y']-start['y'])<.001,view
+    assert samples[-1]['mode']=='arrived',samples[-1]
+    assert len(moved)==4,sorted(moved)
     page.screenshot(path=str(out / "follow-final.jpg"))
+    page.locator('#street-interact').click()
+    page.locator('[data-street-action="shop-check"]').click(timeout=15000)
+    page.locator('[data-street-action="show-coat"]:not([disabled])').wait_for(timeout=60000)
+    page.locator('[data-street-action="show-coat"]').click()
+    page.wait_for_timeout(1200)
+    props=page.evaluate('reviewProps()')
+    assert props=={'coatOnCounter':True,'qingHeld':False},props
+    page.screenshot(path=str(out/'counter-final.jpg'))
     assert not errors, errors
     (out / "street-regressions.json").write_text(
-        json.dumps({"start":start,"end":end,"movingNPCs":moved,"errors":errors},indent=2),
+        json.dumps({"start":start,"end":end,"arrival":samples[-1],"followSamples":len(samples),"movingNPCs":sorted(moved),"errors":errors},indent=2),
         encoding="utf-8",
     )
     browser.close()

@@ -126,19 +126,14 @@ export function createOccupations(scene,actors,kit){
   if(!bones.RightHand)continue;
   const base=new Map();
   for(const k of ['RightArm','RightForeArm','LeftArm','LeftForeArm','Head','Spine1'])if(bones[k])base.set(bones[k],bones[k].quaternion.clone());
-  for(const side of ['Left','Right'])if(bones[side+'Hand'])base.set(bones[side+'Hand'],bones[side+'Hand'].quaternion.clone());
+  for(const [name,bone] of Object.entries(bones))if(name.includes('Hand'))base.set(bone,bone.quaternion.clone());
   const left=new T.Group(),right=new T.Group();scene.add(left,right);left.visible=right.visible=false;
   const {box,cyl,piece,ball}=kit;
   if(id==='fang'){
    piece(right,ball,0x636c70,0,-.039,.022,.087,.033,.18);box(right,0x994c3c,0,-.016,.007,.072,.045,.109);box(right,0x42372c,0,.017,0,.024,.021,.08);
   }else if(id==='aqing'){
-   const shape=new T.Shape();
-   [[-.15,.02],[-.25,-.04],[-.34,-.30],[-.25,-.34],[-.16,-.18],[-.16,-.52],[.16,-.52],[.16,-.18],[.25,-.34],[.34,-.30],[.25,-.04],[.15,.02],[0,-.04]].forEach(([x,y],i)=>i?shape.lineTo(x,y):shape.moveTo(x,y));
-   shape.closePath();
-   const jacket=new T.Mesh(new T.ExtrudeGeometry(shape,{depth:.008,bevelEnabled:true,bevelSize:.002,bevelThickness:.002,bevelSegments:2}),new T.MeshStandardMaterial({color:0x374958,roughness:.92}));
-   jacket.position.set(-.13,-.005,.035);left.add(jacket);
-   for(const sign of [-1,1])box(left,0x647682,-.13+sign*.045,-.13,.083,.035,.15,.012).rotation.z=sign*.35;
-   for(let n=0;n<3;n++)piece(left,ball,0xbbaa86,-.13,-.24-n*.085,.083,.015,.015,.009);
+   const jacket=kit.heldCoat.clone(true);
+   jacket.position.set(-.13,-.005,-.020);left.add(jacket);
   }else if(id==='ale'){
    const lp=cyl(left,0x282324,.085,.018,.028,.27,.013,.27);cyl(lp,0xc46946,0,.66,0,.31,.12,.31);
    box(right,0xddc7a4,0,-.008,0,.077,.016,.066);
@@ -217,25 +212,47 @@ export function createOccupations(scene,actors,kit){
   const parent=wrist.parent.getWorldQuaternion(new T.Quaternion());
   wrist.quaternion.premultiply(parent.clone().invert().multiply(new T.Quaternion().slerp(roll,job.weight)).multiply(parent));
  }
+ function placeFingertip(job,side,digit,target){
+  const tip=job.bones[side+'Hand'+digit+'4'];
+  const joints=[3,2,1].map(index=>job.bones[side+'Hand'+digit+index]);
+  if(!tip||joints.some(joint=>!joint))return;
+  for(let iteration=0;iteration<10;iteration++){
+   if(tip.getWorldPosition(v()).distanceTo(target)<.0015)break;
+   for(const joint of joints){
+    const origin=joint.getWorldPosition(v());
+    const from=tip.getWorldPosition(v()).sub(origin).normalize();
+    const to=target.clone().sub(origin).normalize();
+    const rotation=new T.Quaternion().setFromUnitVectors(from,to);
+    const angle=rotation.angleTo(new T.Quaternion());
+    if(angle>.18)rotation.slerp(new T.Quaternion(),1-.18/angle);
+    const parent=joint.parent.getWorldQuaternion(new T.Quaternion());
+    joint.quaternion.premultiply(parent.clone().invert().multiply(rotation).multiply(parent));
+    const rest=job.base.get(joint),bend=rest.angleTo(joint.quaternion);
+    if(bend>.85)joint.quaternion.copy(rest.clone().slerp(joint.quaternion,.85/bend));
+   }
+  }
+ }
  return (point,engaged,now)=>{
   let changed=false;
   for(const j of jobs){
    const {model,id}=j;
+   const dt=j.last===undefined?0:T.MathUtils.clamp((now-j.last)/1000,0,.1);j.last=now;
    if(!model.visible||Math.hypot(model.position.x-point.x,model.position.z-point.z)>10){j.left.visible=j.right.visible=false;continue;}
    const moved=j.still.distanceToSquared(model.position)>.00001;j.still.copy(model.position);
-   if(moved&&id!=='aqing'){j.weight=0;j.left.visible=j.right.visible=false;continue;}
+   if((moved||j.actor.walking)&&id!=='aqing'){j.weight=0;j.left.visible=j.right.visible=false;continue;}
    if(id==='friend'){
     j.left.visible=j.right.visible=false;
     const head=j.bones.Head;head.quaternion.copy(j.base.get(head));head.rotateY((engaged===id?.025:.09)*Math.sin(now*.00055));head.rotateX(.012*Math.sin(now*.0011));changed=true;
     continue;
    }
-   const working=id==='aqing'||engaged!==id&&!(id==='vendor'&&engaged==='juiceCart');
+   const coatOnCounter=kit.coatShown&&(id==='fang'||id==='aqing'&&Math.hypot(model.position.x-15.54,model.position.z-1.19)<2.4);
+   const working=!coatOnCounter&&(id==='aqing'||engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
    if(!working&&!j.weight)continue;
    if(working&&['fang','ale','aming','ling','regular'].includes(id)){
     const delta=j.actor.spec.rotationY-model.rotation.y;
-    model.rotation.y+=Math.atan2(Math.sin(delta),Math.cos(delta))*.13;
+    model.rotation.y+=T.MathUtils.clamp(Math.atan2(Math.sin(delta),Math.cos(delta)),-.85*dt,.85*dt);
    }
-   j.weight=T.MathUtils.clamp(j.weight+(working?.12:-.17),0,1);
+   j.weight=T.MathUtils.clamp(j.weight+(working?3:-4)*dt,0,1);
    for(const [bone,rot] of j.base)bone.quaternion.copy(rot);
    const t=now*.001+j.index*.86,swing=Math.sin(t*1.6),lift=(1-Math.cos(t*1.6))*.5;
    let l=v().set(.07,.59,.18),r=v().set(-.042+.035*swing,.62,.18);
@@ -251,10 +268,11 @@ export function createOccupations(scene,actors,kit){
     default:r.set(-.071+.073*lift,.613+.033*Math.abs(swing),.23+.027*lift);break;
    }
    leanForward(j.bones.Head,model,(id==='aqing'?(engaged===id?.025:.10):.19)*j.weight);
-   if(id==='fang')leanForward(j.bones.Spine1,model,.21*j.weight);
+   if(id==='fang')leanForward(j.bones.Spine1,model,.44*j.weight);
    if(id==='fang'){
-    l=model.worldToLocal(v().set(15.89,1.10,1.37));
-    r=model.worldToLocal(v().set(15.85+.029*Math.cos(t*1.6),1.137+.014*lift,1.18+swing*.165));
+    l=model.worldToLocal(v().set(15.89,1.12,1.37));
+    const stroke=1.18+swing*.135,cuff=.008*(1-T.MathUtils.smoothstep(stroke,1.08,1.14));
+    r=model.worldToLocal(v().set(15.85+.015*Math.cos(t*1.6),1.130+cuff+.002*lift,stroke));
    }
    if(id==='lin'){
     r=model.worldToLocal(v().set(15.56+.10*lift,1.043+.085*lift,-12.32+.106*lift));
@@ -270,20 +288,49 @@ export function createOccupations(scene,actors,kit){
     const turn=new T.Quaternion().identity().slerp(new T.Quaternion().setFromUnitVectors(from,toward),j.weight);
     wrist.quaternion.premultiply(parent.clone().invert().multiply(turn).multiply(parent));
     j.left.position.copy(knuckle.getWorldPosition(v()));
+    for(const digit of ['Index','Middle','Ring','Pinky']){
+     for(let index=1;index<=3;index++){
+      const joint=j.bones['LeftHand'+digit+index],child=j.bones['LeftHand'+digit+(index+1)];
+      const direction=v().set(-1,-.025,0).applyQuaternion(model.getWorldQuaternion(new T.Quaternion()));
+      aim(joint,child,joint.getWorldPosition(v()).add(direction));
+     }
+    }
     // Locate the nib on the page, then aim the barrel through the writing hand.
     const cycle=(t%6)/6,mark=cycle<.64?Math.min(1,(cycle%.32)/.22):1;
     const lifted=cycle>=.64?.033*Math.sin((cycle-.64)*Math.PI/.36):0;
     const tip=j.left.children[0].localToWorld(v().set(-.155+.025*mark,.025+lifted,cycle<.32?.026:-.016));
-    const grip=tip.clone().add(v().set(-.032,.050,-.010).applyQuaternion(model.getWorldQuaternion(new T.Quaternion())));
+    const grip=tip.clone().add(v().set(-.032,.085,-.010).applyQuaternion(model.getWorldQuaternion(new T.Quaternion())));
     reach(j,'Right',grip,j.weight);
     const fingers=j.bones.RightHandIndex2||j.bones.RightHand;
     j.right.position.copy(tip);
     j.right.quaternion.setFromUnitVectors(v().set(0,1,0),fingers.getWorldPosition(v()).sub(tip).normalize());
+    const pinch=j.right.localToWorld(v().set(0,.082,0));
+    const across=v().set(.009,0,0).applyQuaternion(model.quaternion);
+    placeFingertip(j,'Right','Index',pinch.clone().add(across));
+    placeFingertip(j,'Right','Thumb',pinch.clone().sub(across));
+    placeFingertip(j,'Right','Middle',pinch.clone().add(v().set(.012,-.016,.005).applyQuaternion(model.quaternion)));
+    for(const digit of ['Ring','Pinky']){
+     const wrist=j.bones.RightHand.getWorldPosition(v());
+     const knuckle=j.bones['RightHand'+digit+'1'].getWorldPosition(v());
+     const target=wrist.lerp(knuckle,.72).add(v().set(0,-.012,.018).applyQuaternion(model.quaternion));
+     target.y=Math.max(target.y,tip.y+.045);
+     placeFingertip(j,'Right',digit,target);
+    }
    }else j.right.position.copy(reach(j,'Right',model.localToWorld(r),j.weight));
    j.left.visible=j.right.visible=j.weight>.045;
-   if(id==='aqing')j.right.visible=false;
+   if(id==='aqing'){
+    if(coatOnCounter)j.left.visible=false;
+    j.right.visible=false;
+    placeFingertip(j,'Left','Thumb',j.left.localToWorld(v().set(.018,-.015,.014)));
+   }
+   if(id==='fang'&&working){
+    for(const [index,digit] of ['Index','Middle','Ring','Pinky'].entries()){
+     placeFingertip(j,'Right',digit,j.right.localToWorld(v().set(.020,.006,-.030+index*.020)));
+    }
+    placeFingertip(j,'Right','Thumb',j.right.localToWorld(v().set(-.020,.018,.018)));
+   }
    if(id==='aming'&&!working)j.left.visible=j.right.visible=false;
-   if(id==='fang'&&!working){j.right.position.set(15.84,1.116,1.33);j.right.visible=true;}
+   if(id==='fang'&&!working){j.right.position.set(15.97,1.116,1.60);j.right.visible=true;}
    changed=true;
   }
   return changed;

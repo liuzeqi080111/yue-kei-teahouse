@@ -527,14 +527,18 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    const near=[.45,.8,1.2].flatMap(d=>Array.from({length:8},(_,k)=>({x:p.x+d*Math.sin(k*Math.PI/4),z:p.z+d*Math.cos(k*Math.PI/4)}))).find(q=>nav.walkable(q.x,q.z));
    if(!near)return;p=near;actor.model.position.set(p.x,.11,p.z);
   }
-  if(distance(p,dest)<=gap)return;
+  if(distance(p,dest)<=gap){actor.walkSpeed=0;return;}
   if(!actor.path?.length||distance(actor.dest,dest)>.55){actor.path=nav.path(p,dest);actor.dest={...dest};}
   const next=actor.path[0];if(!next)return;
   const len=distance(p,next);if(len<.03){actor.path.shift();return;}
-  const step=Math.min(len,2.6*dt,Math.max(.001,distance(p,dest)-gap)),x=p.x+(next.x-p.x)*step/len,z=p.z+(next.z-p.z)*step/len;
+  const turn=deltaAngle(actor.model.rotation.y,Math.atan2(next.x-p.x,next.z-p.z));
+  actor.model.rotation.y+=Math.max(-1.8*dt,Math.min(1.8*dt,turn));
+  if(Math.abs(turn)>1.05){actor.walkSpeed=0;actor.strideDistance=.35*dt;dirty=true;return;}
+  const desired=Math.min(2.6,Math.sqrt(3.6*Math.max(0,distance(p,dest)-gap)))*Math.max(0,Math.cos(turn));
+  actor.walkSpeed=(actor.walkSpeed||0)+Math.max(-2.5*dt,Math.min(1.8*dt,desired-(actor.walkSpeed||0)));
+  const step=Math.min(len,actor.walkSpeed*dt,Math.max(.001,distance(p,dest)-gap)),x=p.x+(next.x-p.x)*step/len,z=p.z+(next.z-p.z)*step/len;
   if(!nav.line(p,{x,z})){actor.path=[];return;}
   actor.model.position.set(x,(nav.cell(x,z)-11)/100,z);
-  actor.model.rotation.y+=deltaAngle(actor.model.rotation.y,Math.atan2(next.x-p.x,next.z-p.z))*Math.min(1,11*dt);
   actor.strideDistance=step;dirty=true;
  }
  function advance(dt){
@@ -577,7 +581,8 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    const diff=deltaAngle(current.heading,pendingLook.heading);
    const pitchDelta=pendingLook.pitch-current.pitch;
    const ease=Math.min(1,dt*5.5);
-   current.heading+=diff*ease;current.pitch+=pitchDelta*ease;dirty=true;
+   current.heading+=Math.max(-.9*dt,Math.min(.9*dt,diff*ease));
+   current.pitch+=Math.max(-.5*dt,Math.min(.5*dt,pitchDelta*ease));dirty=true;
    if(Math.abs(diff)+Math.abs(pitchDelta)<.01)pendingLook=null;
   }
   if(talking==='fang'&&lastSpeech?.speaker==='qing'&&!route())pendingLook={heading:angle(current,pointOf(body('qing'))),pitch:-.23};
@@ -585,7 +590,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(talking==='intro'&&scene.face('friend',current,dt))dirty=true;
   if(talking!=='lam'&&(NPCS[talking]||SHOPS[talking])&&scene.face(ACTORS[talking]?.model||talking,current,dt))dirty=true;
  }
- let cameraY=1.64,lastWorkFrame=0;
+ let cameraY=1.64;
  function frame(now){
   if(!visible)return;
   const dt=Math.min(.045,Math.max(0,(now-previousTime)/1000));
@@ -593,9 +598,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   advance(dt);
   const targetY=1.64;
   if(Math.abs(targetY-cameraY)>.001){cameraY+=(targetY-cameraY)*Math.min(1,dt*2);dirty=true;}
-  const workDue=true;
-  const working=workDue&&scene.animateWork(current,ACTORS[talking]?.model||talking,now);
-  if(workDue)lastWorkFrame=now;
+  const working=scene.animateWork(current,ACTORS[talking]?.model||talking,now);
   if(dirty||working)scene.render(chess?{x:15.68,y:1.32,z:-11.02,heading:0,pitch:-.105}:{...current,y:cameraY});
   if(dirty){
    updateTarget();drawHud();
@@ -636,7 +639,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   }
   friend.model.rotation.y=friend.spec.rotationY;friend.mixer?.setTime(0);
   visible=true;host.hidden=false;dirty=true;styleKey='';
-  cameraY=1.64+(nav.cell(current.x,current.z)-11)/100;
+  cameraY=1.64;
   onTransition(getState().location==='home'?'home':'street');
   drawHud();persist(true);
   previousTime=performance.now();frameId=requestAnimationFrame(frame);canvas.focus({preventScroll:true});

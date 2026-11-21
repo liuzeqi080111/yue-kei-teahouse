@@ -324,7 +324,7 @@ export async function createStoryScene(canvas,chapter){
    if(id==='morning')shot([2.16,1.64,-.17],[1.42,1.35,-1.92],53);
   }
   looseNews.position.set(1.97,.958,-1.51);looseNews.rotation.set(0,Math.PI/2,0);newsFold.rotation.z=0;
-  cupTea.position.set(2.21-.070*1.72,.944,-2.42+.25*1.72);cupLemon.position.copy(cupTea.position);
+  cupTea.position.set(2.21-.070*1.72,.9425,-2.42+.173*1.72);cupLemon.position.copy(cupTea.position);
   const serving=id==='tea'||id==='lemon';
   serviceTake.rig.visible=serving;
   if(serving){
