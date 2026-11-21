@@ -27,7 +27,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises');
   if(!await page.locator('.hud-fallback').evaluate(e=>e.open))await page.locator('.hud-fallback summary').click();
  };
  try{
-  await page.goto('http://127.0.0.1:'+server.address().port);await page.locator('[data-dialog="chapters"]').click();await page.locator('[data-chapter="full"]').click();
+  await page.goto('http://127.0.0.1:'+server.address().port);await page.evaluate(()=>document.querySelector('#chapters').showModal());await page.locator('[data-chapter="full"]').click();
   await type('两位用粤语怎么说');await page.waitForFunction(()=>document.querySelector('.hud-subtitle').textContent.includes('意思是两位'));
   assert.match(await page.locator('#stage').textContent(),/迎接/);
   await type('两位');await page.waitForFunction(()=>document.body.dataset.camera==='room');

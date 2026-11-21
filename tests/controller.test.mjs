@@ -79,11 +79,11 @@ test('a waiter already at the table responds without approaching again; cameras 
  g.action('REQUEST_WATER');assert.equal(g.snapshot().view.beat.pose,'talk');assert.equal(g.snapshot().view.line[0],'阿明 · 侍應');
  h.flush();assert.equal(g.snapshot().view.water,true);assert.equal(g.snapshot().state.waiterPresent,true);
 });
-test('waiter welcomes at the door, leads once, and is called back from the aisle',()=>{
+test('guest walks straight to the window seat while the waiter stays at the door',()=>{
  const h=harness(),g=h.game;
  g.action('ENTER');assert.equal(g.snapshot().view.beat.pose,'talk');
  assert.ok(MOTION.walk>=2800&&MOTION.walk<=3600);assert.ok(MOTION.frame<=250);h.flush();
- g.action('START_SEATING');assert.equal(g.snapshot().view.beat.pose,'talk');
+ g.action('START_SEATING');assert.equal(g.snapshot().view.camera,'walk');assert.equal(g.snapshot().view.beat.pose,'walk');
  h.flush();assert.equal(g.snapshot().state.waiterPresent,false);assert.equal(g.snapshot().view.near,false);
  g.action('CALL_WAITER');assert.equal(g.snapshot().view.beat.pose,'approach');h.flush();
  assert.equal(g.snapshot().view.near,true);

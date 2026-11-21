@@ -121,3 +121,19 @@
 #welcome.vinyl-edition .vinyl-continue:disabled {cursor:default;background:#e8c08044}
 #welcome.vinyl-edition .vinyl-new:hover,#welcome.vinyl-edition .vinyl-continue:enabled:hover {background:#fff2c324}
 #welcome.vinyl-edition .vinyl-motor {left:62%;top:30%;width:14%;height:32%;border-radius:50%}
+
+#settings{width:min(340px,calc(100vw - 32px));box-sizing:border-box;padding:20px 24px;background:#f4e8cf;color:#34281e;border:1px solid #997c59;border-radius:9px;box-shadow:0 16px 55px #25160c55}
+#settings::backdrop{background:#23180fb3}
+#settings header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #934332;margin-bottom:8px}
+#settings header h2{margin:0;font:600 25px/1.6 serif}
+#settings header button{width:40px;border:0;color:#67483a;font-size:24px;padding:0}
+#settings .settings{display:grid;gap:0;padding:0;margin:0}
+#settings .settings button{color:#402e23;background:transparent;border:0;border-bottom:1px solid #cdbb9d;text-align:left;font-size:16px;padding:10px 4px;min-height:44px}
+#settings .settings button:hover,#settings .settings button:focus-visible{background:#e7d7b9}
+#settings #restart{color:#893b2e;font-weight:600}
+#clear-review-status:empty{display:none}
+body[data-meaning="false"] :is(.street-meaning,.hud-cantonese:not([hidden])+.hud-subtitle){display:none}
+#settings .settings{grid-template-columns:minmax(0,1fr);justify-content:stretch}
+#settings .settings button,#settings header button{margin:0}
+#settings header button{background:transparent}
+@media(prefers-reduced-motion:reduce){.vinyl-rotation{animation-duration:8s}}

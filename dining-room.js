@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {mouthShapes} from './voice-clips.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const tableY = .945;
@@ -87,7 +88,6 @@ function aisle(points){
  route.add(new T.LineCurve3(start,knots.at(-1)));return route;
 }
 const serviceRoute=aisle([[-.74,-4.03],[.56,-4.03],[.56,-2.64],[2.06,-2.64]]);
-const leadRoute=aisle([[.34,-1.12],[.54,-2.64],[2.06,-2.64]]);
 const seatingRoute=aisle([[.18,.27],[.26,-.61],[.54,-2.64],[2.72,-2.64],[2.73,-1.55]]);
 
 export function furnishKitchen(scene,district){
@@ -189,23 +189,123 @@ export function furnishKitchen(scene,district){
   const x=-2.18+i*.23;box(enamel,x,2.121,-2.99,.133,.18,.005);
   for(let j=0;j<3;j++)box(0x968571,x,2.16-j*.026,-2.986,.087,.006,.003);
  }
+ const panels=[];
+ const cloth=new T.MeshStandardMaterial({color:0x924c38,roughness:.98,side:T.DoubleSide});
+ for(const side of [-1,1]){
+  const geo=new T.PlaneGeometry(.58,2.12,32,10),p=geo.attributes.position;
+  for(let i=0;i<p.count;i++){
+   const u=(p.getX(i)+.29)/.58;
+   p.setXYZ(i,side*(u*.58),p.getY(i)+.016*Math.cos(u*20),.035*Math.sin(u*Math.PI*8));
+  }
+  geo.computeVertexNormals();const panel=new T.Mesh(geo,cloth);
+  panel.name='Kitchen curtain';panel.castShadow=true;panel.receiveShadow=true;panel.position.set(.53-side*.56,1.23,-3.11);kitchen.add(panel);panels.push(panel);
+ }
+ return openness=>{for(const panel of panels)panel.scale.x=1-.84*openness;};
 }
 
-export async function createDiningRoom(canvas) {
- const loader=new GLTFLoader();
- const [district,ming]=await Promise.all(['district','aming-styled-v3'].map(name=>loader.loadAsync('./assets/street/'+name+'.glb')));
- const renderer=new T.WebGLRenderer({canvas,antialias:true});
- renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
- renderer.toneMapping=T.ACESFilmicToneMapping;
- const scene=new T.Scene(),camera=new T.PerspectiveCamera(67,1,.025,140);
- scene.background=new T.Color(0xc6d8dd);
- // Work in the shop's modelling coordinates. The district, including the window view,
- // stays registered to the existing booth and counter.
- district.scene.rotation.y=-Math.PI/2;
- district.scene.position.set(8.8,0,15.72);
+// Landmarks in the GLB bind coordinates, independent of mixer time and room scale.
+const mouthLandmarks={
+ aming:[-.001,.876,.021],friend:[-.002,.883,.023],aqing:[0,.874,.019],fang:[.001,.880,.020],
+ ale:[-.002,.887,.021],ling:[-.001,.882,.021],lin:[-.001,.880,.022],buyer:[.001,.884,.020],
+ regular:[0,.885,.021],vendor:[-.003,.884,.022],southRice:[.002,.832,.018],
+ westBread:[-.002,.850,.021],eastBread:[-.001,.870,.022],radio:[.002,.863,.019],
+ herbs:[-.003,.828,.017],arcade:[.002,.855,.020],marketBack:[-.002,.863,.020],
+ riceCorner:[-.001,.878,.018],banyanCloth:[.001,.862,.019],lanePrint:[.001,.855,.020],
+ southPrint:[-.001,.864,.019],southCloth:[.001,.859,.018],eastPrint:[.001,.851,.017],
+ eastRice:[.001,.853,.020],westCorner:[-.002,.829,.020],workshop:[-.002,.842,.021],
+ gardenHomes:[.002,.844,.020],northTurn:[.001,.875,.022],eastTurn:[0,.854,.019],
+};
+export function mouthPose(model,id){
+ const [cx,cy,width]=mouthLandmarks[id]??[0,.863,.018];
+ const landmark=new T.Vector3(cx,cy,width),pose=new T.Vector4(),goal=new T.Vector4();
+ // The source character is a textured, closed scan. Shade the oral opening in
+ // bind space so it follows the skinned surface without a floating mouth card.
+ model.traverse(mesh=>{
+  const pos=mesh.geometry?.attributes.position;
+  if(!pos||pos.count<600||/eye|iris/i.test(mesh.name))return;
+  if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+  const box=mesh.geometry.boundingBox;
+  if(box.min.y>cy+.012||box.max.y<cy-.026||box.min.x>cx||box.max.x<cx)return;
+  const nearMouth=.008,minimumDepth=.014;
+  let front=-Infinity;
+  for(let i=0;i<pos.count;i++){
+   const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
+   if(Math.abs(x-cx)<=nearMouth&&Math.abs(y-cy)<=nearMouth)front=Math.max(front,z);
+  }
+  if(!Number.isFinite(front)||front<minimumDepth)return;
+  function decorate(material){
+   const result=material.clone();
+   result.onBeforeCompile=shader=>{
+    Object.assign(shader.uniforms,{mouthLandmark:{value:landmark},mouthShape:{value:pose},mouthFront:{value:front}});
+    const uniforms='uniform vec3 mouthLandmark; uniform vec4 mouthShape; uniform float mouthFront; varying vec3 mouthVertex;';
+    shader.vertexShader=uniforms+'\n'+shader.vertexShader.replace('#include <skinning_vertex>',`
+     vec3 bind = transformed;
+     vec2 local = bind.xy - mouthLandmark.xy;
+     float x = local.x/(mouthLandmark.z*1.66);
+     float cheek = max(0.,1.-x*x);
+     float chin = smoothstep(-.044,-.022,local.y)*(1.-smoothstep(-.007,-.002,local.y));
+     float lip = 1.-smoothstep(.002,.019,abs(local.y));
+     float front = smoothstep(mouthFront-.039,mouthFront-.017,bind.z);
+     transformed.y -= .0048*mouthShape.x*cheek*chin*front;
+     transformed.x += local.x*lip*cheek*(.10*mouthShape.z-.27*mouthShape.y)*front;
+     transformed.z += front*cheek*lip*.004*mouthShape.y;
+     mouthVertex = transformed;
+     #include <skinning_vertex>`);
+    shader.fragmentShader=uniforms+'\n'+shader.fragmentShader.replace('#include <color_fragment>',`
+     #include <color_fragment>
+     if(mouthShape.x>.015 && mouthVertex.z>mouthFront-.026){
+      float halfWidth = mouthLandmark.z*(1.+.12*mouthShape.z-.37*mouthShape.y);
+      float u = (mouthVertex.x-mouthLandmark.x)/halfWidth;
+      float arc = max(0.,1.-u*u);
+      float seam = mouthLandmark.y-.0013*u*u;
+      float top = seam + arc*(.0008+.0015*mouthShape.y)*mouthShape.x;
+      float bottom = seam - pow(arc,.72)*(.0083+.0024*mouthShape.y)*mouthShape.x;
+      float y = mouthVertex.y;
+      float edge = max(.00045,fwidth(y)*.68);
+      float inside = smoothstep(-edge,edge,y-bottom)*smoothstep(-edge,edge,top-y)*smoothstep(0.,.21,arc);
+      float slit = clamp((top-y)/max(.0004,top-bottom),0.,1.);
+      vec3 cavity = mix(vec3(.016,.004,.005),vec3(.047,.009,.013),slit);
+      float tongue = smoothstep(.57,.92,slit)*(1.-smoothstep(.13,.73,abs(u)))*(1.-smoothstep(.93,1.,slit));
+      cavity = mix(cavity,vec3(.22,.049,.054),.63*tongue);
+      float teeth = (1.-smoothstep(.03,.2,abs(slit-(.14+.075*u*u)))) * (1.-smoothstep(.48,.81,abs(u)));
+      float grooves = smoothstep(.02,.12,abs(fract(u*3.9+.5)-.5));
+      teeth *= mouthShape.w*smoothstep(.06,.34,mouthShape.x)*mix(.83,1.,grooves);
+      cavity = mix(cavity,vec3(.64,.48,.33),teeth*.84);
+      float lipRim = (1.-smoothstep(.00025,.0019,abs(y-bottom)))*arc*mouthShape.x;
+      diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.88,.65,.63),lipRim*.54);
+      diffuseColor.rgb = mix(diffuseColor.rgb,cavity,inside);
+     }`);
+   };
+   result.customProgramCacheKey=()=> 'character-mouth-v1';
+   return result;
+  }
+  mesh.material=Array.isArray(mesh.material)?mesh.material.map(decorate):decorate(mesh.material);
+ });
+ return (level=0,shape)=>{
+  const values=Array.isArray(shape)?shape:mouthShapes[shape]??mouthShapes.C;
+  goal.fromArray(values);
+  // The audio clock coarticulates cue boundaries. The amplitude only scales
+  // jaw effort so a whispered rounded vowel keeps its silhouette.
+  const strength=T.MathUtils.clamp(level,0,1);
+  goal.multiplyScalar(strength?(.38+.62*strength):0);
+  pose.copy(goal);
+ };
+}
+
+// Each character shares a two-cycle walking clip. Sample the opposite
+// planted leg a quarter of the way through instead of freezing mid-stride.
+export function plantedStance(stride){
+ const tracks=stride.tracks.map(track=>{
+  const phase=/Right(UpLeg|Leg|Foot|Toe)/i.test(track.name)?stride.duration*.25:0;
+  return new track.constructor(track.name,[0],track.createInterpolant().evaluate(phase));
+ });
+ return new T.AnimationClip('Standing',1,tracks);
+}
+
+export function clearBoothCups(district){
  // Clear the two decorative cup sets baked into this booth only. The neighboring
  // tables keep their original crockery. Indices here are shop-local GLB vertices.
- district.scene.traverse(node=>{
+ district.traverse(node=>{
   if(!node.isMesh||!['white','tea'].includes(node.material.name)||!node.parent.name.toLowerCase().includes('counter'))return;
   const geometry=node.geometry,index=geometry.index,pos=geometry.attributes.position;
   if(!index)return;
@@ -217,31 +317,77 @@ export async function createDiningRoom(canvas) {
   }
   geometry.setIndex(kept);
  });
+}
+
+export async function createDiningRoom(canvas) {
+ const loader=new GLTFLoader();
+ const [district,ming,service]=await Promise.all(
+  ['district','aming-styled-v3','aming-service'].map(name=>loader.loadAsync('./assets/street/'+name+'.glb'))
+ );
+ const renderer=new T.WebGLRenderer({canvas,antialias:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+ renderer.toneMapping=T.ACESFilmicToneMapping;
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(67,1,.025,140);
+ scene.background=new T.Color(0xc6d8dd);
+ // Work in the shop's modelling coordinates. The district, including the window view,
+ // stays registered to the existing booth and counter.
+ district.scene.rotation.y=-Math.PI/2;
+ district.scene.position.set(8.8,0,15.72);
+ clearBoothCups(district.scene);
  scene.add(district.scene);
- furnishKitchen(scene,district.scene);
- const sky=new T.HemisphereLight(0xffeed4,0xab9680,1.75);
+ const openCurtain=furnishKitchen(scene,district.scene);
+ const sky=new T.HemisphereLight(0xf3ebe2,0xab9680,1.75);
  const sun=new T.DirectionalLight(0xffdfaf,2.1);
  sun.position.set(2,7,4);scene.add(sun,sky);
  const warm=new T.PointLight(0xffddac,10,8);warm.position.set(1.6,2.65,-1.5);scene.add(warm);
  const actor=ming.scene;actor.scale.setScalar(1.72);scene.add(actor);
+ const setMouth=mouthPose(actor,'aming');
+ const take=service.scene,scale=actor.scale.x;
+ take.scale.setScalar(scale);
+ const saucer=take.getObjectByName('ServiceSaucer');
+ const serviceMixer=new T.AnimationMixer(take);
+ for(const clip of service.animations)serviceMixer.clipAction(clip).setLoop(T.LoopOnce,1).play().clampWhenFinished=true;
+ const takeDuration=Math.max(...service.animations.map(clip=>clip.duration));
+ const takeBones={};
+ take.traverse(o=>{if(o.isBone)takeBones[o.name.replace(/^mixamorig[:_]?/i,'')]=o;});
+ const carriedCup=saucer.clone(true);scene.add(carriedCup);carriedCup.scale.setScalar(scale);carriedCup.visible=false;
+ const teaColors={'milk-tea':0xb87945,'lemon-tea':0x884016,yuanyang:0x895633,horlicks:0xc7a878};
+ const teaMaterials=new Map();
+ const serviceGlass=saucer.getObjectByName('ColdGlass');
+ serviceGlass.material=glassMaterial;
+ carriedCup.getObjectByName('ColdGlass').material=glassMaterial;
+ function setDrink(mesh,item,remaining=3){
+  const key=item.itemId.slice('drink-'.length),iced=item.options.temperature==='凍';
+  for(const piece of mesh.children){
+   const liquid=piece.name.endsWith('Tea');
+   piece.visible=piece.name.startsWith(iced?'Cold':'Hot')
+    &&(piece.name!=='ColdLemon'||key==='lemon-tea'&&remaining>0)&&(!liquid||remaining>0);
+   if(!liquid)continue;
+   const color=teaColors[key]??0x9c5e30;
+   if(!teaMaterials.has(color)){
+    const material=piece.material.clone();material.color.setHex(color);teaMaterials.set(color,material);
+   }
+   piece.material=teaMaterials.get(color);
+   const sipped=3-Math.max(0,Math.min(3,remaining));
+   piece.position.y=saucer.getObjectByName(piece.name).position.y-sipped*(iced?.018:.008);
+   piece.scale.x=piece.scale.z=1-sipped*(iced?.043:.052);
+  }
+ }
+ serviceMixer.setTime(takeDuration-.001);
+ const takeEndpoint=saucer.position.clone().multiplyScalar(scale),takeOffset=new T.Vector3(),drinks=new Map();
+
  const mixer=new T.AnimationMixer(actor);
  const stride=ming.animations[0];
  let walkAction,idleAction;
  if(stride){
   walkAction=mixer.clipAction(stride).play();
-  // Sample each leg in its planted phase. Freezing a single walking frame
-  // leaves the back foot in the air while the waiter stands at the stove.
-  const planted=stride.tracks.map(track=>{
-   const phase=/Right(UpLeg|Leg|Foot|Toe)/i.test(track.name) ? 0.60 : 0;
-   const value=track.createInterpolant().evaluate(phase);
-   return new track.constructor(track.name,[0],value);
-  });
-  idleAction=mixer.clipAction(new T.AnimationClip('Standing',1,planted)).play();
+  idleAction=mixer.clipAction(plantedStance(stride)).play();
  }
  const bones={};actor.traverse(o=>{if(o.isBone)bones[o.name.replace(/^mixamorig[:_]?/i,'')]=o;});
  // Undo the previous procedural offsets before sampling animation. Mixers
  // can skip writing unchanged tracks on repeated renders of the same time.
- const poseBones=[bones.Head,bones.LeftForeArm,bones.RightForeArm].filter(Boolean)
+ const poseBones=[bones.Spine,bones.Head,bones.LeftArm,bones.LeftForeArm,bones.RightArm,bones.RightForeArm,...Object.entries(bones)
+  .filter(([name])=>name==='RightShoulder'||name.startsWith('RightHand')).map(([,bone])=>bone)].filter(Boolean)
   .map(bone=>({bone,base:bone.quaternion.clone()}));
  const docket=new T.Group();scene.add(docket);
  part(docket,cube,0x6f4732,0,0,0,.12,.014,.16);
@@ -264,7 +410,37 @@ export async function createDiningRoom(canvas) {
  const contact=new T.MeshBasicMaterial({map:new T.CanvasTexture(shade),transparent:true,depthWrite:false});
  const shadowPlane=new T.PlaneGeometry(.27,.27);
  const plates=new T.Group();scene.add(plates);
- const water=part(scene,cup,0xb1d3cc,1.79,tableY+.057,-1.16,.076,.113,.076);
+ const glass=new T.Vector3(2.09,tableY,-2.04);
+ const tumbler=part(scene,vesselWall,0xd1ded8,glass.x,tableY+.066,glass.z,.102,.132,.102);
+ tumbler.material=glassMaterial;
+ part(scene,disc,0xc4d4ce,glass.x,tableY+.004,glass.z,.081,.008,.081);
+ const water=part(scene,cup,0x9acac2,glass.x,tableY,glass.z,.083,.1,.083);
+ const jug=new T.Group();scene.add(jug);
+ part(jug,cup,0xcac4b6,0,-.017,0,.14,.20,.14);
+ part(jug,disc,0x403832,0,.085,0,.14,.016,.14);
+ const spout=part(jug,cup,0xb9b7a8,.075,.056,0,.047,.086,.047);spout.rotation.z=-.8;
+ part(jug,new T.TorusGeometry(.06,.012,8,24),0x46372f,-.083,0,0,1,1,1);
+ const stream=part(scene,disc,0xa2d4ce,0,0,0,.010,1,.010);
+ const smooth=T.MathUtils.smoothstep,grip=new T.Vector3(),target=new T.Vector3(),rest=new T.Vector3();
+ const tray=part(scene,disc,0x805541,0,0,0,.34,.015,.27);
+ function aimHand(goal,weight,side='Right',contact='HandMiddle1'){
+  const end=bones[side+contact]||bones[side+'Hand'];if(!end)return;
+  end.getWorldPosition(rest);
+  if(!weight){grip.copy(rest);return;}
+  target.copy(rest).lerp(goal,weight);
+  for(let i=0;i<9;i++)for(const joint of [bones[side+'ForeArm'],bones[side+'Arm']]){
+   const pivot=joint.getWorldPosition(new T.Vector3());
+   const from=end.getWorldPosition(new T.Vector3()).sub(pivot).normalize();
+   const to=target.clone().sub(pivot).normalize();
+   const delta=new T.Quaternion().setFromUnitVectors(from,to);
+   const parent=joint.parent.getWorldQuaternion(new T.Quaternion());
+   joint.quaternion.premultiply(parent.clone().invert().multiply(delta).multiply(parent));
+  }
+  end.getWorldPosition(grip);
+ }
+ const spoon=new T.Group();scene.add(spoon);
+ part(spoon,sphere,0xd7d4c8,0,0,.068,.041,.011,.063);
+ part(spoon,cube,0xc7c4b8,0,.002,-.017,.011,.006,.123);
  const sticks=[0,.014].map(offset=>part(scene,cube,0x814c2f,2.27,tableY+.007,-2.07+offset,.218,.008,.008));
  const eye=new T.Vector3(),focus=new T.Vector3();
  let orderKey='',lastSize='',slots=[],currentView;
@@ -287,70 +463,228 @@ export async function createDiningRoom(canvas) {
    actor.rotation.y=blendYaw(actor.rotation.y,endYaw,T.MathUtils.smootherstep(progress,.86,1));
   }else actor.rotation.y=arrive>0?tableYaw:kitchenYaw;
   for(const {bone,base} of poseBones)bone.quaternion.copy(base);
-  const walkRoute=view.camera==='walk'?leadRoute:serviceRoute;
-  const walkProgress=view.camera==='walk'?Math.min(1,progress*1.24):progress;
+  const walkProgress=progress;
   const strideWeight=walking?T.MathUtils.smoothstep(walkProgress,0,.07)*(1-T.MathUtils.smoothstep(walkProgress,.92,1)):0;
   walkAction?.setEffectiveWeight(strideWeight);
   idleAction?.setEffectiveWeight(1-strideWeight);
-  mixer.setTime(walkProgress*walkRoute.getLength()/1.05);
+  mixer.setTime(walkProgress*serviceRoute.getLength()/1.05);
   for(const {bone,base} of poseBones)base.copy(bone.quaternion);
   const writing=pose==='talk'&&['order-review','food'].includes(beat.kind);
-  if(bones.Head)bones.Head.rotateX(pose==='place'||writing?.23:.035);
+  const placing=pose==='place', pouring=placing&&beat.kind==='REQUEST_WATER',laying=placing&&beat.kind==='REQUEST_UTENSILS';
+  const extend=placing?smooth(progress,0,.38)*(1-smooth(progress,.75,1)):0;
+  // Lean from the waist toward the table. Use the room axis since the
+  // imported skeleton's local head and spine axes differ from the scene's.
+  function lean(bone,angle){
+   if(!bone||!angle)return;
+   const axis=new T.Vector3(1,0,0).applyQuaternion(bone.parent.getWorldQuaternion(new T.Quaternion()).invert());
+   bone.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(axis,angle));
+  }
+  lean(bones.Spine,(pouring?.44:.86)*extend);
+  lean(bones.Head,(writing?.19:.045)+.16*extend);
   if(writing&&bones.LeftForeArm)bones.LeftForeArm.rotateX(-.55);
   docket.visible=!!(writing&&hand);
   if(docket.visible){hand.getWorldPosition(docket.position);docket.rotation.y=actor.rotation.y;}
-  if(pose==='place'&&bones.RightForeArm)bones.RightForeArm.rotateX(-.78*Math.sin(progress*Math.PI));
+
   eye.set(2.73,1.48,-1.55);focus.set(1.89,1.28,-2.51);
   if(['table','menu','bill'].includes(view.camera)){
    focus.set(2.08,.94,-1.59);
    if(camera.aspect<1){eye.y+=.36;eye.x+=.12;}
+   if(view.camera==='table'&&(pouring||laying)){
+    const framing=smooth(progress,0,.25)*(1-smooth(progress,.77,1));
+    focus.lerp(new T.Vector3(2.06,1.27,-2.44),framing);
+   }
   }
   if(view.camera==='window')focus.set(1.85,1.52,1.9);
   if(view.camera==='cashier')focus.set(-2,1.35,-2.8);
   if(['walk','entrance'].includes(view.camera)){
-   const t=view.camera==='walk'?progress:0;
+   const t=view.camera==='walk'?T.MathUtils.smootherstep(progress,0,1):0;
    seatingRoute.getPoint(t,eye);eye.y=1.78-.30*T.MathUtils.smoothstep(t,.82,1);
-   const leadProgress=Math.min(1,t*1.24);
-   leadRoute.getPoint(leadProgress,actor.position);
-   focus.copy(actor.position);focus.y=1.55;
-   const direction=leadRoute.getTangent(Math.min(.999,leadProgress));
-   const leadYaw=blendYaw(.13,Math.atan2(direction.x,direction.z),T.MathUtils.smootherstep(leadProgress,0,.14));
-   actor.rotation.y=blendYaw(leadYaw,tableYaw,T.MathUtils.smootherstep(leadProgress,.86,1));
+   actor.position.set(-.40,.195,-1.14);actor.rotation.y=.31;
+   focus.copy(actor.position);focus.y=1.59;
+   if(t>0){
+    const ahead=seatingRoute.getPoint(Math.min(1,t+.13));ahead.y=eye.y-.10;
+    ahead.lerp(new T.Vector3(1.89,1.28,-2.51),T.MathUtils.smoothstep(t,.77,1));
+    focus.lerp(ahead,T.MathUtils.smoothstep(t,0,.16));
+   }
   }
+  openCurtain(1-T.MathUtils.smoothstep(Math.hypot(actor.position.x-.53,actor.position.z+3.11),.30,.83));
+  setMouth(view.speechLevel||0,view.speechShape);
   camera.position.copy(eye);
   const dx=focus.x-eye.x,dy=focus.y-eye.y,dz=focus.z-eye.z;
   const elevation=Math.atan2(dy,Math.hypot(dx,dz));
   camera.rotation.set(T.MathUtils.clamp(elevation+pitch,-1.43,1.32),Math.atan2(-dx,-dz)+yaw,0,'YXZ');
   camera.updateMatrixWorld();
   sky.intensity=view.weather==='rain'?1.16:1.75;
-  water.visible=!!view.water;sticks.forEach(stick=>stick.visible=!!view.utensils);
-  const items=state.items.filter(i=>i.status==='served'||(pose==='place'&&beat.orderItemId===i.id)).slice(view.tablePage*6,view.tablePage*6+6);
-  const key=JSON.stringify(items.map(i=>[i.id,i.itemId,i.options,view.diningPortions.get(i.id)??3]));
+  const utensilSpot=new T.Vector3(2.015,tableY+.008,-1.988);
+  const fill=view.water?1:pouring?smooth(progress,.42,.73):0;
+  water.visible=fill>0;water.scale.y=.098*fill;water.position.y=tableY+.009+water.scale.y/2;
+  jug.visible=beat?.kind==='REQUEST_WATER';
+  stream.visible=pouring&&progress>.42&&progress<.73;
+  if(jug.visible){
+   // Work backwards from the spout over the glass to the handle in his hand.
+   jug.rotation.order='YXZ';
+   jug.rotation.y=actor.rotation.y-tableYaw-1.02;
+   jug.rotation.z=pouring?-.90*smooth(progress,.24,.41)*(1-smooth(progress,.74,.94)):0;
+   const handle=new T.Vector3(-.137,0,0).applyQuaternion(jug.quaternion);
+   const tip=new T.Vector3(.109,.088,0).applyQuaternion(jug.quaternion);
+   const goal=glass.clone().add(new T.Vector3(0,.32,0)).sub(tip).add(handle);
+   const carry=actor.localToWorld(new T.Vector3(-.065,.59,.12));
+   aimHand(carry.lerp(goal,extend),1);
+   jug.position.copy(grip).sub(handle);
+   if(stream.visible){
+    const top=jug.position.clone().add(tip),surface=tableY+.009+water.scale.y;
+    stream.position.set(top.x,(top.y+surface)/2,top.z);
+    stream.scale.y=Math.max(0,top.y-surface);
+   }
+  }
+  const deliveringSticks=beat?.kind==='REQUEST_UTENSILS'&&!view.utensils;
+  if(deliveringSticks){
+   const reach=utensilSpot.clone().add(new T.Vector3(0,.043,-.062));
+   aimHand(reach,extend);
+  }
+  for(const [i,tool] of [...sticks,spoon].entries()){
+   tool.visible=!!view.utensils||deliveringSticks;
+   const land=utensilSpot.clone();land.x+=i*.017;
+   tool.position.copy(land);
+   if(i<2)tool.rotation.y=-Math.PI/2;
+   if(deliveringSticks){
+    const release=laying?smooth(progress,.48,.64):0;
+    const palm=grip.clone();palm.x+=i*.017;palm.z+=.062;
+    tool.position.lerpVectors(palm,land,release);
+    tool.rotation.x=-.58*(1-release);
+    if(i<2)tool.rotation.z=.58*(1-release);
+   }else{tool.rotation.x=0;tool.rotation.z=0;}
+  }
+  const pending=beat?.orderItemId?state.items.find(i=>i.id===beat.orderItemId):state.items.find(i=>i.status==='confirmed');
+  const served=state.items.filter(i=>i.status==='served');
+  const isCup=i=>i?.itemId.startsWith('drink-')&&i.options.serving!=='外賣';
+  const confirmed=state.items.filter(i=>i.status==='confirmed');
+  const activeDrink=beat?.carrying&&isCup(pending)&&(placing||walking)?pending:null;
+  tray.visible=!!beat?.carrying&&(!activeDrink||confirmed.some(i=>i!==activeDrink));
+  // Keep the landing points on the waiter-facing side of the table.
+  drinks.clear();
+  for(const item of state.items.filter(isCup)){
+   const i=drinks.size;
+   drinks.set(item.id,new T.Vector3(1.84+.232*(i%3),tableY,-1.862+.235*Math.floor(i/3)));
+  }
+  carriedCup.visible=Boolean(activeDrink);
+  if(activeDrink){
+   const finish=drinks.get(activeDrink.id),phase=placing?progress:0;
+   const land=placing?smooth(phase,.02,.53):0,settle=placing?smooth(phase,.80,1):0;
+   serviceMixer.setTime(Math.min(takeDuration-.001,phase*takeDuration));
+   const facing=actor.rotation.y;
+   const carryYaw=placing?facing*(1-smooth(phase,0,.33))+facing*settle:facing;
+   actor.rotation.y=carryYaw;
+   if(placing)actor.position.lerp(takeOffset.copy(finish).sub(takeEndpoint),land*(1-settle));
+   // Sample Blender's fingers and wrist while the normal actor keeps its
+   // locomotion. Drive the arm to the same saucer attachment used in the bake.
+   for(const [name,bone] of Object.entries(bones)){
+    if(!takeBones[name]||!/^Right(Shoulder|Arm|ForeArm|Hand)/.test(name))continue;
+    bone.quaternion.slerp(takeBones[name].quaternion,1-settle);
+   }
+   if(placing&&bones.Spine&&takeBones.Spine)bones.Spine.quaternion.slerp(takeBones.Spine.quaternion,1-settle);
+   const wrist=bones.RightHand,reference=takeBones.RightHand;
+   const yawRotation=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),carryYaw);
+   takeOffset.copy(saucer.position).sub(reference.getWorldPosition(target).divideScalar(scale));
+   takeOffset.multiplyScalar(scale).applyQuaternion(yawRotation);
+   carriedCup.position.copy(wrist.getWorldPosition(rest)).add(takeOffset);
+   if(placing){
+    carriedCup.position.lerp(finish,smooth(phase,.48,.56));
+    carriedCup.position.y=Math.max(tableY,carriedCup.position.y);
+   }
+   aimHand(carriedCup.position.clone().sub(takeOffset),1-settle,'Right','Hand');
+   const rotation=reference.getWorldQuaternion(new T.Quaternion()).premultiply(yawRotation);
+   const localRotation=wrist.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(rotation);
+   wrist.quaternion.slerp(localRotation,1-settle);
+   carriedCup.rotation.y=carryYaw;setDrink(carriedCup,activeDrink);
+  }
+  if(tray.visible){
+   const hold=actor.localToWorld(new T.Vector3(.110,.575,.145));
+   aimHand(hold,1,'Left');
+   tray.position.copy(grip);tray.position.y+=.028;
+   tray.rotation.y=actor.rotation.y;tray.scale.x=.54;tray.scale.z=.31;
+  }
+  const cargo=tray.visible?confirmed.filter(i=>i!==activeDrink).slice(0,2):[];
+  const items=served.slice(view.tablePage*6,view.tablePage*6+6).concat(cargo);
+  const tableIndex=new Map(state.items.filter(i=>!isCup(i)).map((item,i)=>[item.id,i%6]));
+  const key=JSON.stringify(items.map(i=>[i.id,i.itemId,i.options,tableIndex.get(i.id),view.diningPortions.get(i.id)??3]));
   if(key!==orderKey){
    orderKey=key;plates.traverse(o=>{if(o.geometry?.type==='TorusGeometry')o.geometry.dispose();});plates.clear();
-   slots=items.map((item,i)=>{
-    const mesh=dish(item,view.diningPortions.get(item.id)??3);
-    const x=1.90+Math.floor(i/3)*.35,z=-1.40-i%3*.27;
+   slots=items.map(item=>{
+    const i=tableIndex.get(item.id)??0;
+    const remaining=view.diningPortions.get(item.id)??3,drink=drinks.get(item.id);
+    const mesh=drink?saucer.clone(true):dish(item,remaining);
+    if(drink){mesh.scale.setScalar(scale);setDrink(mesh,item,remaining);}
+    // Reserve the nearest row and the first spot in the second row for cups.
+    const foodColumn=(i+1)%3,foodRow=Math.floor((i+1)/3);
+    const x=drink?.x??1.84+foodColumn*.232,z=drink?.z??-1.627+foodRow*.235;
     const shadeMesh=new T.Mesh(shadowPlane,contact);shadeMesh.rotation.x=-Math.PI/2;shadeMesh.position.set(x,tableY-.001,z);
-    mesh.position.set(x,tableY,z);plates.add(shadeMesh,mesh);return {item,mesh,x,z};
+    mesh.position.set(x,tableY,z);plates.add(shadeMesh,mesh);return {item,mesh,shadeMesh,x,z};
    });
   }
-  for(const {item,mesh,x,z} of slots){
-   const lift=pose==='place'&&beat.orderItemId===item.id?1-progress:0;
-   mesh.position.set(x,tableY+.29*lift,z-.52*lift);
+  for(const {item,mesh,shadeMesh,x,z} of slots){
+   mesh.position.set(x,tableY,z);
+   const cargoIndex=cargo.findIndex(c=>c.id===item.id);
+   shadeMesh.visible=cargoIndex<0;
+   if(cargoIndex>=0){
+    const onTray=tray.position.clone();onTray.y+=.010;
+    if(cargo.length>1){
+     const offset=new T.Vector3(cargoIndex===0?-.118:.118,0,0).applyAxisAngle(new T.Vector3(0,1,0),actor.rotation.y);
+     onTray.add(offset);
+    }
+    mesh.position.copy(onTray);
+    if(placing&&item.id===pending?.id){
+     shadeMesh.visible=progress>.62;
+     const edge=new T.Vector3(x,tableY,-1.99);
+     const path=onTray.clone().lerp(edge,smooth(progress,.20,.66));
+     path.y+=.09*Math.sin(Math.PI*smooth(progress,.20,.66));
+     mesh.position.copy(path).lerp(new T.Vector3(x,tableY,z),smooth(progress,.62,.88));
+     const rim=mesh.position.clone().add(new T.Vector3(0,.02,-.09));
+     aimHand(rim,smooth(progress,0,.20)*(1-smooth(progress,.81,1)));
+    }
+   }
   }
   renderer.render(scene,camera);
   positionButtons();
  }
- function pin(el,point,w,h){
+ // Project the whole dish or book, including its rim and height. Position in
+ // the hotspot container's coordinates, including its mobile/letterbox offset.
+ function pin(el,object){
   if(!el)return;
-  const p=point.clone().project(camera);
-  Object.assign(el.style,{left:((p.x+1)*canvas.clientWidth/2-w/2+canvas.offsetLeft)+'px',top:((1-p.y)*canvas.clientHeight/2-h/2+canvas.offsetTop)+'px',width:w+'px',height:h+'px',transform:'none',visibility:p.z>1||p.z< -1?'hidden':''});
+  const bounds=new T.Box3().setFromObject(object),c=canvas.getBoundingClientRect(),host=el.offsetParent?.getBoundingClientRect();
+  if(!host)return;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){
+   const p=new T.Vector3(x,y,z).project(camera);if(p.z< -1||p.z>1)continue;
+   const px=c.left-host.left+(p.x+1)*c.width/2,py=c.top-host.top+(1-p.y)*c.height/2;
+   x0=Math.min(x0,px);x1=Math.max(x1,px);y0=Math.min(y0,py);y1=Math.max(y1,py);
+  }
+  el.style.visibility=isFinite(x0)?'visible':'hidden';if(!isFinite(x0))return;
+  const w=Math.max(48,x1-x0+12),h=Math.max(48,y1-y0+12);
+  Object.assign(el.style,{left:(x0+x1-w)/2+'px',top:(y0+y1-h)/2+'px',width:w+'px',height:h+'px',transform:'none'});
  }
  function positionButtons(){
-  pin(document.querySelector('.table-menu-hotspot'),menu.position,68,46);
-  for(const {item,mesh} of slots)pin(document.querySelector('[data-dining-select="'+CSS.escape(item.id)+'"].dining-food-spot'),mesh.position,52,46);
+  pin(document.querySelector('.table-menu-hotspot'),menu);
+  pin(document.querySelector('.water-spot'),tumbler);
+  for(const {item,mesh} of slots)pin(document.querySelector('[data-dining-select="'+CSS.escape(item.id)+'"].dining-food-spot'),mesh);
  }
+ const ray=new T.Raycaster();
+ const hotspots=document.querySelector('#hotspots');
+ hotspots.addEventListener('click',event=>{
+  // In an oblique view two padded rectangles can overlap. Prefer the actual
+  // frontmost object under the pointer; keep the padded target for edge taps.
+  if(!event.detail||!event.target.closest('.dining-food-spot,.table-menu-hotspot,.water-spot'))return;
+  const r=canvas.getBoundingClientRect();
+  ray.setFromCamera(new T.Vector2((event.clientX-r.left)/r.width*2-1,1-(event.clientY-r.top)/r.height*2),camera);
+  const targets=[[menu,hotspots.querySelector('.table-menu-hotspot')],[tumbler,hotspots.querySelector('.water-spot')],
+   ...slots.map(({mesh,item})=>[mesh,hotspots.querySelector('[data-dining-select="'+CSS.escape(item.id)+'"]')])].filter(([,button])=>button);
+  const hit=ray.intersectObjects(targets.map(([mesh])=>mesh),true)[0];
+  for(let node=hit?.object;node;node=node.parent){
+   const pair=targets.find(([mesh])=>mesh===node);if(!pair)continue;
+   if(!pair[1].contains(event.target)){event.stopImmediatePropagation();pair[1].click();}
+   break;
+  }
+ },true);
  let yaw=0,pitch=0,drag,lastCamera,lastState,lastView;
  canvas.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});
  canvas.addEventListener('pointermove',e=>{

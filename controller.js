@@ -113,7 +113,7 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
    const duration = ['approach','depart'].includes(pose) ? MOTION.walk : requestedDuration;
    if(!keepView()&&tableService&&pose==='place'&&view.camera==='room'){serviceCameraRevision=cameraRevision;view.camera='table';}
    if(tableService&&pose==='talk'&&serviceCameraRevision!==undefined&&view.camera==='table'&&cameraRevision===serviceCameraRevision)view.camera='room';
-   view.beat={pose,kind,orderItemId,start:Date.now(),duration,round:session.getState().round};emit();
+   view.beat={pose,kind,orderItemId,carrying:kind==='food'&&(pose==='place'||beats[index-1]?.[0]==='prepare'),start:Date.now(),duration,round:session.getState().round};emit();
    later(()=>afterSpeech(round=>{finish?.(round);if(index===beats.length-1&&pose==='depart')session.dispatch({type:'WAITER_LEAVE',round});next(index+1);}),duration);
   }
   next(0);
@@ -140,17 +140,21 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
   if(type==='ENTER')sequence([['talk',500]],'greeting');
   if(type==='WAITER_LEAVE'){view.orderReview=false;sequence([['talk',300],['depart',850]],'dismiss');}
   if(type==='START_SEATING'){
-   view.line=r.state.partySize===2?['阿明 · 侍應','兩位，呢邊吖，窗口有位。','loeng5 wai2, ni1 bin1 aa1, coeng1 hau2 jau5 wai2.','两位，这边请，窗边有座位。']:LINES.START_SEATING;view.busy=true;view.camera='entrance';
-   view.beat={pose:'talk',kind:'seating',start:Date.now(),duration:500,round:session.getState().round};
-   later(()=>afterSpeech(()=>{view.near=false;view.camera='walk';view.beat={pose:'depart',kind:'seating',start:Date.now(),duration:MOTION.lead,round:session.getState().round};emit();
-    later(round=>{dispatch('SIT_DOWN',{round});view.camera='room';view.near=true;view.line=LINES.SIT_DOWN;sequence([['talk',500],['depart',MOTION.walk]],'seated');},MOTION.lead);
-   }),500);
+   view.line=r.state.partySize===2?['阿明 · 侍應','兩位，呢邊吖，窗口有位。','loeng5 wai2, ni1 bin1 aa1, coeng1 hau2 jau5 wai2.','两位，这边请，窗边有座位。']:LINES.START_SEATING;
+   view.busy=true;view.near=false;view.camera='walk';
+   view.beat={pose:'walk',kind:'seating',start:Date.now(),duration:MOTION.lead,round:r.state.round};
+   later(round=>{
+    dispatch('SIT_DOWN',{round});view.camera='room';view.busy=false;view.beat=null;
+    view.line=['窗邊卡座','餐牌喺枱面。','caan1 paai2 hai2 toi2 min6.','菜单在桌上。'];emit();
+   },MOTION.lead);
   }
   if(type==='OPEN_MENU'){view.camera='menu';if(!r.state.waiterPresent)view.line=['餐牌','慢慢睇，揀好再嗌阿明。','','選好後再叫侍應。'];}
   if(type==='CONFIRM_ORDER'&&r.events.some(e=>e.type==='ORDER_CONFIRMED')){
    const ids=r.events.find(e=>e.type==='ORDER_CONFIRMED').orderItemIds;
    const beats=[['approach',900,()=>{view.line=LINES.CONFIRM_ORDER;}],['talk',950],['depart',700],['prepare',650],['approach',1000]];
-   for(const orderItemId of ids)beats.push(['place',900,round=>{
+   // Keep the existing twenty-second service budget for a full menu order.
+   const placeDuration=Math.min(1650,Math.floor(10500/ids.length));
+   for(const orderItemId of ids)beats.push(['place',placeDuration,round=>{
     const served=dispatch('MARK_SERVED',{orderItemId,round});
     if(served.ok&&served.state.items.find(i=>i.id===orderItemId)?.options.serving==='外賣')view.line=['阿明 · 侍應','呢份外賣包好喇，記得拎埋呀。','','這份外賣已打包，離開時請帶好。'];
    },orderItemId]);
@@ -194,5 +198,5 @@ export function createGame({schedule=setTimeout,cancel=clearTimeout,changed=()=>
   if(value==='menu'&&st.phase===P.BILLING)value='bill';
   cameraRevision++;view.camera=value;emit();
  }
- return {snapshot,exportSnapshot,restoreSnapshot,action,camera,setSpeech(active,level=0){speechPending=active;view.speaking=level>0;view.speechLevel=level;},holdFarewell(round){if(round!==session.getState().round||view.beat?.kind!=='farewell')return ()=>{};const marker={round};farewellPending=marker;return ()=>{if(farewellPending===marker)farewellPending=null;};},chapter(value){action('RESTART');if(value==='full')return;for(const type of ['ENTER','START_SEATING','SIT_DOWN','OPEN_MENU'])dispatch(type);view.camera='table';if(value==='service'||value==='bill'){dispatch('ADD_ITEM',{itemId:'food-pineapple-bun'});dispatch('ADD_ITEM',{itemId:'drink-lemon-tea',options:{temperature:'凍',sweetness:'少甜'}});dispatch('CONFIRM_ORDER');dispatch('MARK_SERVED');dispatch('WAITER_LEAVE');}view.line=['章節練習',value==='order'?'由睇餐牌開始，試吓用粵語落單。':'練習情境：菠蘿油同凍檸茶已經上枱。','',''];if(value==='bill'){dispatch('REQUEST_BILL');view.near=true;view.camera='bill';view.line=['阿明 · 侍應','呢張係你張單，睇啱就可以埋單。','','這是你的帳單，核對後就可以結帳。'];}emit();},say(text,meaning=''){if(view.busy)return;if(!session.getState().waiterPresent){dispatch('CALL_WAITER');}view.near=true;if(!keepView()||view.camera!=='table')view.camera='room';view.line=['阿明 · 侍應',String(text).slice(0,500),'',String(meaning).slice(0,500)];emit();},notify(message){view.notice=message;emit();}};
+ return {snapshot,exportSnapshot,restoreSnapshot,action,camera,setSpeech(active,level=0,shape){speechPending=active;view.speaking=level>0;view.speechLevel=level;view.speechShape=shape;},holdFarewell(round){if(round!==session.getState().round||view.beat?.kind!=='farewell')return ()=>{};const marker={round};farewellPending=marker;return ()=>{if(farewellPending===marker)farewellPending=null;};},chapter(value){action('RESTART');if(value==='full')return;for(const type of ['ENTER','START_SEATING','SIT_DOWN','OPEN_MENU'])dispatch(type);view.camera='table';if(value==='service'||value==='bill'){dispatch('ADD_ITEM',{itemId:'food-pineapple-bun'});dispatch('ADD_ITEM',{itemId:'drink-lemon-tea',options:{temperature:'凍',sweetness:'少甜'}});dispatch('CONFIRM_ORDER');dispatch('MARK_SERVED');dispatch('WAITER_LEAVE');}view.line=['章節練習',value==='order'?'由睇餐牌開始，試吓用粵語落單。':'練習情境：菠蘿油同凍檸茶已經上枱。','',''];if(value==='bill'){dispatch('REQUEST_BILL');view.near=true;view.camera='bill';view.line=['阿明 · 侍應','呢張係你張單，睇啱就可以埋單。','','這是你的帳單，核對後就可以結帳。'];}emit();},say(text,meaning=''){if(view.busy)return;if(!session.getState().waiterPresent){dispatch('CALL_WAITER');}view.near=true;if(!keepView()||view.camera!=='table')view.camera='room';view.line=['阿明 · 侍應',String(text).slice(0,500),'',String(meaning).slice(0,500)];emit();},notify(message){view.notice=message;emit();}};
 }

@@ -14,7 +14,7 @@ export const ITEMS={ticket:'洗衣取件单',wrongCoat:'拿错的外套',coat:'�
 export function freshWorld(){return {version:1,revision:0,position:{x:1110,y:1220},location:'home',day:1,period:1,money:30000,items:[],flags:[],notes:[],met:[],history:{},restaurant:null,dining:null,paidMeals:[],coatOutcome:null,recordOutcome:null,stallOutcome:null};}
 const copy=x=>JSON.parse(JSON.stringify(x));
 const FORBIDDEN_KEYS=new Set(['__proto__','constructor','prototype']);
-const WORLD_KEYS=['version','revision','position','location','day','period','money','items','flags','notes','met','history','restaurant','dining','paidMeals','coatOutcome','recordOutcome','stallOutcome','streetView'];
+const WORLD_KEYS=['version','revision','position','location','day','period','money','items','flags','notes','met','history','restaurant','dining','paidMeals','coatOutcome','recordOutcome','stallOutcome','streetView','trackedQuest'];
 const LOCATIONS=new Set(['street','home','laundry','restaurant']);
 function isPlainObject(value){return value!==null&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value));}
 // 递归校验 JSON 值：每层对象必须是普通对象；拒绝禁用键、非有限数字、
@@ -48,6 +48,7 @@ function validateWorld(s){
  if(!Number.isInteger(s.day)||s.day<1||s.day>100000)throw Error('存档日期无效');
  if(!Number.isSafeInteger(s.revision)||s.revision<0)throw Error('存档修订号无效');
  if(typeof s.location!=='string'||!LOCATIONS.has(s.location))throw Error('存档地点无效');
+ if(s.trackedQuest!==undefined&&!['coat','record','stall'].includes(s.trackedQuest))throw Error('追踪任务无效');
  for(const key of ['items','flags','notes','met','paidMeals'])if(!Array.isArray(s[key])||s[key].length>1000||s[key].some(v=>typeof v!=='string'))throw Error('存档内容无效');
  if(s.items.some(i=>!Object.prototype.hasOwnProperty.call(ITEMS,i)))throw Error('存档物品无效');
  if(!isPlainObject(s.position)||!Number.isFinite(s.position.x)||!Number.isFinite(s.position.y))throw Error('存档位置无效');
@@ -123,7 +124,7 @@ export function optionsFor(s,npc){
       add('coat-followup','面试怎么样？',
        stillUpset?'見完喇，仲等緊消息。洗衣嗰件事未傾清楚，我呢排唔想去嗰間舖。':'見咗面喇，結果仲要等。嗰日真係多謝你幫手。',
        stillUpset?'面试完了，还在等消息。洗衣的事还没说清，我最近不想去那家店。':'见过面了，结果还要等。那天谢谢你帮忙。',
-       d=>note(d,'阿晴感谢你帮她处理外套，面试结果仍在等待。'));
+       d=>{flag(d,'coat-epilogue');note(d,'阿晴感谢你帮她处理外套，面试结果仍在等待。');});
      }
     }
    }
@@ -192,9 +193,13 @@ export function optionsFor(s,npc){
   if(!f('record-start'))add('record-start','在看什么？','阿樂有隻舊唱片，好似係我老朋友嗰隻。好多年冇見佢喇。','阿乐有张旧唱片，好像是我老朋友的，好多年没见了。',d=>{flag(d,'record-start');note(d,'林伯认出旧唱片，想知道是否与失联旧友有关。');});
    if(has('contact')&&!s.recordOutcome)add('record-contact','把旧友的联系线索告诉林伯','原來佢仲記得我。我會先問聲佢想唔想見面。','原来他还记得我，我会先问他是否愿意见面。',d=>{d.recordOutcome='contact';note(d,'林伯获得了旧友的联系线索，准备先征询重逢意愿。');});
   if(has('record')&&has('contact')&&s.recordOutcome!=='gift')add('record-gift','把唱片交给林伯','連隻唱片都帶返嚟，多謝你。最緊要係搵得返個朋友。','连唱片都带来了，谢谢你，最重要是能联系到朋友。',d=>{take(d,'record');d.recordOutcome='gift';note(d,'林伯收下唱片，并准备联系旧友。');});
-  if(s.recordOutcome)add('record-after','后来联系上了吗？',
-   firstPerson&&s.recordOutcome==='gift'?'我留咗口訊畀佢。隻碟我收好咗，等佢得閒先覆。':'我留咗口訊畀佢，等佢方便先覆。',
-   firstPerson&&s.recordOutcome==='gift'?'我留了口信，唱片已收好，等他有空回复。':'我给他留了口信，等他方便时回复。');
+  if(firstPerson&&s.recordOutcome){
+   if(!f('reunion-invite'))add('record-after','听回信，替林伯约旧友见面','佢覆咗喇！原來係南街米行嘅阿祥。你幫我問聲，收舖後榕樹頭見，好唔好？','他回信了，是南街米行的祥伯。能替我约他收铺后在榕树下碰面吗？',d=>{flag(d,'reunion-invite');note(d,'林伯托你去南街米行邀请祥伯。');});
+   if(f('reunion-arrived')&&!f('record-reunited'))add('record-reunion','一起听他们当年的曲子','阿祥，你仲記得呢段前奏？嗰年收工，我哋就係聽住佢捉棋。嚟，今次到你行先。','阿祥，你还记得这段前奏吗？那年下班我们总听着它下棋。来，这次你先走。',d=>{flag(d,'record-reunited');note(d,'祥伯带来自己的唱片，两人在榕树下听曲，再开一盘棋。');});
+  }else if(s.recordOutcome)add('record-after','后来联系上了吗？','我留咗口訊畀佢，等佢方便先覆。','我给他留了口信，等他方便时回复。');
+ }
+ if(npc==='southRice'&&firstPerson&&f('reunion-invite')&&!f('reunion-date')){
+  add('record-accept','转达林伯的邀请，约在榕树下见','阿林仲留住副棋！好呀，收舖我就帶埋屋企隻碟過去。','阿林还留着那副棋！收铺后我带上家里那张唱片去榕树下。',d=>{flag(d,'reunion-date');note(d,'祥伯答应赴约。在榕树下等过一个时段就能见面。');});
  }
  if(npc==='lok'){
   add('record-chat','有什么唱片推荐？','你鍾意聽邊類？慢慢睇，唔買都可以傾吓。','你喜欢听哪种？慢慢看，不买也可以聊。');
@@ -218,6 +223,7 @@ export function advanceTime(s){const n=copy(s);n.period=(n.period+1)%3;if(n.peri
 // 明确的休息/等待事件：推进一个时段，并让赴面试的阿晴返回。纯状态推导，不依赖墙钟或计时器。
 export function restEvent(s){
  const n=advanceTime(s);
+ if(n.flags.includes('reunion-date')&&!n.flags.includes('reunion-arrived')){n.flags.push('reunion-arrived');n.notes.push('祥伯带着唱片来到了榕树下。');}
  if(n.coatOutcome&&!n.flags.includes('qing-returned')){
   n.flags.push('qing-returned');
   if(!n.notes.includes('阿晴面试回来了。'))n.notes.push('阿晴面试回来了。');

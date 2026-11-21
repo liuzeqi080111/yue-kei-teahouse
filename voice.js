@@ -50,10 +50,29 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
   let configured = false, runId = 0, applying = false, recorder = null, stream = null, recordTimer = 0;
   let aborter = null, lastReply = '', lastReplyRate = 1, lastKey = '';
   let failedMessage=null,suspended=false,working=false,destroyed=false,serviceRound=null,interpreting=false;
+  let followTarget=null,scoreRequest=null;
+  const reportScore=text=>window.dispatchEvent(new CustomEvent('voice-practice-score',{detail:text}));
+  function resetScore(){
+    scoreRequest?.abort();scoreRequest=null;followTarget=null;reportScore('');
+  }
+  async function scoreReading(target,audioBase64){
+    const request=new AbortController();scoreRequest=request;
+    const options={signal:request.signal};
+    const timer=setTimeout(()=>request.abort(),16000);
+    try{
+      const status=await fetch(voiceUrl('/api/practice/status'),options);
+      if(!status.ok||!(await status.json()).configured)throw Error();
+      const response=await fetch(voiceUrl('/api/practice/assess'),{...options,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phraseId:target.phraseId,audioBase64})});
+      const result=await response.json();
+      if(!response.ok||result.phraseId!==target.phraseId||!Number.isFinite(result.scores?.accuracy))throw Error();
+      if(scoreRequest===request)reportScore('跟读准确度 '+Math.round(result.scores.accuracy)+' / 100');
+    }catch{if(scoreRequest===request)reportScore('这次跟读暂时无法评分。');}
+    finally{clearTimeout(timer);if(scoreRequest===request)scoreRequest=null;}
+  }
   const queued=[];
   let inFlightMessages=[];
   let lastNpcLine='',lineTimer=0,suppressLine=false,releaseFarewell=null,farewellText='';
-  const speech=createNpcSpeech({onActivity:()=>{game.setSpeech?.(speech.active);refreshButtons();},onState:t=>{if(!working)setState(t);},onSettled:text=>{if(text===farewellText){releaseFarewell?.();releaseFarewell=null;farewellText='';}}});
+  const speech=createNpcSpeech({onLevel:(level,shape)=>{game.setSpeech?.(speech.active,level,shape);window.dispatchEvent(new Event('npc-mouth'));},onActivity:()=>{game.setSpeech?.(speech.active);refreshButtons();},onState:t=>{if(!working)setState(t);},onSettled:text=>{if(text===farewellText){releaseFarewell?.();releaseFarewell=null;farewellText='';}}});
   const bizKey = (s) => JSON.stringify([s.state, s.view.orderReview]);
   const setState = (t) => {
     const text=systemText(t),error=/无法|失败|错误|未配置|不可用|没录到|没听清|权限|超时|逾时|失敗|未允许|找不到|未收到|无讯号/.test(text);
@@ -139,7 +158,7 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
     try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
     recorder = null; stream = null;
   }
-  function cancel(preserveSpeech=false) { runId++;queued.length=0;inFlightMessages=[];failedMessage=null;retryMessageBtn.hidden=true;interpreting=false;clearTimeout(lineTimer);if(!preserveSpeech){speech.stop();releaseFarewell?.();releaseFarewell=null;} working=false;serviceRound=null; try { aborter?.abort(); } catch {} aborter = null; stopMic(); closeCtx(); ready(); }
+  function cancel(preserveSpeech=false) { resetScore();runId++;queued.length=0;inFlightMessages=[];failedMessage=null;retryMessageBtn.hidden=true;interpreting=false;clearTimeout(lineTimer);if(!preserveSpeech){speech.stop();releaseFarewell?.();releaseFarewell=null;} working=false;serviceRound=null; try { aborter?.abort(); } catch {} aborter = null; stopMic(); closeCtx(); ready(); }
   let audioCtx = null;
   function closeCtx() { const c = audioCtx; audioCtx = null; if (c) c.close().catch(() => {}); }
 
@@ -232,6 +251,9 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
     if ((working&&!interpreting) || destroyed || suspended) return;
     interruptInterpretation();
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setState('此浏览器不支持录音，请使用系统浏览器或输入文字。'); return; }
+    const target=getPracticeTarget?.();
+    const reading=followTarget&&target?.round===followTarget.round&&target.key===followTarget.key?target:null;
+    resetScore();
     speech.stop(); working=true; refreshButtons(); const id = ++runId;
     try {
       // Resume under the click gesture, before the permission await.
@@ -266,7 +288,9 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
           const prepared=preparePcm(pcm);
           if(!prepared.valid){working=false;if(prepared.reason!=='too_short')devices.hidden=false;setState(prepared.reason==='too_short'?'录音太短，请说完一句再停止。':'没录到声音，可以展开「检查麦克风」后重试。');refreshButtons();return;}
           devices.hidden=true;
-          const { text } = await api('/api/voice/transcribe', { audioBase64: encodeVoiceWav(prepared.samples), mimeType: WAV_MIME });
+          const audioBase64=encodeVoiceWav(prepared.samples);
+          if(reading)void scoreReading(reading,audioBase64);
+          const { text } = await api('/api/voice/transcribe', { audioBase64, mimeType: WAV_MIME });
           if (id !== runId) return;
           const transcript=typeof text==='string'?text.trim():'';
           transcriptView.textContent=transcript;
@@ -366,6 +390,7 @@ export function mountVoice({ game, host, getPracticeTarget, onPracticeAttempt } 
   function setTextMode(value){root.dataset.text=String(Boolean(value));if(value)input.focus();}
   return {
     cancelPending,setTextMode,
+    followExample(){followTarget=getPracticeTarget?.()||null;return Boolean(followTarget);},
     get textMode(){return root.dataset.text==='true';},
     get hasError(){return status.dataset.error==='true';},
     replay,

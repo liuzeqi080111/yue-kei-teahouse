@@ -1,9 +1,10 @@
+import {streetQuests,questPoint} from './street-quests.js';
 import { atShopCounter, shopBlocks, SHOPS, ACTORS, HOME, COUNTER, LAUNDRY_DOOR, REST, RESTAURANT, createStreetNav, distance, within, rackLayout, rackBlocks } from './street-space.js';
 import { atFangCounter, createFangCounter } from './street-fang.js';
 import { createFp1Travel } from './fp1-travel.js';
 import { createNeighborhoodVoice } from './neighborhood-voice.js';
 import { FP1_CLIPS, ROLE_CLIPS } from './fp1-clips.js';
-import { prepareVoiceRecording } from './voice-clips.js';
+import { prepareVoiceRecording,followSpeech } from './voice-clips.js';
 import { entryPosition } from './neighborhood-map.js';
 import { ITEMS, NPCS, npcContext, optionsFor, qingStatus, rackStatus } from './neighborhood-state.js';
 
@@ -29,16 +30,15 @@ const QING_AT_MARKET={x:-14.57,z:-9.42};
 const QING_MARKET_ZONE=[-14.42,-12.98,-9.88,-8.18];
 const keymap={KeyW:[1,0],KeyS:[-1,0],KeyA:[0,-1],KeyD:[0,1],ArrowUp:[1,0],ArrowDown:[-1,0],ArrowLeft:[0,0,-1],ArrowRight:[0,0,1]};
 
-export function createStreetGame({getState,onAction,onRest,onLocation,onView,onHome,onHistoryChange,getStorageStatus,onTransition,onEnterRestaurant}){
+export function createStreetGame({getState,onAction,onRest,onLocation,onView,onHome,onHistoryChange,getStorageStatus,onTransition,prepareRestaurant,onEnterRestaurant,onRecordPlay,onTrackQuest}){
  const host=document.createElement('section');
  host.className='street-game';host.hidden=true;host.setAttribute('aria-label','第一人称街区');
  host.innerHTML=`
   <canvas id="street-view" tabindex="0" aria-label="第一人称街区，拖动转头，WASD 或方向键行走"></canvas>
   <div class="street-top">
    <div class="street-goals"><strong id="street-goal"></strong><small id="street-clock"></small></div>
-   <div class="street-menu"><button data-tray="bag">物品</button><button data-tray="notes">记事</button><button data-tray="guide">地图与操作</button><button id="street-home">首页</button></div>
+   <div class="street-navigation"><canvas id="street-map" width="218" height="142" role="img" aria-label="街区地图，白色箭头是你，红点是任务目的地"></canvas><div class="street-menu"><button data-tray="tasks">任务</button><button data-tray="bag">物品</button><button data-tray="notes">记事</button><button data-dialog="settings">设置</button></div><aside class="street-tray" hidden></aside></div>
   </div>
-  <aside class="street-tray" hidden></aside>
   <p class="street-status" role="status"></p>
   <div class="street-pad" aria-label="移动方向">
    <button data-move="KeyW" aria-label="向前走">▲</button><button data-move="KeyA" aria-label="向左平移">◀</button>
@@ -52,12 +52,13 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    <div class="street-gomoku" hidden aria-label="九路五子棋盘"></div>
    <div class="street-tools">
     <button id="street-mic" aria-label="讲粤语" aria-pressed="false" title="讲粤语"><svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11h2a5 5 0 0010 0h2a7 7 0 01-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 015 11z"/></svg></button>
+    <button id="street-close">结束交谈</button>
     <div class="street-actions"></div>
     <details class="street-more"><summary>更多</summary><div class="street-more-panel">
     <details id="street-write"><summary>打字</summary><form class="street-form"><input maxlength="300" aria-label="想说的话" required><button>发送</button></form></details>
     <details id="street-listen"><summary>听这句</summary><button id="street-replay">重听</button> <button id="street-slow">慢速</button></details>
     <details id="street-help"><summary>问朋友</summary><button data-help="meaning">什么意思？</button> <button data-help="example">怎么说？</button> <button data-help="assist">帮我说。</button></details>
-    <button id="street-close">结束交谈</button></div></details>
+    </div></details>
    </div>
    <small id="street-voice-state" aria-live="polite"></small>
   </section>`;
@@ -73,23 +74,46 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  let lastView=0,showedIntroduction=false,clip=null,lastSpeech=null,styleKey='',dirty=true,restoreId=0,noticeTimer=0,voiceRecording=false;
  let chess=null,chessFinished=null,chessBusy=false,chessTurns=0,playTurn;
  let pendingVoiceFollow=false,guideTravel=null,guideHeadStart=0;
- let clipRequest=null,clipUrl=null;
+ let clipRequest=null,clipUrl=null,stopLip=null;
+ function speechLevel(id,level,shape){
+  scene?.speak(id==='intro'?'friend':ACTORS[id]?.model||id,level,shape);dirty=true;
+ }
  function publish(message){
   clearTimeout(noticeTimer);status.textContent=message;
   if(message)noticeTimer=setTimeout(()=>{status.textContent='';},5600);
  }
- function setText(selector,text){$(selector).textContent=text;}
+ function setText(selector,text){const element=$(selector);if(element.textContent!==text)element.textContent=text;}
  const isAt=(target,radius)=>distance(current,target)<=radius;
  const worldFlag=id=>getState().flags.includes(id);
  const route=()=>getState().flags.find(id=>id.startsWith('coat-route-'))?.slice(11);
  const has=item=>getState().items.includes(item);
+ let tracked='coat',mapBase=null,mapKey='',taskRevision='';
+ function track(id){tracked=id;onTrackQuest?.(id);dirty=true;}
+ function tasks(){return streetQuests(getState());}
+ function activeQuest(){const all=tasks();return all.find(q=>q.id===tracked&&!q.done)||all.find(q=>!q.done)||all[0];}
+ function drawMap(quest){
+  if(!scene)return;
+  const map=$('#street-map'),ctx=map.getContext('2d'),{w,h,step,x0,z0,rows}=scene.layout;
+  const px=x=>(x-x0)/step/w*map.width,pz=z=>(z-z0)/step/h*map.height;
+  if(!mapBase){
+   mapBase=document.createElement('canvas');mapBase.width=w;mapBase.height=h;
+   const bg=mapBase.getContext('2d');bg.fillStyle='#372e27';bg.fillRect(0,0,w,h);bg.fillStyle='#94836b';
+   rows.forEach((row,y)=>{for(let i=0;i<row.length;i+=3)bg.fillRect(row[i],y,row[i+1],1);});
+  }
+  const target=questPoint(quest,getState()),key=[Math.round(px(current.x)),Math.round(pz(current.z)),Math.round(current.heading*35),quest.npc].join('/');
+  if(key===mapKey)return;mapKey=key;ctx.drawImage(mapBase,0,0,map.width,map.height);
+  ctx.font='bold 12px sans-serif';ctx.lineWidth=2;ctx.strokeStyle='#211912';ctx.fillStyle='#f4e8ca';
+  for(const [label,x,z] of [['粤记',-19,10],['洗衣',14,2],['榕树',12,-14],['夜市',-22,-8]]){ctx.strokeText(label,px(x),pz(z));ctx.fillText(label,px(x),pz(z));}
+  if(target){ctx.fillStyle='#e36f53';ctx.beginPath();ctx.arc(px(target.x),pz(target.z),5,0,2*Math.PI);ctx.fill();ctx.strokeStyle='#fff0d2';ctx.stroke();}
+  ctx.save();ctx.translate(px(current.x),pz(current.z));ctx.rotate(current.heading);ctx.fillStyle='white';ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(5,5);ctx.lineTo(0,3);ctx.lineTo(-5,5);ctx.closePath();ctx.strokeStyle='#2b211c';ctx.stroke();ctx.fill();ctx.restore();
+ }
  const currentPhase=()=>getState().period;
  const body=id=>scene?.actors.get(ACTORS[id]?.model||id)?.model;
  const qingCounterPoint=()=>current.x>16?{x:15.25,z:-.47}:{x:14.59,z:-.21};
  const qingAtCounter=()=>distance(pointOf(body('qing')),qingCounterPoint())<.28;
  function actionList(npc){
   if(npc==='intro')return [{id:'go-out',label:'出门'}];
-  if(SHOPS[npc])return [{id:'ask-shop',label:SHOPS[npc].question}];
+  if(SHOPS[npc])return [...optionsFor(getState(),npc),{id:'ask-shop',label:SHOPS[npc].question}];
   if(npc==='fang'&&worldFlag('coat-pickup-visit')&&worldFlag('shop-check')&&!worldFlag('coat-inspected'))return [{id:'show-coat',label:'把刚取的外套交给身旁的阿晴'}];
   const legal=optionsFor(getState(),npc);
   if(npc==='ming')return [{id:'enter-restaurant',label:'进店用餐'},...legal];
@@ -155,10 +179,10 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    microphone.setAttribute('aria-label',microphone.title);
    microphone.setAttribute('aria-pressed',String(recording));
   },
-  autoSpeak:false,
+  onSpeechLevel:speechLevel,autoSpeak:false,
  });
  function stopSpeech(){
-  clipRequest?.abort();clipRequest=null;
+  stopLip?.();stopLip=null;clipRequest?.abort();clipRequest=null;
   if(clip){clip.pause();clip=null;}
   if(clipUrl){URL.revokeObjectURL(clipUrl);clipUrl=null;}
  }
@@ -174,6 +198,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    clip.preservesPitch=true;clip.playbackRate=rate*recording.rate;
    clip.onended=()=>{if(clipRequest===request)stopSpeech();};
    await clip.play();
+   if(!request.signal.aborted)stopLip=followSpeech(clip,recording.blob,(level,shape)=>speechLevel(speaker,level,shape),file);
   }catch(error){
    if(request.signal.aborted)return;
    stopSpeech();
@@ -202,40 +227,16 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   setText('.street-line',text);setText('.street-meaning',text===meaning?'':meaning);
   if(speak)play();
  }
- function goal(){
-  const world=getState();
-  const localGoal=()=>{
-   if(worldFlag('record-start')&&!world.recordOutcome){
-    if(has('contact'))return '回榕荫小坐，告诉林伯旧友的消息';
-    return '去夜市唱片摊问阿乐旧唱片的来历';
-   }
-   if(worldFlag('stall-ming')&&!world.stallOutcome){
-    if(worldFlag('stall-ming-agreed'))return '去衣摊把阿明的答复转告玲姐';
-    if(world.flags.some(flag=>flag.startsWith('stall-propose-')))return '回粤记门口问阿明愿不愿意按方案调整';
-    if(worldFlag('stall-observed'))return '去夜市衣摊，听听玲姐怎么说';
-   }
-   return null;
-  };
-  if(!worldFlag('coat-start'))return localGoal()||'在安和楼梯口听阿晴说外套的事';
-  if(!worldFlag('shop-check'))return atFangCounter(current)?'与芳姐交谈，亲手递上取件单':'陪阿晴和朋友到芳姐柜台取外套';
-  if(worldFlag('coat-pickup-visit')&&!worldFlag('coat-inspected'))return '在柜台把取到的外套递给阿晴，让她看袖口';
-  if(!route()&&!world.coatOutcome)return '向芳姐选定处理外套的下一步';
-  if(has('coat'))return '把找回的原衣交给阿晴';
-  if(worldFlag('qing-wore-loan')&&!worldFlag('loan-returned'))return worldFlag('qing-returned')?'取回借衣，还给夜市衣摊的玲姐':'阿晴在面试。可到树下等她回来';
-  if(world.coatOutcome){return worldFlag('coat-misunderstanding')?'阿晴解决了面试用衣，洗衣店的误会还没说清':localGoal()||'自由逛街，看看街坊还有什么事';}
-  if(worldFlag('qing-paid-coat'))return '在衣摊确认阿晴穿新衣去面试';
-  if(has('loanCoat')||has('newCoat'))return route()==='buy'?'把应急外套交给衣摊旁的阿晴':'把应急外套带给安和楼旁的阿晴';
-  if(route()==='borrow')return '到夜市衣摊找玲姐借外套';
-  if(route()==='buy'&&!worldFlag('guest-found'))return worldFlag('coat-quoted')?'在夜市衣摊听阿晴试穿后决定':'到夜市衣摊陪阿晴问价';
-  if(worldFlag('guest-found'))return worldFlag('coat-detail')?'与粤记门旁的周叔核对袖口与姓名':'先向阿晴问清外套袖口特征';
-  return '到粤记门口向阿明打听周叔';
- }
  function drawHud(){
-  setText('#street-goal',goal());
-  const w=getState();
+  const w=getState(),quest=activeQuest();
+  setText('#street-goal',(quest.done?'✓ ':quest.id==='coat'?'主线 · ':'支线 · ')+quest.text);
+  drawMap(quest);
+  setText('[data-tray=tasks]','任务 '+tasks().filter(q=>q.done).length+'/3');
+  if(!tray.hidden&&tray.dataset.kind==='tasks'&&taskRevision!==w.revision+tracked)renderTasks();
   const direction=POINTS[(Math.round(current.heading/(Math.PI/4))%8+8)%8];
   setText('#street-clock','第 '+w.day+' 天 · '+LABELS[w.period]+' · HK$'+(w.money/100).toFixed(2)+' · 朝'+direction);
   const key=JSON.stringify([w.period,rackStatus(w).placement,rackStatus(w).blocked,qingStatus(w).presence,route()]);
+  if(scene)scene.reunion(worldFlag('reunion-arrived'));
   if(scene)scene.showCoat(worldFlag('shop-check')&&worldFlag('coat-pickup-visit')&&!route());
   if(scene&&key!==styleKey){
    styleKey=key;scene.illuminate(w.period===2);scene.placeRack(rackLayout(w));
@@ -248,6 +249,18 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    dirty=true;
   }
  }
+ function renderTasks(){
+  tray.replaceChildren();taskRevision=getState().revision+tracked;
+  for(const q of tasks()){
+   const row=document.createElement('button');row.className='quest-row';row.disabled=q.done;
+   row.setAttribute('aria-pressed',String(q.id===activeQuest().id));row.textContent=(q.done?'✓ 已完成':q.id===activeQuest().id?'◎ 追踪中':'○ 待完成')+' · '+q.name;
+   row.onclick=()=>{track(q.id);renderTasks();};tray.append(row);
+  }
+  const hint=document.createElement('p');hint.textContent=activeQuest().text;tray.append(hint);
+  for(const [story,label] of [['photo','试玩 B · 街口最后一张合照'],['table','试玩 A · 今晚搭张台']]){
+   const link=document.createElement('a');link.className='quest-row';link.href='./story-preview.html?story='+story;link.textContent=label;tray.append(link);
+  }
+ }
  function openTray(kind){
   const content={
    bag:getState().items.map(id=>id==='wrongCoat'&&worldFlag('coat-pickup-visit')&&!worldFlag('coat-inspected')?'刚取的深色外套':ITEMS[id]).concat(worldFlag('ticket-filed')?['取件单已由芳姐存档']:[]),
@@ -257,6 +270,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   const same=!tray.hidden&&tray.dataset.kind===kind;
   tray.dataset.kind=kind;tray.hidden=same;tray.replaceChildren();
   if(same)return;
+  if(kind==='tasks'){renderTasks();return;}
   const list=document.createElement('ul');
   for(const value of (content.length?content:['暂时没有'])){const li=document.createElement('li');li.textContent=value;list.append(li);}
   tray.append(list);
@@ -267,7 +281,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   chess=null;chessFinished=null;chessTurns=0;$('.street-gomoku').hidden=true;delete host.dataset.chess;
   talking=null;pendingVoiceFollow=false;lastSpeech=null;pendingLook=null;
   if(keepClip!==true)stopSpeech();voice.cancel('');dialogue.hidden=true;host.dataset.conversation='false';
-  if(visible)canvas.focus({preventScroll:true});
+  if(visible){canvas.focus({preventScroll:true});updateTarget();}
   dirty=true;
  }
  function showBoard(){
@@ -292,10 +306,12 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function showChoices(){
   const controls=$('.street-actions');
   controls.replaceChildren();
-  for(const action of actionList(talking)){
+  const recommended=activeQuest().action;
+  const actions=actionList(talking).sort((a,b)=>Number(b.id===recommended)-Number(a.id===recommended));
+  for(const action of actions){
    const button=document.createElement('button');
    button.type='button';button.dataset.streetAction=action.id;button.textContent=action.label;
-   if(['go-out','coat-start','shop-check','coat-route-recover','coat-route-borrow','coat-route-buy'].includes(action.id))button.className='street-primary';
+   if(action.id===recommended||['go-out','coat-start','shop-check','coat-route-recover','coat-route-borrow','coat-route-buy'].includes(action.id))button.className='street-primary';
    if(action.id==='show-coat'&&!qingAtCounter()){button.disabled=true;button.textContent='等阿晴行到柜台前…';}
    button.onclick=event=>{if(event.detail<=1)act(action.id);};
    controls.append(button);
@@ -303,16 +319,26 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  }
  function greeting(npc){
   const world=getState();
+  if(npc==='southRice'&&worldFlag('reunion-invite')&&!worldFlag('reunion-date'))return ['你識阿林？我同佢以前晚晚收工都捉棋㗎。','你认识阿林？我们以前收铺后天天下棋。'];
   if(npc==='intro')return [WELCOME,WELCOME];
   if(npc==='qing'&&worldFlag('coat-start')){
    if(worldFlag('qing-returned'))return ['我見完工返嚟喇。','我面试回来了。'];
    if(route()==='buy')return ['件褸我想試多次，睇吓啱唔啱身。','这件外套我想再试一下，看看合不合身。'];
    return ['多謝你肯幫手。你問到啲咩呀？','谢谢你愿意帮忙。你问到什么了？'];
   }
+  if(npc==='guest'&&has('coat'))return ['件褸換返喇，快啲拎返安和樓畀阿晴啦。','衣服已经换回来了。把它带回安和楼交给阿晴。'];
+  if(npc==='guest'&&worldFlag('guest-found')&&!worldFlag('coat-swapped'))return ['芳姐叫你嚟㗎？張單同袖口都要對一對先。','是芳姐让你来的？选「核对袖口」看看是不是同一件。'];
+  if(npc==='fang'&&route()==='recover'&&!getState().coatOutcome){
+   if(has('coat'))return ['原來真係調轉咗，快啲拎返畀阿晴啦。','原来真拿反了，快把衣服带回安和楼交给阿晴。'];
+   if(worldFlag('guest-found'))return ['周生喺粵記門邊。你同佢對吓袖口同內袋個名。','周叔在粤记门口。找他核对右袖补痕和内袋姓名。'];
+   return ['你去粵記門口搵阿明，問吓周生坐喺邊。','先去粤记门口，问阿明周叔在哪里。结束交谈后可以点「带我去任务地点」。'];
+  }
   if(npc==='fang'&&worldFlag('shop-check')){
    if(worldFlag('coat-misunderstanding'))return ['有事嘅話，你慢慢講。','有事的话，你慢慢说。'];
    return ['張單已經入咗簿。','单据已经登记好了。'];
   }
+  if(npc==='lam'&&worldFlag('record-reunited'))return ['阿祥話下個禮拜再嚟捉棋。','阿祥约了我，下个星期再来下棋。'];
+  if(npc==='lam'&&worldFlag('reunion-arrived'))return ['阿祥，呢邊！位都幫你留咗。','阿祥，这边！你的位子给你留着呢。'];
   if(npc==='lam'&&world.recordOutcome==='gift')return ['隻碟我收好咗。唔該晒你。','唱片我收好了。谢谢你。'];
   if(npc==='lam'&&world.recordOutcome==='contact')return ['我已經留咗口訊畀老朋友。','我已经给老朋友留了口信。'];
   if(npc==='lam'&&worldFlag('record-start'))return ['阿樂嗰邊，有冇我老友嘅消息呀？','阿乐那边，有我老朋友的消息吗？'];
@@ -342,6 +368,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function act(id,fromVoice=false){
   if(!talking)return {ok:false,message:'请先开始交谈。'};
   const npc=talking;
+  const previousTasks=tasks();
   if(npc==='intro'&&id==='go-out'){
    const leave=()=>{if(talking==='intro'){onLocation('street',canon);dropDialogue();openDialogue('qing');}};
    if(fromVoice)queueMicrotask(leave);else leave();
@@ -357,7 +384,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    else enterRestaurant();
    return {ok:true,text:'入嚟坐。',meaning:'进来坐。'};
   }
-  if(SHOPS[npc]){const {reply:text,translation:meaning}=SHOPS[npc];if(!fromVoice)setLine(text,meaning,true);return {ok:true,text,meaning};}
+  if(SHOPS[npc]&&id==='ask-shop'){const {reply:text,translation:meaning}=SHOPS[npc];if(!fromVoice)setLine(text,meaning,true);return {ok:true,text,meaning};}
   if(id==='sit-chess'&&npc==='lam'){
    if(chessBusy)return {ok:false};
    chessBusy=true;
@@ -378,8 +405,14 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   }
   const result=id==='shop-check'&&npc==='fang'?counter.handTicket():onAction(npc,id);
   if(result.ok){
+   if(id.startsWith('record-')||['sleeve-read','consent-relay','buyer-consent'].includes(id))track('record');
+   if(id.startsWith('stall-'))track('stall');
+   if(id.startsWith('coat-')||['guest-found','shop-check','laundry-reconcile'].includes(id))track('coat');
+   const completed=tasks().find(q=>q.done&&!previousTasks.find(old=>old.id===q.id).done);
+   if(completed)publish('✓ '+completed.name+' · 已完成');
+   if(id==='record-reunion'){onRecordPlay?.();chess=null;delete host.dataset.chess;$('.street-gomoku').hidden=true;pendingLook={heading:angle(current,{x:16.05,z:-12.71}),pitch:-.04};}
    if(id.startsWith('coat-route-'))pendingLook={heading:angle(current,pointOf(body('fang'))),pitch:-.09};
-   if(!fromVoice){setText('.street-speaker',NPCS[npc]?.name||'街坊');setText('#street-voice-state','');setLine(result.text,result.meaning,true);}
+   if(!fromVoice){setText('.street-speaker',(NPCS[npc]||SHOPS[npc])?.name||'街坊');setText('#street-voice-state','');setLine(result.text,result.meaning,true);}
    if(id==='stall-observe')pendingLook={heading:angle(current,rackLayout(getState())),pitch:-.19};
    if(id==='shop-check'){
     const paper=document.createElement('span');paper.className='street-ticket';
@@ -418,6 +451,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(!worldFlag('shop-check'))startRoute(COUNTER);
  }
  function canTalk(id,position){
+  if(id==='southRice'&&worldFlag('reunion-arrived'))return false;
   if(SHOPS[id])return atShopCounter(SHOPS[id],position);
   if(!id||!ACTORS[id])return false;
   if(id==='qing'&&worldFlag('coat-pickup-visit')&&!route())return false;
@@ -435,23 +469,30 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   }
   const candidates=[...Object.keys(ACTORS),...Object.keys(SHOPS)].filter(id=>canTalk(id,current));
   candidates.sort((a,b)=>distance(current,pointOf(body(a)))-distance(current,pointOf(body(b))));
-  nextTarget=atFangCounter(current)?'fang':candidates[0]||null;
+  const quest=activeQuest();
+  nextTarget=atFangCounter(current)?'fang':candidates.includes(quest.npc)?quest.npc:candidates[0]||null;
   const byEntrance=within(current,[-15.3,-11.8,7.6,11.3]);
   if(byEntrance){
    if(isAt(RESTAURANT,.67)||!nextTarget)nextTarget='restaurant';
    else dine.hidden=false;
   }
-  if(!nextTarget&&isAt(REST,2.05))nextTarget='rest';
+  if((!nextTarget||quest.npc==='rest')&&isAt(REST,2.05))nextTarget='rest';
   if(!nextTarget&&(within(current,[14.24,17.2,-.60,-.29])||isAt(LAUNDRY_DOOR,1.75)))nextTarget='door';
   const mode=travel.snapshot().mode;
-  follow.hidden=!(mode==='following'||(worldFlag('coat-start')&&!worldFlag('shop-check')&&!isAt(LAUNDRY_DOOR,2.2)&&!atFangCounter(current)));
-  follow.textContent=mode==='following'?'自己走':'跟上老朋友';
+  follow.hidden=mode!=='following'&&(quest.done||nextTarget===quest.npc);
+  follow.textContent=mode==='following'?'自己走':'带我去任务地点';
   interact.hidden=!nextTarget||mode==='following'&&nextTarget==='door';
   const labels={restaurant:'进店用餐',rest:'坐坐，等一个时段',door:'进洗衣店，走到芳姐柜前',fang:'跟芳姐交谈'};
   if(nextTarget)interact.textContent=(labels[nextTarget]||'跟'+(SHOPS[nextTarget]||NPCS[nextTarget]).name+'交谈')+' [E]';
  }
- function enterRestaurant(){
-  if(!visible||!active)return;
+ async function enterRestaurant(){
+  if(!visible||!active||host.inert)return;
+  const entry=restoreId;
+  keys.clear();travel.pause();host.inert=true;publish('正在进店…');
+  try{await prepareRestaurant();}
+  catch{if(entry===restoreId)publish('茶餐厅暂时未能载入，点「进店用餐」重试。');return;}
+  finally{host.inert=false;}
+  if(entry!==restoreId||!visible||!active)return;
   persist(true);onLocation('restaurant',entryPosition('restaurant'));hide({flush:false});onEnterRestaurant();
  }
  function doInteract(){
@@ -460,7 +501,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(nextTarget==='rest'){
    const result=onRest();
    publish(result.ok?'你在榕树下歇了一阵。现在是'+LABELS[currentPhase()]+'。':result.message);
-   drawHud();return;
+   dirty=true;drawHud();updateTarget();return;
   }
   if(nextTarget==='restaurant'){
    enterRestaurant();return;
@@ -491,9 +532,10 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   const next=actor.path[0];if(!next)return;
   const len=distance(p,next);if(len<.03){actor.path.shift();return;}
   const step=Math.min(len,2.6*dt,Math.max(.001,distance(p,dest)-gap)),x=p.x+(next.x-p.x)*step/len,z=p.z+(next.z-p.z)*step/len;
+  if(!nav.line(p,{x,z})){actor.path=[];return;}
   actor.model.position.set(x,(nav.cell(x,z)-11)/100,z);
-  actor.model.rotation.y+=deltaAngle(actor.model.rotation.y,Math.atan2(next.x-p.x,next.z-p.z))*Math.min(1,9*dt);
-  actor.mixer?.update(step/1.12);dirty=true;
+  actor.model.rotation.y+=deltaAngle(actor.model.rotation.y,Math.atan2(next.x-p.x,next.z-p.z))*Math.min(1,11*dt);
+  actor.strideDistance=step;dirty=true;
  }
  function advance(dt){
   let forward=0,strafe=0,turn=0;
@@ -511,19 +553,25 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    const old={...current},next=travel.tick(dt).position;
    Object.assign(current,next);
    if(distance(old,next)>.0001){
+    if(!drag&&!turn&&travel.snapshot().mode==='following')current.heading+=deltaAngle(current.heading,angle(old,next))*Math.min(1,dt*4);
     dirty=true;
    }
   }
   if(guideTravel&&['following','arrived'].includes(travel.snapshot().mode)){
    const guide=scene.actors.get('friend'),dest=guideTravel.dest;
    if(distance(pointOf(guide.model),current)<2.9||travel.snapshot().mode==='arrived')walkBeside(guide,dest,.08,dt);
-   if(distance(pointOf(guide.model),dest)<.11){guideTravel=null;guide.mixer?.setTime(0);}
+   if(distance(pointOf(guide.model),dest)<.11)guideTravel=null;
   }
   if(worldFlag('coat-pickup-visit')&&!route()){
    const atCounter=atFangCounter(current);
    walkBeside(scene.actors.get('aqing'),atCounter?qingCounterPoint():current,atCounter?.09:1.35,dt);
    if(talking==='fang'&&qingAtCounter()&&host.querySelector('[data-street-action="show-coat"]:disabled'))showChoices();
    if(!guideTravel)walkBeside(scene.actors.get('friend'),atCounter?{x:13.52,z:1.16}:current,atCounter?.1:1.9,dt);
+  }
+  for(const id of ['friend','aqing']){
+   const actor=scene.actors.get(id);
+   if(actor.step?.(actor.strideDistance||0,dt))dirty=true;
+   actor.strideDistance=0;
   }
   if(pendingLook){
    const diff=deltaAngle(current.heading,pendingLook.heading);
@@ -557,12 +605,13 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   frameId=requestAnimationFrame(frame);
  }
  function reveal(initial){
+  tracked=getState().trackedQuest||'coat';
   const saved=getState().streetView;
   const from=getState().location==='restaurant'?RESTAURANT:HOME;
   current={...from,pitch:.02,...(saved&&nav.walkable(saved.x,saved.z)?saved:null)};
   travel=createFp1Travel({
    initial:current,canMove:nav.line,
-   onArrive:tag=>{if(tag==='counter'){pendingLook={heading:angle(COUNTER,pointOf(body('fang'))),pitch:-.09};publish('芳姐在柜台后。按 E 跟她交谈。');}else friendLine('到啦。你拿着取件单，我们进去。','按 E 进店到柜前。');},
+   onArrive:tag=>{if(tag==='quest'){const q=activeQuest(),person=body(q.npc);if(person)pendingLook={heading:angle(current,pointOf(person)),pitch:-.06};publish(q.npc==='rest'?'到了，点「坐坐，等一个时段」。':'到了，点交谈后选择第一项。');return;}if(tag==='counter'){pendingLook={heading:angle(COUNTER,pointOf(body('fang'))),pitch:-.09};publish('芳姐在柜台后。按 E 跟她交谈。');}else friendLine('到啦。你拿着取件单，我们进去。','按 E 进店到柜前。');},
   });
   counter=createFangCounter({getPosition:()=>current,getWorld:getState,onAction,onOpen:openDialogue});
   const friend=scene.actors.get('friend');
@@ -620,7 +669,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   visible=false;active=false;keys.clear();host.hidden=true;tray.hidden=true;drag=null;
  }
  addEventListener('keydown',event=>{
-  if(!visible||event.altKey||event.metaKey||event.ctrlKey||event.target.closest?.('input,textarea,summary'))return;
+  if(!visible||document.querySelector('dialog[open]')||event.altKey||event.metaKey||event.ctrlKey||event.target.closest?.('input,textarea,summary'))return;
   if(event.code==='Escape'){if(talking)dropDialogue();else tray.hidden=true;return;}
   if(event.code==='KeyE'&&!event.repeat&&!talking){event.preventDefault();doInteract();return;}
   if(!talking&&keymap[event.code]){event.preventDefault();keys.add(event.code);}
@@ -646,11 +695,18 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   for(const ev of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(ev,()=>keys.delete(button.dataset.move));
  }
  for(const button of host.querySelectorAll('[data-tray]'))button.onclick=()=>openTray(button.dataset.tray);
- $('#street-home').onclick=()=>{if(visible)persist(true);onHome();};
+
  $('#street-close').onclick=dropDialogue;
  interact.onclick=doInteract;
  $('#street-dine').onclick=enterRestaurant;
- follow.onclick=()=>{if(travel.snapshot().mode==='following'){travel.pause();dirty=true;}else startRoute(COUNTER);};
+ follow.onclick=()=>{
+  if(travel.snapshot().mode==='following'){travel.pause();dirty=true;updateTarget();return;}
+  const quest=activeQuest(),point=questPoint(quest,getState());if(!point)return;
+  if(quest.npc==='fang'&&!worldFlag('shop-check')){startRoute(COUNTER);return;}
+  const steps=nav.path(current,point);
+  if(!steps.length){publish('先走回街道，再跟随地图上的红点。');return;}
+  guideTravel=null;travel.reset(current);travel.start(steps,'quest');dirty=true;updateTarget();
+ };
  $('#street-mic').onclick=()=>{stopSpeech();if(voiceRecording)voice.stopRecording();else void voice.startRecording();};
  $('.street-form').onsubmit=event=>{event.preventDefault();stopSpeech();const input=$('.street-form input');void voice.submitText(input.value);input.value='';};
  $('#street-replay').onclick=()=>play();

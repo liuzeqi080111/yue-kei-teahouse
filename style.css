@@ -237,6 +237,7 @@ body.show-jyutping .learning-jyutping{display:block}
 #dining-room {position:absolute;display:block;touch-action:none;cursor:grab}
 #dining-room:active {cursor:grabbing}
 body.inside-3d #scene {visibility:hidden}
+body.dining-loading #game::after {content:'正在进店…';position:absolute;inset:0;display:grid;place-items:center;background:#263a31;color:#f1e5ca;z-index:15;pointer-events:auto}
 body.inside-3d .scene-shade,body.inside-3d #shop-sign {display:none}
 body.inside-3d .game #hotspots {pointer-events:none}
 body.inside-3d .game #hotspots button {pointer-events:auto}
@@ -249,3 +250,6 @@ body.inside-3d .table-inventory button {pointer-events:auto}
  body.inside-3d #game #table-labels .table-inventory {position:absolute;left:4px;top:4px;right:98px;max-width:none;display:flex;flex-direction:row;flex-wrap:wrap;gap:2px;padding:2px;pointer-events:none;background:transparent}
  body.inside-3d #game #table-labels .table-inventory button {background:#183b31d9;width:auto;min-height:22px;font-size:10px;padding:2px 5px}
 }
+body.inside-3d #hotspots :is(.dining-food-spot,.table-menu-hotspot){transform:none!important;transition:none;animation:none}
+body.inside-3d #hotspots .water-spot{transform:none!important;transition:none;animation:none;background:transparent!important;border:0;box-shadow:none;color:transparent}
+body.inside-3d #hotspots .water-spot:is(:hover,:focus-visible){color:#fff4d9;text-shadow:0 1px 3px #211910;outline:1px dotted #e9c892}

@@ -1,4 +1,4 @@
-import {prepareVoiceRecording,speechRequest} from './voice-clips.js';
+import {followSpeech,prepareVoiceRecording,speechRequest} from './voice-clips.js';
 import {streetVoiceIds} from './street-space.js';
 import {createPracticeRecorder} from './practice-recorder.js';
 import {voiceUrl} from './voice-endpoint.js';
@@ -37,7 +37,7 @@ function base64ToBlob(value,mimeType){
  */
 export function createNeighborhoodVoice({
  getContext,getRevision,applyAction,matchFixedChoice,
- onLine=()=>{},onStatus=()=>{},onProgress=()=>{},onTranscript=()=>{},onActivity=()=>{},onRecording=()=>{},
+ onLine=()=>{},onStatus=()=>{},onProgress=()=>{},onTranscript=()=>{},onActivity=()=>{},onRecording=()=>{},onSpeechLevel=null,
  fetchImpl=globalThis.fetch?.bind(globalThis),recorder:providedRecorder=null,recorderFactory=createPracticeRecorder,
  audioFactory=url=>new Audio(url),resolveUrl=voiceUrl,
  eventTarget=typeof window==='undefined'?null:window,
@@ -87,7 +87,9 @@ export function createNeighborhoodVoice({
   histories.set(attempt.context.npcId,history.slice(-6));
  }
 
+ let stopLip=null;
  function cleanupPlayback(){
+  stopLip?.();stopLip=null;
   clearTimeout(playTimer);playTimer=0;
   if(audio){audio.onended=null;audio.onerror=null;try{audio.pause();}catch{}audio=null;}
   if(audioUrl){try{revokeObjectURL(audioUrl);}catch{}audioUrl=null;}
@@ -279,6 +281,7 @@ export function createNeighborhoodVoice({
    audio.onended=()=>{if(id!==playGeneration)return;stopPlayback();if(!busy)status('ready','播放完成。');};
    audio.onerror=()=>{if(id!==playGeneration)return;stopPlayback();status('error','配音播放失败，请重试。');};
    await audio.play();
+   if(id===playGeneration&&onSpeechLevel)stopLip=followSpeech(audio,clip.blob,(level,shape)=>onSpeechLevel(speaker,level,shape));
    return id===playGeneration;
   }catch(error){
    if(id!==playGeneration)return false;

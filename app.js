@@ -9,7 +9,6 @@ import {draw,food,ready,tableFoodLayout,SCENE_WIDTH,SCENE_HEIGHT} from './scene.
 import {createDining} from './dining-actions.js';
 import {mountVoice} from './voice.js';
 import {createAmbience} from './ambient.js';
-import {mountMusic} from './music.js';
 import {createSoundscape} from './sound-priority.js';
 import {createLearningGuide} from './learning-guide.js';
 import {createPracticeAudio} from './practice-audio.js';
@@ -47,8 +46,8 @@ function diningPhrase(item,remaining=3){
  const sweetJyutping={'正常甜':'zing3 soeng4 tim4','少甜':'siu2 tim4','走甜':'zau2 tim4'}[item.options.sweetness];
  return {text:`${name}${sweet}，${cold?'冰涼解渴':'小心熱，慢慢飲'}。`,meaning:`${cold?'冰':'热'}${base}${sweet}，${cold?'冰凉解渴':'小心烫，慢慢喝'}。`,jyutping:`${cold?'dung3':'jit6'} ${baseJyutping}${sweetJyutping?', '+sweetJyutping:''}, ${cold?'bing1 loeng4 gaai2 hot3':'siu2 sam1 jit6, maan6 maan6 jam2'}.`};
 }
-const stageNames={[P.OUTSIDE]:'01 / 抵達',[P.GREETING]:'02 / 迎接',[P.SEATING]:'03 / 帶位',[P.SEATED]:'04 / 落座',[P.ORDERING]:'05 / 點餐',[P.DINING]:'06 / 用餐',[P.BILLING]:'07 / 埋單',[P.FINISHED]:'08 / 再會'};
-const locationNames={outside:'街邊 · 粵記門外',entrance:'門口 · 侍應迎接',walk:'走道 · 跟隨帶位',room:'窗邊卡座 · 03 號枱',table:'03 號枱 · 桌面',menu:'03 號枱 · 餐牌',bill:'03 號枱 · 帳單',window:'窗边',cashier:'收银处'};
+const stageNames={[P.OUTSIDE]:'01 / 抵達',[P.GREETING]:'02 / 迎接',[P.SEATING]:'03 / 入席',[P.SEATED]:'04 / 落座',[P.ORDERING]:'05 / 點餐',[P.DINING]:'06 / 用餐',[P.BILLING]:'07 / 埋單',[P.FINISHED]:'08 / 再會'};
+const locationNames={outside:'街邊 · 粵記門外',entrance:'門口 · 侍應迎接',walk:'走道 · 前往窗口位',room:'窗邊卡座 · 03 號枱',table:'03 號枱 · 桌面',menu:'03 號枱 · 餐牌',bill:'03 號枱 · 帳單',window:'窗边',cashier:'收银处'};
 let tab='food',editing=null,showMeaning=true,lastCamera=null,tablePage=0,lastRound=null,selectedDining=null;
 let lookCamera='room',panelKey='',panelMarkup='',previousPanel=false;
 const panelScroll=new Map();
@@ -60,7 +59,7 @@ try {
  if (weatherChoices.has(saved)) weather = saved;
 } catch {}
 document.body.dataset.weather = weather;
-$('#scene-weather').value = weather;
+
 let hud=null,voice=null,learningGuide=null,practiceAudio=null,diningAudio=null,diningSoundGeneration=0,dining=null,neighborhood=null,restaurantFromWorld=false;
 const game=createGame({keepView:()=>!!diningRenderer,changed:handleGameChanged,inspectDining:id=>dining?.inspect(id)});
 const practiceLog=createPracticeLog();
@@ -259,6 +258,8 @@ function performCamera(value){
 }
 dining=createDining({getSnapshot:()=>game.snapshot()});
 function syncMeaning(){
+ document.body.dataset.meaning=String(showMeaning);
+ $('#translation').textContent='普通话字幕：'+(showMeaning?'开':'关');
  $('#translation').setAttribute('aria-pressed',String(showMeaning));
  $('#meaning').hidden=!showMeaning;
 }
@@ -273,15 +274,12 @@ practiceAudio=STATIC_PREVIEW?null:createPracticeAudio({
  getSnapshot:()=>game.snapshot(),
  getPractice:()=>learningGuide.getPractice()
 });
-const sound = createSoundscape({musicButton: $('#music-toggle'), volumeControl: $('#music-volume')});
+const sound = createSoundscape();
 const roomAmbience=createAmbience({button: $('#ambience'), sound});
-mountMusic($('#music-settings'), {sound});
+
 if(STATIC_PREVIEW){
  $('#voice-dock').hidden=true;$('#voice-dock').removeAttribute('open');
  $('#welcome > small').textContent='公開試玩版 · 用場景內選項點餐、加水和埋單；語音稍後開放。';
- const notes=$('#settings').querySelectorAll(':scope > p, :scope > small');
- if(notes[0])notes[0].textContent='本版本可測試完整點餐流程與背景音樂，語音及文字理解尚未開放。';
- if(notes[2])notes[2].textContent='结账为游戏模拟，不会收款，无需账号。短复习可在本机录音回听；此版本不提供在线评分。';
 }else voice=mountVoice({game,host:$('#voice-host'),getPracticeTarget:currentPracticeTarget,onPracticeAttempt:recordVoicePractice});
 const mobileTray=createMobileTray({
  conversation:$('.conversation'),guide:$('#learning-guide'),voiceDock:$('#voice-dock'),staticPreview:STATIC_PREVIEW,
@@ -484,7 +482,7 @@ function onWorldHistoryChange(snapshot){
  if(!validation.ok){lockWorld('无法继续：对话历史无效。');return;}
  world={...world,history:snapshot};worldStarted=true;worldDirty=true;flushWorldSave();
 }
-const firstPerson=new URLSearchParams(location.search).get('street')==='3d';
+const firstPerson=new URLSearchParams(location.search).get('street')!=='2d';
 const neighborhoodRoot=neighborhoodRootFromDocument();
 const createWorldView=firstPerson?(await import('./street-game.js')).createStreetGame:createNeighborhood;
 neighborhood=createWorldView({
@@ -492,6 +490,11 @@ neighborhood=createWorldView({
  getState:()=>world,
  onAction:onWorldAction,
  onRest:onWorldRest,
+ onTrackQuest:id=>{
+  if(worldSaveLocked||world.trackedQuest===id)return;
+  world={...world,trackedQuest:id};worldDirty=true;flushWorldSave();
+ },
+ onRecordPlay:()=>roomAmbience.recordPhrase(),
  onMove:onWorldMove,
  onView:(streetView,{final=false}={})=>{
   if(worldSaveLocked)return;
@@ -505,6 +508,7 @@ neighborhood=createWorldView({
  onHistoryChange:onWorldHistoryChange,
  getStorageStatus:()=>worldStorageError||worldSaveStatus,
  onTransition:syncWorldTransition,
+ prepareRestaurant:loadDiningRoom,
  onEnterRestaurant:enterRestaurantFromWorld,
 });
 $('#world-leave-restaurant').addEventListener('click',leaveRestaurantToStreet);
@@ -644,7 +648,7 @@ function diningHotspots(state,view){
  }).join('');
 }
 const itemStatus=i=>i.options.serving==='外賣'?({pending:'待落單 · 外賣',confirmed:'已落單 · 待打包',served:'已打包'})[i.status]:({pending:'待落單',confirmed:'已落單 · 等上枱',served:'已上枱'})[i.status];
-function actionChoices(state,view){const busy=view.busy;if(view.orderReview)return replyButton('CONTINUE_ORDER','仲想加啲嘢',false,busy)+replyButton('FINISH_ORDER','夠喇，唔該落單。',true,busy);switch(state.phase){case P.OUTSIDE:return '';case P.GREETING:return replyButton('START_SEATING','一位',true,busy)+`<button data-action="START_SEATING" data-party-size="2" ${busy?'disabled':''}>两位</button>`;case P.SEATING:return '<span class="note busy">跟住阿明，行去窗口位…</span>';case P.SEATED:return replyButton('OPEN_MENU','唔該，睇吓餐牌。',true,busy)+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.ORDERING:case P.DINING:return `<button data-camera="${view.camera==='table'?'room':'table'}">${view.camera==='table'?'抬頭傾偈':'睇吓枱面'}</button>`+`<button data-camera="menu">${state.phase===P.DINING?'想加啲嘢':'睇餐牌'}</button>`+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('REQUEST_UTENSILS','唔該，畀副餐具我。',false,busy)+(state.phase===P.DINING?replyButton('REQUEST_BILL','唔該，埋單。',true,busy):'')+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.BILLING:return state.isPaid?'<span>已結帳 · 正在道別…</span>':`<button data-camera="bill">查看帳單</button>`+replyButton('PAY_BILL','虛擬結帳',true,busy);case P.FINISHED:return '';}}
+function actionChoices(state,view){const busy=view.busy;if(view.orderReview)return replyButton('CONTINUE_ORDER','仲想加啲嘢',false,busy)+replyButton('FINISH_ORDER','夠喇，唔該落單。',true,busy);switch(state.phase){case P.OUTSIDE:return '';case P.GREETING:return replyButton('START_SEATING','一位',true,busy)+`<button data-action="START_SEATING" data-party-size="2" ${busy?'disabled':''}>两位</button>`;case P.SEATING:return '<span class="note busy">正在走向窗边座位…</span>';case P.SEATED:return replyButton('OPEN_MENU','唔該，睇吓餐牌。',true,busy)+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.ORDERING:case P.DINING:return `<button data-camera="${view.camera==='table'?'room':'table'}">${view.camera==='table'?'抬頭傾偈':'睇吓枱面'}</button>`+`<button data-camera="menu">${state.phase===P.DINING?'想加啲嘢':'睇餐牌'}</button>`+replyButton('REQUEST_WATER','唔該，加水。',false,busy)+replyButton('REQUEST_UTENSILS','唔該，畀副餐具我。',false,busy)+(state.phase===P.DINING?replyButton('REQUEST_BILL','唔該，埋單。',true,busy):'')+replyButton('WAITER_LEAVE','唔使住，唔該。',false,busy);case P.BILLING:return state.isPaid?'<span>已結帳 · 正在道別…</span>':`<button data-camera="bill">查看帳單</button>`+replyButton('PAY_BILL','虛擬結帳',true,busy);case P.FINISHED:return '';}}
 function actions(state,view){
  if(['window','cashier'].includes(view.camera))return '<button type="button" class="primary" data-camera="room">回到座位</button>';
  return actionChoices(state,view);
@@ -702,7 +706,7 @@ function render({state,view}){
  const currentFocus=document.activeElement,actionToken=focusToken(currentFocus),hadHotspotFocus=$('#hotspots').contains(currentFocus);
  const gameEl=$('#game'),roundChanged=lastRound!==state.round;
  if(roundChanged){selectedDining=null;tablePage=0;stopDiningSound();reviewChallenges=[];if($('#review-dialog')?.open)$('#review-dialog').close();}
- if(state.phase!==P.DINING||view.camera!=='table')selectedDining=null;
+ if(state.phase!==P.DINING||view.camera!=='table'||(view.busy&&['REQUEST_WATER','REQUEST_UTENSILS'].includes(view.beat?.kind)))selectedDining=null;
  const served=state.items.filter(i=>i.status==='served'),pages=Math.max(1,Math.ceil(served.length/6));tablePage=((tablePage%pages)+pages)%pages;
  const pageItems=served.slice(tablePage*6,tablePage*6+6),detail=state.phase===P.DINING?pageItems.find(i=>i.id===selectedDining):null;
  syncStage(state,view);
@@ -719,7 +723,7 @@ function render({state,view}){
  $('#stage').textContent=stageNames[state.phase];$('#location').textContent=locationNames[view.camera];
  $('#cameras').hidden=![P.SEATED,P.ORDERING,P.DINING,P.BILLING].includes(state.phase);
  $('#cameras').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.camera===view.camera||(b.dataset.camera==='menu'&&view.camera==='bill'))));
- $('#scene-hint').textContent=view.busy?'阿明正在服務 · 請稍候':view.camera==='table'?`${state.items.filter(i=>i.status==='served').length} 項已上枱 · ${view.water?'水已加滿':'清水半杯'}${view.utensils?' · 餐具已送到':''}`:outside?'一段屬於你的香港日常':finished?'今日嘅練習完成 · 得閒再嚟':'視角可自由切換 · 訂單會一直保留';
+ $('#scene-hint').textContent=view.busy?'阿明正在服務 · 請稍候':view.camera==='table'?`${state.items.filter(i=>i.status==='served').length} 項已上枱 · ${view.water?'水已加滿':'水杯待加水'}${view.utensils?' · 餐具已送到':''}`:outside?'一段屬於你的香港日常':finished?'今日嘅練習完成 · 得閒再嚟':'視角可自由切換 · 訂單會一直保留';
  updateText($('#speaker-name'),view.line[0]);updateText($('#dialogue'),view.line[1]);updateText($('#jyutping'),view.line[2]);updateText($('#meaning'),view.line[3]);$('#meaning').hidden=!showMeaning;
  updateText($('#notice'),['menu','bill'].includes(view.camera)?'':feedback(view.notice));
  panel(state,view);
@@ -763,28 +767,41 @@ function render({state,view}){
  }
 }
 let lastPaint='',assetsSettled=false;
-let diningRenderer, loadingRoom, latestRoomFrame, lastStep, lastClink;
+let diningRenderer, loadingRoom, lastStep, lastClink;
+function loadDiningRoom(){
+ if(!loadingRoom){
+  loadingRoom=import('./dining-room.js').then(module=>module.createDiningRoom($('#dining-room'))).then(renderer=>{
+   diningRenderer=renderer;
+  }).catch(error=>{loadingRoom=null;throw error;});
+ }
+ return loadingRoom;
+}
 function drawDining(canvas,state,view){
  const surface=$('#dining-room');
- latestRoomFrame={state,view};
  if(view.camera==='outside'){
-  surface.hidden=true;document.body.classList.remove('inside-3d');
+  surface.hidden=true;document.body.classList.remove('inside-3d','dining-loading');
   draw(canvas,state,view);return;
  }
- if(!loadingRoom){
-  loadingRoom=import('./dining-room.js').then(module=>module.createDiningRoom(surface)).then(renderer=>{
-   diningRenderer=renderer;
-   drawDining(canvas,latestRoomFrame.state,latestRoomFrame.view);
-  }).catch(error=>console.error('粤记三维场景加载失败',error));
+ if(!diningRenderer){
+  if(!loadingRoom && !surface.dataset.failed){
+   document.body.classList.add('dining-loading');
+   loadDiningRoom().catch(error=>{
+    console.error('粤记三维场景加载失败',error);surface.dataset.failed='true';
+   }).finally(()=>{
+    document.body.classList.remove('dining-loading');
+    if(!neighborhood?.active){lastPaint='';const current=game.snapshot();paint(current.state,current.view);}
+   });
+  }
+  if(surface.dataset.failed)draw(canvas,state,view);
+  return;
  }
- if(!diningRenderer){draw(canvas,state,view);return;}
  surface.hidden=false;document.body.classList.add('inside-3d');
  Object.assign(surface.style,{left:canvas.offsetLeft+'px',top:canvas.offsetTop+'px',width:canvas.clientWidth+'px',height:canvas.clientHeight+'px'});
  const direction=diningRenderer(state,view);
  const beat=view.beat;
- if(['approach','depart'].includes(beat?.pose)&&Date.now()<beat.start+beat.duration){
+ if(['approach','depart','walk'].includes(beat?.pose)&&Date.now()<beat.start+beat.duration){
   const footfall=beat.start+Math.floor((Date.now()-beat.start)/330)*330;
-  if(footfall!==lastStep){lastStep=footfall;roomAmbience.step(direction);}
+  if(footfall!==lastStep){lastStep=footfall;roomAmbience.step(beat.pose==='walk'?0:direction);}
  }
  if(beat?.pose==='place'&&Date.now()-beat.start>=beat.duration*.88&&lastClink!==beat.start){
   lastClink=beat.start;roomAmbience.clink(direction);
@@ -939,9 +956,8 @@ $('#clear-review').addEventListener('click',()=>{
 });
 $('#settings').addEventListener('close',resetClearReview);
 $('#restart').addEventListener('click',()=>{$('#settings').close();returnToTitle();});
-$('#pronunciation').addEventListener('click',e=>{const on=e.target.getAttribute('aria-pressed')!=='true';e.target.setAttribute('aria-pressed',on);document.body.classList.toggle('show-jyutping',on);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!neighborhood?.active&&!document.querySelector('dialog[open]')&&!$('#panel').hidden){e.preventDefault();closePanel();}});
-for(const selector of ['#welcome','#settings','#sound-controls','#chapters','#learning-mode','#pause','#asset-status'])localizeUi($(selector));
+for(const selector of ['#welcome','#settings','#chapters','#learning-mode','#pause','#asset-status'])localizeUi($(selector));
 render(game.snapshot());ready.then(results=>{
  assetsSettled=true;render(game.snapshot());
  if(results.some(r=>r.status==='rejected'))$('#asset-status').hidden=false;
@@ -983,7 +999,7 @@ function syncStage(state,view){
  if(exploring)html='';
  if([P.SEATED,P.ORDERING,P.DINING].includes(state.phase)&&!view.busy)html+=tableMenuHotspot(view);
  html+=diningHotspots(state,view);
- if(hot.innerHTML!==html)hot.innerHTML=html;
+ if(hot.dataset.markup!==html){hot.innerHTML=html;hot.dataset.markup=html;}
 }
 function finishedDrinks(state) {
  return new Set(state.items.filter(item => item.itemId.startsWith('drink-') &&
@@ -1002,7 +1018,7 @@ function motionNeeded(state, view) {
  // Service motion conveys an action's progress. Never leave its timers running
  // while suppressing every intermediate frame (which makes the waiter teleport).
  if (view.beat && Date.now() < view.beat.start + view.beat.duration) return true;
- if (view.camera === 'window') return true;
+ if (view.speaking || view.camera === 'window') return true;
  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
  if (['room','window','cashier'].includes(view.camera)) return true;
  if (view.camera !== 'table') return false;
@@ -1024,13 +1040,6 @@ function animate(now) {
  }
  frame = requestAnimationFrame(animate);
 }
-$('#scene-weather').addEventListener('change', event => {
- if (!weatherChoices.has(event.target.value)) return;
- weather = event.target.value;
- document.body.dataset.weather = weather;
- try { localStorage.setItem('yue-kei-weather', weather); } catch {}
- render(game.snapshot());
-});
 document.addEventListener('close', scheduleSceneFrame, true);
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', scheduleSceneFrame);
 document.addEventListener('visibilitychange', () => {
@@ -1040,8 +1049,9 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => { cancelAnimationFrame(frame); frame = 0; stopDiningSound(); });
 window.addEventListener('pageshow', scheduleSceneFrame);
+window.addEventListener('npc-mouth',()=>{if(diningRenderer&&!neighborhood?.active){const {state,view}=game.snapshot();paint(state,view);}});
 
-if (new URLSearchParams(location.search).get('cover') === 'vinyl') {
+if (new URLSearchParams(location.search).get('cover') !== 'classic') {
  const welcome = document.querySelector('#welcome');
  const content = document.querySelector('#vinyl-template').content.cloneNode(true);
  const frame = content.querySelector('.vinyl-frame');
@@ -1059,13 +1069,12 @@ if (new URLSearchParams(location.search).get('cover') === 'vinyl') {
  updateCoverButtons();
  resume.addEventListener('click', () => start.click());
  fresh.addEventListener('click', () => (restart.hidden ? start : restart).click());
- const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
  function setMotor(running) {
   frame.classList.toggle('vinyl-stopped', !running);
   motor.setAttribute('aria-pressed', String(running));
  }
- setMotor(!reduced.matches);
- reduced.addEventListener('change', () => setMotor(!reduced.matches));
+ setMotor(true);
  motor.addEventListener('click', () => setMotor(frame.classList.contains('vinyl-stopped')));
  welcome.prepend(content);
  welcome.classList.add('vinyl-edition');

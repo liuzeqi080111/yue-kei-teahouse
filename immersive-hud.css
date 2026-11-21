@@ -255,5 +255,10 @@ body[data-immersive] #panel .bill-practice small{display:block;margin-top:6px}
  body[data-immersive]:not(.at-title) .scene-shade{top:60px;height:max(calc(100vw * .5625 + 40px),calc(100% - var(--hud-dock-height,150px) - 180px))}
 }
 #immersive-hud .hud-bottom .hud-direct{padding:0;background:none;max-width:100%}
-#immersive-hud .hud-bottom .hud-direct button{border-radius:30px;background:#20352fe8}
+#immersive-hud .hud-bottom .hud-direct button{border-radius:30px;background:#342b25ed}
 #immersive-hud .hud-bottom [data-action="CALL_WAITER"]{width:auto;padding-inline:12px;white-space:nowrap}
+body #immersive-hud .hud-caption {background:transparent;box-shadow:none;border:0;text-shadow:-1px 0 2px #282421,1px 0 2px #282421,0 2px 4px #171513}
+#immersive-hud .hud-cantonese {margin:0;color:#fffdf6;font:400 clamp(23px,2.35vw,36px)/1.3 LiSu,"隶书",serif}
+#immersive-hud .hud-cantonese:not([hidden]) + .hud-subtitle {font-size:clamp(15px,1.4vw,21px);font-weight:500}
+#immersive-hud .hud-bottom button,#immersive-hud .voice-mic {background-color:#342b25ed;color:#fff3da;border-color:#e5dac6a3}
+#immersive-hud .hud-score{flex-basis:100%;text-align:center;color:#fff3da;text-shadow:0 1px 3px #211910;font-size:var(--hud-ui-size)}

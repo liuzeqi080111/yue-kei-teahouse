@@ -61,9 +61,18 @@ export function createStreetNav(layout, blocked=()=>false) {
   }
   return true;
  }
+ // Leave clearance on both sides of shortcuts. A path that just grazes a
+ // blocked cell can otherwise sample differently at walking-frame intervals.
+ function shortcut(from,to){
+  const length=distance(from,to);
+  if(!length)return walkable(to.x,to.z);
+  const dx=(to.z-from.z)*.055/length,dz=(from.x-to.x)*.055/length;
+  return line(from,to)&&line({x:from.x+dx,z:from.z+dz},{x:to.x+dx,z:to.z+dz})
+   &&line({x:from.x-dx,z:from.z-dz},{x:to.x-dx,z:to.z-dz});
+ }
  function path(from,to){
   if(!walkable(from.x,from.z)||!walkable(to.x,to.z))return [];
-  if(line(from,to))return [to];
+  if(shortcut(from,to))return [to];
   const start=index(from.x,from.z),end=index(to.x,to.z);
   const prev=new Int32Array(w*h).fill(-1),queue=new Int32Array(w*h);
   let head=0,tail=1;
@@ -84,7 +93,7 @@ export function createStreetNav(layout, blocked=()=>false) {
   for(let i=0;i<route.length;){
    let far=i;
    if(!line(current,route[far]))return [];
-   while(far+1<route.length&&line(current,route[far+1]))far++;
+   while(far+1<route.length&&shortcut(current,route[far+1]))far++;
    current=route[far];result.push(current);i=far+1;
   }
   return result;

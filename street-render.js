@@ -1,7 +1,8 @@
+import {dressStoryShops,createOccupations} from './street-fixtures.js';
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
-import {furnishKitchen} from './dining-room.js';
+import {furnishKitchen,mouthPose,plantedStance} from './dining-room.js';
 import {SHOPS} from './street-space.js';
 
 export async function loadStreet(canvas) {
@@ -38,6 +39,7 @@ export async function loadStreet(canvas) {
   model.traverse(o=>{if(o.isMesh){o.castShadow=!(o.material.transparent&&o.material.opacity<.4);o.receiveShadow=name==='district.glb';}});
   if(!animations.length)return {model};
   const mixer=new T.AnimationMixer(model),clip=animations[0];
+  const walk=mixer.clipAction(clip).play();
   if(name==='friend-styled-v3.glb'||name==='aqing-styled-v3.glb'){
    const hips=clip.tracks.find(track=>/Hips\.position$/i.test(track.name));
    if(hips){
@@ -47,8 +49,17 @@ export async function loadStreet(canvas) {
      for(let i=1;i<=last;i++)values[i*3+axis]-=displacement*(times[i]-times[0])/(times[last]-times[0]);
     }
    }
+   const stand=mixer.clipAction(plantedStance(clip)).play();
+   let weight=0;walk.setEffectiveWeight(0);mixer.setTime(0);
+   return {model,mixer,step(distance,dt){
+    const next=T.MathUtils.clamp(weight+(distance>0?1:-1)*dt*7,0,1);
+    if(!next&&!weight)return false;
+    weight=next;walk.setEffectiveWeight(weight);stand.setEffectiveWeight(1-weight);
+    mixer.update(distance/1.12);
+    return true;
+   }};
   }
-  mixer.clipAction(clip).play();mixer.setTime(0);
+  mixer.setTime(0);
   return {model,mixer};
  }
  const [layout,env]=await Promise.all([
@@ -56,6 +67,7 @@ export async function loadStreet(canvas) {
   load('district.glb'),
  ]);
  scene.add(env.model);
+ const fittings=dressStoryShops(scene,env.model);
  const kitchen=new T.Group();
  kitchen.position.set(-15.72,0,8.8);kitchen.rotation.y=Math.PI/2;
  furnishKitchen(kitchen,env.model);scene.add(kitchen);
@@ -148,41 +160,12 @@ export async function loadStreet(canvas) {
   const hands=[];model.traverse(o=>{if(o.morphTargetDictionary?.workLeft!==undefined)hands.push(o.morphTargetInfluences);});
   working.push({id,model,hands,phase:index*1.73,pace:({bakery:1.65,radio:.84,rice:1.06,cloth:.73,print:1.31,herbs:.94,fruit:1.15})[shop.kind],amount:0});
  }));
- const chores=[];
- for(const [id,actor] of actors){
-  if(!['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].includes(id))continue;
-  const limbs={};
-  actor.model.traverse(bone=>{
-   if(!bone.isBone)return;
-   const name=bone.name.replace(/^mixamorig[:_]?/i,'');
-   if(['Head','LeftForeArm','RightForeArm'].includes(name))limbs[name]={bone,rest:bone.quaternion.clone()};
-  });
-  chores.push({id,actor,limbs,weight:0,phase:chores.length*1.1});
- }
- const axis=new T.Vector3(1,0,0),turn=new T.Quaternion();
+ const workNearby=createOccupations(scene,actors,fittings);
  function animateWork(point,engaged,now){
-  let bodiesChanged=false;
-  for(const c of chores){
-   const p=c.actor.model.position;
-   if(!c.actor.model.visible||Math.hypot(p.x-point.x,p.z-point.z)>10)continue;
-   if(c.id==='friend'||c.id==='aqing'){
-    const moved=c.previous&&c.previous.distanceToSquared(p)>.00001;
-    (c.previous??=new T.Vector3()).copy(p);
-    if(moved){c.weight=0;continue;}
-   }
-   const busy=engaged!==c.id&&!(c.id==='vendor'&&engaged==='juiceCart');
-   if(!busy&&c.weight===0)continue;
-   c.weight+=T.MathUtils.clamp((busy?1:0)-c.weight,-.16,.16);
-   const t=now*.001+c.phase;
-   for(const [name,{bone,rest}] of Object.entries(c.limbs)){
-    const offset=name==='Head'?.10+.055*Math.sin(t*.82):name==='RightForeArm'?-.24-.18*Math.sin(t*1.57):-.13+.10*Math.sin(t);
-    bone.quaternion.copy(rest).multiply(turn.setFromAxisAngle(axis,offset*c.weight));
-   }
-   bodiesChanged=true;
-  }
+  const bodiesChanged=workNearby(point,engaged,now);
   let changed=false;
   for(const actor of working){
-   if(Math.hypot(actor.model.position.x-point.x,actor.model.position.z-point.z)>9)continue;
+   if(actor.id==='southRice'&&fittings.reunion.visible||Math.hypot(actor.model.position.x-point.x,actor.model.position.z-point.z)>9)continue;
    const t=actor.phase+now*.001*actor.pace,active=engaged!==actor.id;
    const target=active?1:0;
    if(!active&&actor.amount===0)continue;
@@ -214,20 +197,20 @@ export async function loadStreet(canvas) {
   for(let i=0;i<4;i++)fitting(0xdec7a4,16.28,.25+i*.115,z,.025,.038,.51);
   fitting(0xd4dfd7,16.6,.68,z,.56,.10,.46);
  }
- const ledger=new T.Group();ledger.position.set(15.62,1.31,.58);scene.add(ledger);
+ const ledger=new T.Group();ledger.position.set(15.62,1.055,.42);scene.add(ledger);
  for(let i=0;i<3;i++){
   const sheet=new T.Mesh(new T.BoxGeometry(.26,.012,.19),new T.MeshStandardMaterial({color:i===2?0xf1dfb0:0x688d87}));
   sheet.position.y=i*.016;ledger.add(sheet);
  }
  for(const x of [16.10,16.86])fitting(0x746754,x,2.82,1.58,.014,1.02,.014);
- const sign=storeSign('憑單取衣',.94,.24);sign.position.set(16.48,2.20,1.58);sign.rotation.y=Math.PI;scene.add(sign);
+ const sign=storeSign('憑單取衣',.94,.24);sign.position.set(16.48,2.20,1.58);sign.rotation.y=-Math.PI/2;scene.add(sign);
  const desk=new T.Group();desk.position.set(14.99,0,1.54);scene.add(desk);
- for(let i=0;i<6;i++){
+ for(let i=0;i<3;i++){
   const fold=new T.Mesh(new T.BoxGeometry(.52,.065,.34),new T.MeshStandardMaterial({color:i%2?0x879eb2:0xe8d4b4}));
-  fold.position.set(.64,1.32+i*.065,.25);desk.add(fold);
+  fold.position.set(.74,1.075+i*.065,.49);desk.add(fold);
  }
  const paper=new T.Mesh(new T.BoxGeometry(.27,.025,.32),new T.MeshStandardMaterial({color:0xf3e1bc}));
- paper.position.set(15.61,1.30,.98);scene.add(paper);
+ paper.position.set(15.61,1.06,.69);scene.add(paper);
  const coat=new T.Group(),cloth=new T.MeshStandardMaterial({color:0x37495a,roughness:.94});
  function panel(points,material,y){
   const shape=new T.Shape();points.forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath();
@@ -237,8 +220,8 @@ export async function loadStreet(canvas) {
  panel([[-.14,-.25],[-.06,-.28],[.06,-.28],[.14,-.25],[.28,.065],[.22,.10],[.145,-.034],[.16,.26],[-.16,.26],[-.145,-.034],[-.22,.10],[-.28,.065]],cloth,0);
  const trim=new T.MeshStandardMaterial({color:0x506475,roughness:.89});
  for(const s of [-1,1])panel([[s*.066,-.27],[s*.121,-.22],[s*.076,-.145],[s*.104,-.13],[0,.015]],trim,.016);
- coat.position.set(15.54,1.335,1.19);coat.rotation.y=-Math.PI/2;scene.add(coat);
- function showCoat(visible){coat.visible=visible;}
+ coat.position.set(15.54,1.075,1.19);coat.rotation.y=-Math.PI/2;scene.add(coat);
+ function showCoat(visible){coat.visible=visible;fittings.pressing.visible=!visible;}
  illuminate(false);
  function face(id,point,dt){
   const actor=actors.get(id);
@@ -250,7 +233,21 @@ export async function loadStreet(canvas) {
   model.rotation.y+=Math.atan2(Math.sin(delta),Math.cos(delta))*Math.min(1,dt*8);
   return true;
  }
- return {layout,actors,render,face,showCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
+ const mouths=new Map();
+ function speak(id,level,shape){
+  const actor=actors.get(id);if(!actor)return;
+  if(!mouths.has(actor))mouths.set(actor,mouthPose(actor.model,id==='juiceCart'?'vendor':id));
+  mouths.get(actor)(level,shape);
+ }
+ const elder=actors.get('southRice').model,stallPosition=elder.position.clone(),stallYaw=elder.rotation.y;
+ function reunion(arrived){
+  if(fittings.reunion.visible===arrived)return;
+  fittings.reunion.visible=arrived;
+  if(arrived){elder.position.set(16.16,.18,-11.58);elder.rotation.y=Math.atan2(lin.model.position.x-elder.position.x,lin.model.position.z-elder.position.z);}
+  else{elder.position.copy(stallPosition);elder.rotation.y=stallYaw;}
+  refreshShadows();
+ }
+ return {reunion,speak,layout,actors,render,face,showCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
 }
 
 function storeSign(text,w,h){

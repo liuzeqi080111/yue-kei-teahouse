@@ -80,3 +80,14 @@
  .street-more-panel{right:4px;bottom:54px;max-height:46dvh;overflow:auto}
  #street-mic{width:44px;height:44px}
 }
+.street-game .street-caption,#street-voice-state:not(:empty){background:transparent;box-shadow:none;text-shadow:-1px 0 2px #282421,1px 0 2px #282421,0 2px 4px #171513}
+.street-game .street-line{font:400 clamp(23px,2.35vw,36px)/1.35 LiSu,"隶书",serif;color:#fffdf6}
+.street-dialogue .street-tools button,.street-dialogue .street-tools summary,.street-dialogue #street-mic{background:#342b25ed;color:#fff3da;border-color:#e5dac6a3}
+.street-navigation{position:relative;display:grid;justify-items:end;gap:4px}
+.street-game #street-map{width:156px;height:auto;max-width:32vw;pointer-events:none;border:1px solid #c6aa85;border-radius:4px}
+.street-game .street-goals,.street-game .street-menu,.street-game .street-tray{background:#342b24ee;color:#fff0da}
+.street-game .street-menu button,.street-game .quest-row{background:#45382d;border-color:#a68f72}
+.street-navigation .street-tray{top:calc(100% + 4px);right:0;width:min(340px,90vw);box-sizing:border-box}
+.street-tray .quest-row{display:block;width:100%;text-align:left;margin-bottom:5px}
+.street-tray .quest-row[aria-pressed=true]{border-color:#e6a474;color:#ffda9b}
+@media(max-width:650px){.street-game #street-map{width:104px}.street-navigation .street-menu{max-width:43vw;padding:2px}.street-navigation .street-menu button{font-size:12px;padding:3px 5px}}

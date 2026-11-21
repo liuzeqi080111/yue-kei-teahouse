@@ -56,7 +56,7 @@ function goalFor({state,view},menuContext={}){
  }
  const goals={
   [P.GREETING]:target('告诉阿明，有几位客人一起用餐。',phrase('one-person'),[{type:'START_SEATING'}]),
-  [P.SEATING]:target('跟阿明到窗边，等他带你入座。',phrase('follow-seat')),
+  [P.SEATING]:target('正在走向窗边座位。',phrase('follow-seat')),
   [P.SEATED]:target('直接点桌上菜单，看看想吃什么。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
   [P.ORDERING]:target('打开菜单选餐。阿明会再问一次，确认后才会下单。',phrase('read-menu'),[{type:'OPEN_MENU'}]),
   [P.DINING]:target('用餐时可以请阿明加水或拿餐具，也可以请他结账。',phrase('request-water'),[{type:'REQUEST_WATER'}]),

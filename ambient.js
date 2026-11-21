@@ -1,11 +1,13 @@
 import {createSoundscape} from './sound-priority.js';
 
-// Local tea-house ambience: filtered room tone and quiet, irregular porcelain clinks.
-// Created only after a user gesture; no network, microphone or audio files required.
+// The original teahouse score shares the single background switch with incidental sounds.
 export function createAmbience({button = null, sound} = {}) {
  const ownsSound = !sound;
  const controller = sound || createSoundscape();
- let ctx = null, master = null, low = null, high = null;
+ let ctx = null, master = null;
+ const score = new Audio('assets/hongkong-evening.wav');
+ score.loop = true;
+ score.preload = 'auto';
  let timer = 0, disposed = false, wakeVersion = 0;
  let snapshot = {
   location: 'outside',
@@ -31,16 +33,7 @@ export function createAmbience({button = null, sound} = {}) {
   if (immediate) master.gain.setValueAtTime(target, now);
   else master.gain.setTargetAtTime(target, now, 0.12);
 
-  // Interior is warmer and more muffled; outside opens the noise filter gradually.
-  const interior = snapshot.location === 'interior';
-  for (const [parameter, value] of [
-   [low?.frequency, interior ? 1050 : 2300],
-   [high?.frequency, interior ? 160 : 90],
-  ]) {
-   if (!parameter) continue;
-   parameter.cancelScheduledValues(now);
-   parameter.setTargetAtTime(value, now, 0.45);
-  }
+
  }
 
  function canSchedule() {
@@ -97,39 +90,12 @@ export function createAmbience({button = null, sound} = {}) {
   master = ctx.createGain();
   master.gain.value = 0;
   master.connect(ctx.destination);
-  const source = ctx.createBufferSource();
-  // A long, seamless noise bed filtered into a distant, warm room texture.
-  const buffer = ctx.createBuffer(2, ctx.sampleRate * 8, ctx.sampleRate);
-  for (let channel = 0; channel < 2; channel++) {
-   const data = buffer.getChannelData(channel);
-   let brown = 0;
-   for (let i = 0; i < data.length; i++) {
-    brown = (brown + .025 * (Math.random() * 2 - 1)) / 1.025;
-    data[i] = brown * .7;
-   }
-   const seam = Math.floor(ctx.sampleRate * .06);
-   for (let i = 0; i < seam; i++) {
-    const t = i / seam;
-    data[data.length - seam + i] = data[data.length - seam + i] * (1 - t) + data[i] * t;
-   }
-  }
-  source.buffer = buffer;
-  source.loop = true;
-  low = ctx.createBiquadFilter();
-  low.type = 'lowpass';
-  low.frequency.value = snapshot.location === 'interior' ? 1050 : 2300;
-  high = ctx.createBiquadFilter();
-  high.type = 'highpass';
-  high.frequency.value = snapshot.location === 'interior' ? 160 : 90;
-  source.connect(low);
-  low.connect(high);
-  high.connect(master);
-  source.start();
   return true;
  }
 
  async function wake() {
   if (disposed || !snapshot.ambienceEnabled || snapshot.hidden) return;
+  if (score.paused) void score.play().catch(() => {});
   const token = ++wakeVersion;
   try {
    if (!ctx && !build()) {
@@ -159,6 +125,9 @@ export function createAmbience({button = null, sound} = {}) {
 
  function applySound(next) {
   snapshot = next;
+  score.volume = snapshot.hidden || !snapshot.ambienceEnabled || snapshot.voice?.recording ? 0 : snapshot.musicGain;
+  if (snapshot.hidden || !snapshot.ambienceEnabled) score.pause();
+  else if (score.paused) void score.play().catch(() => {});
   label();
   level();
   if (snapshot.hidden || !snapshot.ambienceEnabled) suspend();
@@ -192,8 +161,7 @@ export function createAmbience({button = null, sound} = {}) {
   try { ctx?.close().catch(() => {}); } catch {}
   ctx = null;
   master = null;
-  low = null;
-  high = null;
+  score.pause();
  }
 
  label();
@@ -213,5 +181,14 @@ export function createAmbience({button = null, sound} = {}) {
   osc.connect(gain);gain.connect(pan);pan.connect(master);osc.start();osc.stop(now+.11);
   osc.onended=()=>{osc.disconnect();gain.disconnect();pan.disconnect();};
  }
- return {destroy,clink,step};
+ function recordPhrase(){
+  if(!canSchedule())return;
+  for(const [i,hz] of [293.66,349.23,392,440,392,349.23,293.66].entries()){
+   const start=ctx.currentTime+.25+i*.38,osc=ctx.createOscillator(),gain=ctx.createGain();
+   osc.type='triangle';osc.frequency.value=hz;gain.gain.setValueAtTime(.0001,start);
+   gain.gain.exponentialRampToValueAtTime(.12,start+.04);gain.gain.exponentialRampToValueAtTime(.0001,start+.56);
+   osc.connect(gain);gain.connect(master);osc.start(start);osc.stop(start+.57);osc.onended=()=>{osc.disconnect();gain.disconnect();};
+  }
+ }
+ return {destroy,clink,step,recordPhrase};
 }

@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-Hans"><head><link rel="icon" href="data:,"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#30251f"><title>街坊故事 · 唔該，開局！</title><link rel="stylesheet" href="story-preview.css"><script type="importmap">{"imports":{"three":"./assets/street/three/build/three.module.min.js","three/addons/":"./assets/street/three/examples/jsm/"}}</script></head><body>
+<main><canvas id="stage" aria-label="街坊故事三维场景"></canvas>
+<header><div><span id="place"></span><h1></h1></div><nav><a id="other"></a><a href="./">回街区封面</a></nav></header>
+<div id="loading" role="status">正在打开街区…</div>
+<section id="photo-view" hidden><figure><canvas id="paper" width="840" height="600" aria-label="橱窗照片"></canvas><figcaption></figcaption></figure></section>
+<div id="finder" aria-hidden="true" hidden></div>
+<section id="dialogue" hidden><div id="crop" hidden><label>取景 <input type="range" min="0" max="1" step=".01" value=".20" aria-label="取景远近"></label><span>拖动画面调整构图</span></div><span id="speaker"></span><p id="line" lang="yue"></p><p id="meaning"></p><div id="choices"></div><small id="status" role="status"></small></section>
+</main><script type="module" src="story-preview.js"></script></body></html>

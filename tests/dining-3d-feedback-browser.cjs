@@ -10,7 +10,7 @@ const assert=require('node:assert/strict');
  try{
   const page=await browser.newPage({viewport:{width:1200,height:760}});
   await page.goto(url);
-  await page.locator('[data-dialog="chapters"]').click();
+  await page.evaluate(()=>document.querySelector('#chapters').showModal());
   await page.locator('[data-chapter="full"]').click();
   await page.locator('[data-learning-mode="experienced"]').click();
   await page.locator('#dining-room:visible').waitFor();
@@ -27,7 +27,7 @@ const assert=require('node:assert/strict');
   const street=await browser.newPage({viewport:{width:390,height:844},permissions:['microphone']});
   let requests=0;
   await street.route('**/api/voice/transcribe',route=>{requests++;return route.fulfill({json:{text:'出门'}});});
-  await street.goto(url);await street.locator('[data-world-save-state]').click();
+  await street.goto(url);await street.locator('.vinyl-new').click();
   await street.locator('[data-learning-mode="experienced"]').click();
   const mic=street.locator('#street-mic');await mic.click({timeout:60000});
   await street.waitForSelector('#street-mic[aria-pressed="true"]');await street.waitForTimeout(1200);
@@ -43,14 +43,48 @@ const assert=require('node:assert/strict');
    localStorage.setItem('yuekei-learning-guide-v1',JSON.stringify({mode:'experienced',showMeaning:true}));
   });
   await door.reload();
-  await door.locator('[data-world-save-state]').click();
+  await door.locator('.vinyl-continue').click();
   await door.locator('#street-dine:visible').waitFor();
   await door.locator('#street-interact').filter({hasText:'阿明'}).click();
+  let releaseRoom;
+  const waitingForRoom=new Promise(resolve=>{
+   door.route('**/assets/street/district.glb',async route=>{
+    await new Promise(release=>{releaseRoom=release;resolve();});await route.continue();
+   });
+  });
   await door.locator('[data-street-action="enter-restaurant"]').click();
+  await waitingForRoom;
+  assert(await door.locator('#street-view').isVisible(),'street must remain visible while the dining scene loads');
+  releaseRoom();
   await door.locator('.hud-direct [data-action="START_SEATING"]').first().waitFor();
+  assert(await door.locator('#dining-room').isVisible());
+  await door.locator('.hud-direct [data-action="START_SEATING"]').first().click();
+  await door.waitForFunction(()=>document.querySelector('#location').textContent.includes('03'));
   await door.locator('#world-leave-restaurant').click();
   await door.locator('#street-dine:visible').click();
   await door.locator('#dining-room:visible').waitFor();
-  console.log('PASS reversible drag, stable waiter pose, spoken intro, and dining from both the storefront and waiter dialogue.');
+  for(const [width,height,touch] of [[1280,800,false],[390,844,true]]){
+   const table=await browser.newPage({viewport:{width,height},hasTouch:touch});
+   await table.goto(url);
+   await table.evaluate(()=>document.querySelector('#chapters').showModal());
+   await table.locator('[data-chapter="service"]').click();
+   await table.locator('[data-learning-mode="experienced"]').click();
+   await table.locator('#dining-room:visible').waitFor();
+   async function tapEdge(locator){
+    const box=await locator.boundingBox();
+    assert.ok(box.width>=48&&box.height>=48);
+    const x=box.x+box.width*.78,y=box.y+box.height*.49;
+    if(touch)await table.touchscreen.tap(x,y);else await table.mouse.click(x,y);
+   }
+   for(const id of ['line-1','line-2']){
+    await tapEdge(table.locator('.dining-food-spot[data-dining-select="'+id+'"]'));
+    await table.locator('[data-dining-consume="'+id+'"]').waitFor();
+    await table.locator('[data-dining-close]').click();
+   }
+   await tapEdge(table.locator('.table-menu-hotspot'));
+   await table.locator('#panel:visible').waitFor();
+   await table.close();
+  }
+  console.log('PASS reversible drag, stable waiter pose, spoken intro, dining from both the storefront and waiter dialogue, and dish/menu edge selection by mouse and touch.');
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);process.exitCode=1;});

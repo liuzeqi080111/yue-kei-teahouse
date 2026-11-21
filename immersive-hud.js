@@ -9,7 +9,7 @@ const IDLE_TEXT='不知道怎么说？';
 export function createImmersiveHud({game,guide,voice,preview}){
  const root=document.createElement('section');root.id='immersive-hud';root.hidden=true;
  root.setAttribute('aria-label','对话与求助');
- root.innerHTML=`<div class="hud-caption" aria-live="polite"><span class="hud-speaker"></span><p class="hud-subtitle"></p><p class="hud-notice" role="status"></p><button type="button" class="hud-subtitle-toggle" data-hud="subtitle" hidden>展开字幕</button></div>
+ root.innerHTML=`<div class="hud-caption" aria-live="polite"><span class="hud-speaker"></span><p class="hud-cantonese" lang="yue-Hant"></p><p class="hud-subtitle"></p><p class="hud-notice" role="status"></p><button type="button" class="hud-subtitle-toggle" data-hud="subtitle" hidden>展开字幕</button></div>
 
  <section class="hud-card" id="hud-help" aria-label="对话帮助" hidden>
   <header><strong>需要一点提示？</strong><button type="button" data-hud="pin" aria-pressed="false">固定</button><button type="button" data-hud="close" aria-label="关闭帮助">×</button></header>
@@ -24,7 +24,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
  </section>
  <button type="button" id="hud-intro" hidden>点麦克风说话；需要帮助点这里或按 H</button>
  <button type="button" id="hud-idle-hint" hidden>不知道怎么说？</button>
- <div class="hud-bottom"><button type="button" class="hud-quiet" data-hud="help" aria-controls="hud-help" aria-expanded="false" aria-label="打开帮助（H）" title="帮助（H）">帮助</button><div id="hud-voice"></div> <section class="hud-direct" aria-label="当前回应" hidden><div class="hud-direct-actions"></div></section><button class="hud-quiet" data-action="CALL_WAITER" hidden>招呼阿明</button><div class="hud-view-controls" role="group" aria-label="视角与菜单" hidden><button type="button" data-camera="table" data-hud-camera="table" aria-pressed="false">看看桌面</button><button type="button" data-camera="room" data-hud-camera="room" aria-pressed="false">看看店里</button><button type="button" data-camera="menu" data-hud-camera="menu" aria-pressed="false">看看菜单</button></div><button type="button" class="hud-quiet" data-hud="more" aria-controls="hud-more" aria-expanded="false" aria-label="更多对话方式">更多</button></div>
+ <div class="hud-bottom"><output class="hud-score" aria-live="polite" hidden></output><button type="button" class="hud-quiet" data-hud="help" aria-controls="hud-help" aria-expanded="false" aria-label="打开帮助（H）" title="帮助（H）">帮助</button><div id="hud-voice"></div> <section class="hud-direct" aria-label="当前回应" hidden><div class="hud-direct-actions"></div></section><button class="hud-quiet" data-action="CALL_WAITER" hidden>招呼阿明</button><div class="hud-view-controls" role="group" aria-label="视角与菜单" hidden><button type="button" data-camera="table" data-hud-camera="table" aria-pressed="false">看看桌面</button><button type="button" data-camera="room" data-hud-camera="room" aria-pressed="false">看看店里</button><button type="button" data-camera="menu" data-hud-camera="menu" aria-pressed="false">看看菜单</button></div><button type="button" class="hud-quiet" data-hud="more" aria-controls="hud-more" aria-expanded="false" aria-label="更多对话方式">更多</button></div>
  <button type="button" class="hud-return" data-camera="room" hidden>← 回到座位</button>`;
  document.querySelector('#game').append(root);
  const $=selector=>root.querySelector(selector),card=$('#hud-help'),more=$('#hud-more'),idle=$('#hud-idle-hint'),intro=$('#hud-intro');
@@ -104,6 +104,8 @@ export function createImmersiveHud({game,guide,voice,preview}){
   let caption=line.meaning?systemText(line.meaning):line.speaker?.startsWith('阿明')?'这句话暂时没有普通话释义，可在“更多”中查看粤语原句。':systemText(line.text||'');
   if(!caption&&waitingForReply())caption='阿明正在等你回应。';
   write($('.hud-speaker'),line.speaker?.startsWith('阿明')?'阿明 · 服务员':'');
+  const spoken=line.speaker?.startsWith('阿明')?line.text:'';
+  write($('.hud-cantonese'),spoken);$('.hud-cantonese').hidden=!spoken;
   write($('.hud-subtitle'),caption);write($('.hud-notice'),document.querySelector('#notice')?.textContent||'');
   $('.hud-caption').hidden=explore||panel||!caption;
   const long=caption.length>64,toggle=$('[data-hud="subtitle"]');toggle.hidden=!long;toggle.textContent=subtitleExpanded?'收起字幕':'展开完整字幕';
@@ -112,7 +114,7 @@ export function createImmersiveHud({game,guide,voice,preview}){
   const practice=guide.getPractice();
   const detail=$('.hud-original');
   detail.hidden=!moreDetail;
-  if(moreDetail==='teach')write(detail,[practice.example,practice.meaning].filter(Boolean).join('\n'));
+  if(moreDetail==='teach')write(detail,[practice.example,practice.meaning,voice&&practice.phraseId?'关掉此面板后，按说话键跟读可查看发音准确度。':''].filter(Boolean).join('\n'));
   if(moreDetail==='original')write(detail,line.jyutping?[line.text,line.jyutping].join('\n'):['本步示范',practice.example,practice.jyutping].filter(Boolean).join('\n'));
   for(const key of ['teach','original'])root.querySelector('[data-hud="'+key+'"]').setAttribute('aria-pressed',String(moreDetail===key));
   $('[data-hud="replay"]').disabled=!currentNpc||(!voice&&!preview);
@@ -189,16 +191,16 @@ export function createImmersiveHud({game,guide,voice,preview}){
   const button=event.target.closest('button');if(!button||button.disabled)return;
   if(button.dataset.fontSize){setFontSize(button.dataset.fontSize);return;}
   if(button===idle||button===intro){kind='expression';guide.noteHint('full');showHelp(true,true);return;}
-  if(button.dataset.help){kind=button.dataset.help;if(kind==='expression')guide.noteHint('full');renderHelp();return;}
+  if(button.dataset.help){kind=button.dataset.help;if(kind==='expression'){guide.noteHint('full');voice?.followExample?.();}renderHelp();return;}
   switch(button.dataset.hud){
    case 'help':kind='goal';showHelp(card.hidden,true);break;
    case 'close':closeHelp(true);$('[data-hud="help"]').focus({preventScroll:true});scheduleHint();break;
    case 'pin':pinned=!pinned;button.setAttribute('aria-pressed',String(pinned));button.textContent=pinned?'已固定':'固定';break;
    case 'more':showMore(more.hidden);break;
    case 'close-more':showMore(false);$('[data-hud="more"]').focus({preventScroll:true});scheduleHint();break;
-   case 'first-answer':kind='expression';guide.noteHint('full');showHelp(true,true);renderDirect();break;
+   case 'first-answer':kind='expression';guide.noteHint('full');voice?.followExample?.();showHelp(true,true);renderDirect();break;
    case 'teach':
-   case 'original':moreDetail=moreDetail===button.dataset.hud?null:button.dataset.hud;if(moreDetail==='teach')guide.noteHint('full');renderCaption();break;
+   case 'original':moreDetail=moreDetail===button.dataset.hud?null:button.dataset.hud;if(moreDetail==='teach'){guide.noteHint('full');voice?.followExample?.();}renderCaption();break;
    case 'replay':playLine(currentNpc?.text,1);break;
    case 'subtitle':subtitleExpanded=!subtitleExpanded;renderCaption();break;
    case 'listen':guide.noteHint('audio');playLine(guide.getPractice().example,1);break;
@@ -229,15 +231,16 @@ export function createImmersiveHud({game,guide,voice,preview}){
   if(voiceError){errorTurn=turnKey;hideIdle();hideIntro();clearHint();}
   scheduleHint();
  }
+ function onScore(event){const score=$('.hud-score');write(score,event.detail||'');score.hidden=!event.detail;}
  function onVisibility(){lastActivity=performance.now();if(document.hidden){clearHint();hideIdle();hideIntro();}else scheduleHint();}
  function destroy(){
   if(destroyed)return;destroyed=true;clearHint();hideIntro();
   root.removeEventListener('click',onRootClick);document.removeEventListener('keydown',onKeydown);document.removeEventListener('pointerdown',interacted);document.removeEventListener('keydown',interacted);
   dockObserver.disconnect();document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('voice-activity',onVoiceActivity);window.removeEventListener('voice-status',onVoiceStatus);
-  window.removeEventListener('pagehide',destroy);
+  window.removeEventListener('voice-practice-score',onScore);window.removeEventListener('pagehide',destroy);
  }
  root.addEventListener('click',onRootClick);document.addEventListener('keydown',onKeydown);document.addEventListener('pointerdown',interacted,{passive:true});document.addEventListener('keydown',interacted);
  document.addEventListener('visibilitychange',onVisibility);window.addEventListener('voice-activity',onVoiceActivity);window.addEventListener('voice-status',onVoiceStatus);
- window.addEventListener('pagehide',destroy,{once:true});
+ window.addEventListener('voice-practice-score',onScore);window.addEventListener('pagehide',destroy,{once:true});
  return {sync,setFontSize,openHelp(){showHelp(true,true);},destroy};
 }

@@ -30,6 +30,9 @@
         <g fill="none" stroke="#fff0da" opacity=".16" stroke-width="1">
          <circle cx="1113" cy="440" r="192" stroke-dasharray="25 1182"/>
          <circle cx="1113" cy="440" r="243" stroke-dasharray="12 1516" stroke-dashoffset="610"/>
+         <circle cx="1113" cy="440" r="332" stroke-dasharray="85 2002" stroke-dashoffset="352"/>
+         <circle cx="1113" cy="440" r="361" stroke-dasharray="17 2252" stroke-dashoffset="-44"/>
+         <circle cx="1113" cy="440" r="378" stroke-dasharray="64 2312" stroke-dashoffset="173"/>
          <circle cx="1113" cy="440" r="289" stroke-dasharray="39 1777" stroke-dashoffset="215"/>
         </g>
        </g>
@@ -51,18 +54,12 @@
     </header>
     <nav class="title-options landing-actions" aria-label="游戏入口">
      <button class="primary landing-button landing-button-primary" type="button" data-action="ENTER" data-world-save-state="empty" disabled><span id="world-start-label">开始游戏</span><span class="landing-button-arrow" aria-hidden="true">→</span></button>
-     <button class="landing-button landing-button-secondary" type="button" data-dining-entry>进店用餐</button>
-     <div class="landing-secondary-actions">
-      <button class="landing-button landing-button-secondary" type="button" data-open-review aria-haspopup="dialog">短复习</button>
-      <button class="landing-button landing-button-secondary" type="button" data-dialog="settings" aria-haspopup="dialog">设置</button>
-     </div>
-     <button class="landing-button landing-chapters" type="button" data-dialog="chapters" aria-haspopup="dialog">章节练习 <span aria-hidden="true">↗</span></button>
+     <button class="landing-button landing-button-secondary" type="button" data-dialog="settings" aria-haspopup="dialog">设置</button>
      <button id="world-title-restart" class="landing-button landing-chapters" type="button" hidden>重新开始</button>
     </nav>
    </div>
    <small>点击麦克风说话 · 停止录音后自动发送 · 按 H 打开帮助</small>
   </div>
-  <details id="sound-controls"><summary>配樂</summary><div class="sound-control-panel"><button type="button" id="music-toggle">背景音樂：開</button><label for="music-volume">音樂音量</label><input type="range" id="music-volume" min="0" max="1" step="0.01" value="0.5"></div></details>
   <button id="pause" data-dialog="settings" aria-label="開啟設定">☰</button>
   <div id="hotspots" aria-label="場景內互動"></div>
   <section id="learning-guide" class="learning-guide" data-learning-guide aria-label="阶段练习" hidden><span class="learning-guide-kicker">本阶段目标</span><strong data-learning-goal></strong><div class="learning-hint-actions" aria-label="分级提示"><button type="button" data-guide-hint="goal" aria-pressed="false">普通话目标</button><button type="button" data-guide-hint="frame" aria-pressed="false">句框</button><button type="button" data-guide-hint="full" aria-pressed="false">完整句</button></div><p class="learning-frame" data-learning-frame hidden></p><div class="learning-example"><p class="learning-cantonese">可以说：<span data-learning-example></span></p><p class="learning-jyutping">粤拼：<span data-learning-jyutping></span></p><p class="learning-translation" data-learning-translation></p><p class="learning-parts">分句：<span data-learning-parts></span></p><details class="learning-word-details"><summary>拆开学</summary><div class="learning-words" data-learning-words></div></details></div><div class="practice-controls" data-practice-controls hidden aria-label="示范音和跟读"><button type="button" data-practice-action="normal">试听</button><button type="button" data-practice-action="slow">慢速试听</button><button type="button" data-practice-action="follow">跟读</button><button type="button" data-practice-action="next" hidden>下一句</button><button type="button" data-practice-action="whole" hidden>整句</button><button type="button" data-practice-action="npc-slow">阿明慢速</button><button type="button" data-practice-action="stop" hidden>停止</button></div><details class="jyutping-intro"><summary>粤拼入门 · 字母与 1–6 声调</summary><p>粤拼用字母写出粤语读音，音节末尾的 1–6 标示六个声调；例如 jat1 的 1 是第 1 声，wai2 的 2 是第 2 声。字母不按英语读，有语音时可配合上方「试听」和「慢速试听」模仿。</p><p><b>唔該 m4 goi1</b>：请人帮忙、点餐或礼貌引起注意时用，也可回应日常小帮助；<b>多謝 do1 ze6</b>：收到礼物或表达较重谢意时常用。本局点单说「唔該」，结账道别说「多謝晒」。</p><p><b>畀 bei2</b>：给；<b>凍 dung3</b>：冰的，用于饮品温度。</p></details><p class="practice-progress" data-practice-progress role="status"></p><p class="practice-status" data-practice-status role="status" hidden></p><div class="learning-help-actions" aria-label="随时求助"><button type="button" data-guide-help="meaning">这句什么意思</button><button type="button" data-guide-help="answer">教我怎么答</button><button type="button" data-guide-help="slower">请说慢一点</button></div><p class="learning-help-result" data-learning-result role="status" hidden></p></section>
@@ -93,7 +90,16 @@
  </section>
 </section>
 <div id="world-restaurant-bar" hidden style="display:none"><button id="world-leave-restaurant" type="button">离开茶餐厅 · 回到街区</button></div>
-<dialog id="settings" aria-labelledby="settings-title"><h2 id="settings-title">歇一歇 · 設定</h2><div class="settings"><button id="translation" aria-pressed="true">普通话字幕</button><button type="button" data-learning-settings>學習模式：<span data-learning-mode-label>首次選擇</span></button><button id="pronunciation" hidden aria-pressed="false">顯示粵拼</button><button id="ambience" aria-pressed="true">背景音效：開</button><button type="button" data-open-review aria-haspopup="dialog">回顧與短複習</button><button id="clear-review" type="button">清除學習記錄</button><button id="restart">返回準備畫面</button></div><div class="clear-review-wrap"><small id="clear-review-status" class="clear-review-status" role="status"></small></div><label class="scene-weather-label" for="scene-weather">場景天氣</label><select id="scene-weather"><option value="afternoon">午後</option><option value="dusk" selected>黃昏</option><option value="rain">雨夜</option></select><section id="music-settings" aria-label="香港老歌"></section><p>可以用情境选项、录音或打字和阿明交流。正常停止录音后会自动发送。</p><p>Tab 選擇 · Enter 確認 · Esc 合上餐牌／設定</p><small>对话录音会提交至阿里云识别。短复习评分仅在评测服务可用时提供。结账为游戏模拟。</small><button data-dismiss>返回</button></dialog>
+<dialog id="settings" aria-labelledby="settings-title">
+ <header><h2 id="settings-title">设置</h2><button type="button" data-dismiss aria-label="关闭设置">×</button></header>
+ <div class="settings">
+  <button id="ambience" aria-pressed="true">背景音效：开</button>
+  <button id="translation" aria-pressed="true">普通话字幕</button>
+  <button type="button" data-learning-settings>学习模式 · <span data-learning-mode-label>选择</span></button>
+  <button id="clear-review" type="button">清除学习记录</button>
+  <button id="restart">返回开始画面</button>
+ </div><small id="clear-review-status" role="status"></small>
+</dialog>
 <dialog id="review-dialog" aria-labelledby="review-title" aria-describedby="review-context"><h2 id="review-title">两句短复习</h2><p id="review-context"></p><p id="review-challenge-progress" class="review-challenge-progress" role="status"></p><div id="review-challenge-list" class="review-challenge-list"></div><p class="practice-status" data-practice-status role="status" hidden></p><small>粤拼用于核对参考读法。评测只用于本次练习。</small><div class="review-dialog-actions"><button type="button" class="primary" data-dismiss>回到游戏</button></div></dialog>
 <dialog id="learning-mode" aria-labelledby="learning-mode-title" aria-describedby="learning-mode-description"><h2 id="learning-mode-title">先选一个练习模式</h2><p id="learning-mode-description">之后可以在设置里随时切换。</p><div class="learning-mode-options"><button type="button" class="primary" data-learning-mode="beginner" aria-pressed="false">零基础<small>默认显示普通话字幕，需要时再打开表达提示。</small></button><button type="button" data-learning-mode="experienced" aria-pressed="false">已有基础<small>先试着回答，需要时可以查看示范。</small></button></div><button type="button" data-learning-cancel>返回</button></dialog>
 <dialog id="world-restart-confirm" aria-labelledby="world-restart-title"><h2 id="world-restart-title">重新开始？</h2><p>只会重置本机街区世界、钱包、物件、故事和餐局，不会清除学习记录或其他偏好。此操作不能撤销。</p><div><button type="button" class="primary" data-world-restart-confirm>确认重新开始</button><button type="button" data-world-restart-cancel>取消</button></div></dialog>

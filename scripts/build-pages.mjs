@@ -1,16 +1,24 @@
 import {mkdir,copyFile,readFile,writeFile,readdir} from 'node:fs/promises';
 import path from 'node:path';
+import {storyFiles} from '../story-files.js';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {NPC_VOICE_CLIPS} from '../npc-voice-manifest.js';
+import {FP1_CLIPS,ROLE_CLIPS} from '../fp1-clips.js';
+import {SHOPS} from '../street-space.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const target=path.join(root,'dist');
 // Explicit allowlist: no environment files, recordings, server code or local notes.
 export const publicFiles=[
+ ...storyFiles,
  'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js','dining-room.js','street-space.js',
  'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','practice-audio.js','practice-recorder.js','music.js','ambient.js','sound-priority.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css',
  'teahouse-scene/index.js','teahouse-scene/menu.js','teahouse-scene/session.js',
- 'assets/street/district.glb','assets/street/aming-styled-v3.glb',
+ 'street-game.js','street-game.css','street-fang.js','street-quests.js','street-fixtures.js','street-gomoku.js','street-render.js','fp1-clips.js','fp1-travel.js','fp1-follow.js',
+ 'assets/vinyl-title.png','assets/street/walk.json','assets/street/district.glb',
+ ...['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].map(id=>'assets/street/'+id+'-styled-v3.glb'),
+ ...Object.keys(SHOPS).filter(id=>id!=='juiceCart').map(id=>'assets/street/shopkeepers/'+id+'.glb'),
+ ...new Set([...Object.values(FP1_CLIPS),...Object.values(ROLE_CLIPS)]),
  'assets/street/three/build/three.module.min.js','assets/street/three/build/three.core.min.js',
  'assets/street/three/examples/jsm/loaders/GLTFLoader.js','assets/street/three/examples/jsm/utils/BufferGeometryUtils.js',
  ...Object.values(NPC_VOICE_CLIPS),
