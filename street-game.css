@@ -26,7 +26,7 @@
 .street-form{display:flex;gap:5px;margin-top:.35rem}
 .street-form input{width:min(45vw,360px);font:inherit;padding:.3rem}
 .street-prompt{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;max-width:90vw}
-.street-status{position:absolute;left:50%;top:24%;transform:translateX(-50%);background:#112d26ef;border-radius:6px;padding:.55rem .85rem;max-width:76vw}
+.street-status{pointer-events:none;position:absolute;left:50%;top:24%;transform:translateX(-50%);background:#112d26ef;border-radius:6px;padding:.55rem .85rem;max-width:76vw}
 .street-status:empty{display:none}
 .street-pad{display:none;position:absolute;left: max(10px,env(safe-area-inset-left));bottom: max(12px,env(safe-area-inset-bottom));grid-template-columns:repeat(3,42px);gap:3px;touch-action:none;user-select:none}
 .street-pad button{touch-action:none}
