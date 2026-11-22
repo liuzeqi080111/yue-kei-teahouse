@@ -203,92 +203,30 @@ export function furnishKitchen(scene,district){
  return openness=>{for(const panel of panels)panel.scale.x=1-.84*openness;};
 }
 
-// Landmarks in the GLB bind coordinates, independent of mixer time and room scale.
-const mouthLandmarks={
- aming:[-.001,.876,.021],friend:[-.002,.883,.023],aqing:[0,.874,.019],fang:[.001,.880,.020],
- ale:[-.002,.887,.021],ling:[-.001,.882,.021],lin:[-.001,.880,.022],buyer:[.001,.884,.020],
- regular:[0,.885,.021],vendor:[-.003,.884,.022],southRice:[.002,.832,.018],
- westBread:[-.002,.850,.021],eastBread:[-.001,.870,.022],radio:[.002,.863,.019],
- herbs:[-.003,.828,.017],arcade:[.002,.855,.020],marketBack:[-.002,.863,.020],
- riceCorner:[-.001,.878,.018],banyanCloth:[.001,.862,.019],lanePrint:[.001,.855,.020],
- southPrint:[-.001,.864,.019],southCloth:[.001,.859,.018],eastPrint:[.001,.851,.017],
- eastRice:[.001,.853,.020],westCorner:[-.002,.829,.020],workshop:[-.002,.842,.021],
- gardenHomes:[.002,.844,.020],northTurn:[.001,.875,.022],eastTurn:[0,.854,.019],
-};
-export function mouthPose(model,id){
- const [cx,cy,width]=mouthLandmarks[id]??[0,.863,.018];
- const landmark=new T.Vector3(cx,cy,width),pose=new T.Vector4(),goal=new T.Vector4();
- // The source character is a textured, closed scan. Shade the oral opening in
- // bind space so it follows the skinned surface without a floating mouth card.
+export function mouthPose(model){
+ const bindings=[];
  model.traverse(mesh=>{
-  const pos=mesh.geometry?.attributes.position;
-  if(!pos||pos.count<600||/eye|iris/i.test(mesh.name))return;
-  if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
-  const box=mesh.geometry.boundingBox;
-  if(box.min.y>cy+.012||box.max.y<cy-.026||box.min.x>cx||box.max.x<cx)return;
-  const nearMouth=.008,minimumDepth=.014;
-  let front=-Infinity;
-  for(let i=0;i<pos.count;i++){
-   const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
-   if(Math.abs(x-cx)<=nearMouth&&Math.abs(y-cy)<=nearMouth)front=Math.max(front,z);
-  }
-  if(!Number.isFinite(front)||front<minimumDepth)return;
-  function decorate(material){
-   const result=material.clone();
-   result.onBeforeCompile=shader=>{
-    Object.assign(shader.uniforms,{mouthLandmark:{value:landmark},mouthShape:{value:pose},mouthFront:{value:front}});
-    const uniforms='uniform vec3 mouthLandmark; uniform vec4 mouthShape; uniform float mouthFront; varying vec3 mouthVertex;';
-    shader.vertexShader=uniforms+'\n'+shader.vertexShader.replace('#include <skinning_vertex>',`
-     vec3 bind = transformed;
-     vec2 local = bind.xy - mouthLandmark.xy;
-     float x = local.x/(mouthLandmark.z*1.66);
-     float cheek = max(0.,1.-x*x);
-     float chin = smoothstep(-.044,-.022,local.y)*(1.-smoothstep(-.007,-.002,local.y));
-     float lip = 1.-smoothstep(.002,.019,abs(local.y));
-     float front = smoothstep(mouthFront-.039,mouthFront-.017,bind.z);
-     transformed.y -= .0048*mouthShape.x*cheek*chin*front;
-     transformed.x += local.x*lip*cheek*(.10*mouthShape.z-.27*mouthShape.y)*front;
-     transformed.z += front*cheek*lip*.004*mouthShape.y;
-     mouthVertex = transformed;
-     #include <skinning_vertex>`);
-    shader.fragmentShader=uniforms+'\n'+shader.fragmentShader.replace('#include <color_fragment>',`
-     #include <color_fragment>
-     if(mouthShape.x>.015 && mouthVertex.z>mouthFront-.026){
-      float halfWidth = mouthLandmark.z*(1.+.12*mouthShape.z-.37*mouthShape.y);
-      float u = (mouthVertex.x-mouthLandmark.x)/halfWidth;
-      float arc = max(0.,1.-u*u);
-      float seam = mouthLandmark.y-.0013*u*u;
-      float top = seam + arc*(.0008+.0015*mouthShape.y)*mouthShape.x;
-      float bottom = seam - pow(arc,.72)*(.0083+.0024*mouthShape.y)*mouthShape.x;
-      float y = mouthVertex.y;
-      float edge = max(.00045,fwidth(y)*.68);
-      float inside = smoothstep(-edge,edge,y-bottom)*smoothstep(-edge,edge,top-y)*smoothstep(0.,.21,arc);
-      float slit = clamp((top-y)/max(.0004,top-bottom),0.,1.);
-      vec3 cavity = mix(vec3(.016,.004,.005),vec3(.047,.009,.013),slit);
-      float tongue = smoothstep(.57,.92,slit)*(1.-smoothstep(.13,.73,abs(u)))*(1.-smoothstep(.93,1.,slit));
-      cavity = mix(cavity,vec3(.22,.049,.054),.63*tongue);
-      float teeth = (1.-smoothstep(.03,.2,abs(slit-(.14+.075*u*u)))) * (1.-smoothstep(.48,.81,abs(u)));
-      float grooves = smoothstep(.02,.12,abs(fract(u*3.9+.5)-.5));
-      teeth *= mouthShape.w*smoothstep(.06,.34,mouthShape.x)*mix(.83,1.,grooves);
-      cavity = mix(cavity,vec3(.64,.48,.33),teeth*.84);
-      float lipRim = (1.-smoothstep(.00025,.0019,abs(y-bottom)))*arc*mouthShape.x;
-      diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.88,.65,.63),lipRim*.54);
-      diffuseColor.rgb = mix(diffuseColor.rgb,cavity,inside);
-     }`);
-   };
-   result.customProgramCacheKey=()=> 'character-mouth-v1';
-   return result;
-  }
-  mesh.material=Array.isArray(mesh.material)?mesh.material.map(decorate):decorate(mesh.material);
+  const keys=mesh.morphTargetDictionary;
+  if(keys?.jawOpen===undefined)return;
+  bindings.push({keys,weights:mesh.morphTargetInfluences});
  });
  return (level=0,shape)=>{
-  const values=Array.isArray(shape)?shape:mouthShapes[shape]??mouthShapes.C;
-  goal.fromArray(values);
-  // The audio clock coarticulates cue boundaries. The amplitude only scales
-  // jaw effort so a whispered rounded vowel keeps its silhouette.
-  const strength=T.MathUtils.clamp(level,0,1);
-  goal.multiplyScalar(strength?(.38+.62*strength):0);
-  pose.copy(goal);
+  const pose=Array.isArray(shape)?shape:mouthShapes[shape]??mouthShapes.C;
+  const [jaw,round,wide,upper,press=0,tuck=0,tongue=0]=pose;
+  const energy=T.MathUtils.clamp(level,0,1);
+  const effort=energy > 0 ? .60+.40*energy : 0;
+  for(const {keys,weights} of bindings){
+   weights[keys.jawOpen]=effort*jaw;
+   weights[keys.mouthPucker]=effort*round;
+   weights[keys.mouthStretch]=effort*wide;
+   weights[keys.upperLipRaise]=effort*upper*.75;
+   weights[keys.mouthPress]=effort*press;
+   weights[keys.lowerLipTuck]=effort*tuck;
+   weights[keys.tongueUp]=effort*tongue;
+   weights[keys.browInnerUp]=energy*jaw*.22;
+   weights[keys.mouthSmileLeft]=effort*wide*.20;
+   weights[keys.mouthSmileRight]=effort*wide*.17;
+  }
  };
 }
 

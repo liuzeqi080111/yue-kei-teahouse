@@ -108,18 +108,22 @@ def phonemes(path):
   rate=recording.getframerate()
   samples=np.frombuffer(recording.readframes(recording.getnframes()),dtype='<i2')
   samples=samples.astype(float).reshape(-1,recording.getnchannels()).mean(axis=1)/32768
- starts,shapes=SPEECH_CUES[path.name]
- seq=[]
+ starts,shapes=SPEECH_CUES.get(path.name,([],''));seq=[]
  for t in np.arange(0,len(samples)/rate,1/FPS):
-  i=max(0,bisect_right(starts,t*100)-1)
-  pose=np.array(MOUTH_SHAPES.get(shapes[i],MOUTH_SHAPES['X'])) if i<len(shapes) else np.zeros(4)
-  if i+1<len(shapes):
-   fade=min(3,(starts[i+1]-starts[i])*.4)
-   blend=max(0,1-(starts[i+1]-t*100)/fade) if fade else 0
-   pose=(1-blend)*pose+blend*np.array(MOUTH_SHAPES[shapes[i+1]])
   span=samples[max(0,int((t-.009)*rate)):int((t+.018)*rate)]
-  amplitude=max(0,min(1,(float(np.sqrt(np.mean(span*span)))-.009)*8)) if len(span) else 0
-  seq.append(pose*(.38+.62*amplitude) if amplitude else np.zeros(4))
+  amplitude=float(np.clip((np.sqrt(np.mean(span*span))-.009)*8,0,1)) if len(span) else 0
+  if shapes:
+   i=max(0,bisect_right(starts,t*100)-1)
+   pose=np.array(MOUTH_SHAPES[shapes[i]] if i<len(shapes) else MOUTH_SHAPES['X'])
+   if i+1<len(shapes):
+    fade=min(3,(starts[i+1]-starts[i])*.4)
+    blend=max(0,1-(starts[i+1]-t*100)/fade) if fade else 0
+    pose=(1-blend)*pose+blend*np.array(MOUTH_SHAPES[shapes[i+1]])
+  else:
+   brightness=np.sqrt(np.sum(np.diff(span[::2])**2)/max(.00001,float(np.sum(span[::2]**2))))
+   shape='B' if brightness>.40 and amplitude<.64 else 'E' if brightness<.17 else 'D' if amplitude>.55 else 'C'
+   pose=np.array(MOUTH_SHAPES[shape])
+  seq.append((amplitude,pose))
  return seq
 
 # Read the same calibration, mouth poses and timing used by the running game.
@@ -128,11 +132,10 @@ SPEECH_CUES=json.loads(cue_source.split('export const NPC_SPEECH_CUES = ',1)[1].
 def browser_table(source,name):
  text=(ROOT/source).read_text(encoding='utf8').split('const '+name+'={',1)[1].split('};',1)[0]
  return {key:tuple(float(v) for v in values.split(',')) for key,values in re.findall(r'(\w+):\[([^\]]+)\]',text)}
-LANDMARKS=browser_table('dining-room.js','mouthLandmarks')
 MOUTH_SHAPES=browser_table('voice-clips.js','mouthShapes')
 
 def bake_role(role):
- _,_,audio,_=CAST[role];cx,cz,width=LANDMARKS[role];dest=OUT/role;dest.mkdir(parents=True,exist_ok=True)
+ cx,cz,audio,_=CAST[role];dest=OUT/role;dest.mkdir(parents=True,exist_ok=True)
  bpy.ops.wm.read_factory_settings(use_empty=True);s=bpy.context.scene
  glb='shopkeepers/southRice' if role=='southRice' else role+'-styled-v3'
  bpy.ops.import_scene.gltf(filepath=str(ROOT/('assets/street/'+glb+'.glb')));s.frame_set(1)
@@ -143,61 +146,26 @@ def bake_role(role):
  if arm:
   original={b.name:b.matrix_basis.copy() for b in arm.pose.bones};arm.animation_data_clear()
   for b in arm.pose.bones:b.matrix_basis=original[b.name]
- bpy.context.view_layer.update();dg=bpy.context.evaluated_depsgraph_get();mouth=[]
+ bpy.context.view_layer.update()
+ body=max(modelmeshes,key=lambda o:len(o.data.vertices))
+ faces=[]
  for o in modelmeshes:
   bake_texture(o)
   if role in ['aqing','fang','southRice']:prepare_workbench_textures(o)
-  if len(o.data.vertices)<600 or 'eye' in o.name.lower():continue
-  ev=o.evaluated_get(dg);vs=np.empty((len(o.data.vertices),3),'f');ev.data.vertices.foreach_get('co',vs.ravel());M=np.array(o.matrix_world);world=vs@M[:3,:3].T+M[:3,3]
-  if not o.data.shape_keys:o.shape_key_add(name='Basis')
-  jaw=o.shape_key_add(name='下颌开口');purse=o.shape_key_add(name='圆唇');spread=o.shape_key_add(name='展唇')
-  raw=np.empty_like(vs);o.data.vertices.foreach_get('co',raw.ravel())
-  x=world[:,0]-cx;z=world[:,2]-cz;front=(world[:,1]<.004)
-  edge=np.maximum(0,1-(x/(width*1.66))**2)**1.3
-  # Unroll the lower lip from the dark commissure, then taper through the chin.
-  lower=np.clip((-.002-z)/.005,0,1)*np.clip((z+.044)/.022,0,1)
-  upper=np.clip((z+.0002)/.0024,0,1)*np.clip((.011-z)/.008,0,1)
-  delta=np.zeros_like(vs);delta[:,2]=edge*front*(-.0048*lower+.0008*upper);delta[:,1]=edge*front*(.003*lower)
-  jaw.data.foreach_set('co',(raw+delta@np.linalg.inv(M[:3,:3]).T).astype('f').ravel())
-  delta*=0;rim=front*np.maximum(0,1-(z/.020)**2)*edge
-  delta[:,0]=-.22*x*rim;delta[:,1]=-.004*rim
-  purse.data.foreach_set('co',(raw+delta@np.linalg.inv(M[:3,:3]).T).astype('f').ravel())
-  delta*=0;delta[:,0]=.12*x*rim
-  spread.data.foreach_set('co',(raw+delta@np.linalg.inv(M[:3,:3]).T).astype('f').ravel())
-  mouth.append((jaw,purse,spread))
- # Model a recessed oral opening with an upper tooth edge and inner tongue.
- # Sample each cast member's own facial surface before attaching it to the head.
- body=max(modelmeshes,key=lambda o:len(o.data.vertices))
- surf=BVHTree.FromObject(body,bpy.context.evaluated_depsgraph_get())
- layers=[]
- for name,color,top,bottom,inset,span in [('口腔','341519',.0009,-.0083,.00028,1),('上齿','c0a689',.00015,-.0015,.00053,.68),('舌面','88474e',-.0055,-.0079,.00048,.57)]:
-  verts=[];opened=[];faces=[]
-  for i in range(19):
-   u=(i-9)/9;xx=cx+width*span*u;arc=max(.03,1-u*u)**.72;zz=cz-.0013*u*u
-   hit=surf.ray_cast(body.matrix_world.inverted()@V((xx,-.5,zz)),V((0,1,0)))[0]
-   yy=(body.matrix_world@hit).y if hit is not None else -.06
-   yy-=inset
-   for row,offset in enumerate([top,bottom]):
-    verts.append((xx,yy,zz+(1-row)*.00012));opened.append((xx,yy,zz+offset*arc))
-   if i:faces.append((2*i-2,2*i-1,2*i+1,2*i))
-  m=bpy.data.meshes.new(name);m.from_pydata(verts,[],faces);m.update();o=bpy.data.objects.new(name,m);s.collection.objects.link(o);paint(o,color)
-  o.shape_key_add(name='Basis');op=o.shape_key_add(name='发音');op.data.foreach_set('co',np.array(opened,'f').ravel())
-  round_key=o.shape_key_add(name='圆唇');spread_key=o.shape_key_add(name='展唇')
-  for vert in round_key.data:vert.co.x += -.36*(vert.co.x-cx);vert.co.y-=.002
-  for vert in spread_key.data:vert.co.x += .12*(vert.co.x-cx)
-  if arm:
-   mw=o.matrix_world.copy();o.parent=arm;o.parent_type='BONE';o.parent_bone=next(b.name for b in arm.pose.bones if b.name.endswith(':Head'));bpy.context.view_layer.update();o.matrix_world=mw
-  layers.append((o,op,round_key,spread_key))
+  if o.data.shape_keys and 'jawOpen' in o.data.shape_keys.key_blocks:faces.append(o)
+ if not faces:raise RuntimeError(f'Missing facial rig for {role}')
  seq=phonemes(ROOT/'assets'/(audio+'.wav'));s.render.fps=FPS;s.frame_start=1;s.frame_end=len(seq)+8
- for i,(jaw,rounded,wide,teeth) in enumerate([(0,0,0,0)]*3+seq+[(0,0,0,0)]*5):
-  for o,op,purse,spread in layers:
-   op.value=jaw;purse.value=rounded;spread.value=wide
-   for key in (op,purse,spread):key.keyframe_insert(data_path='value',frame=i+1)
-   o.hide_render=bool(jaw<.065 or o.name=='上齿' and teeth<.21)
-   o.keyframe_insert(data_path='hide_render',frame=i+1)
-  for group in mouth:
-   for key,value in zip(group,(jaw,rounded,wide)):
-    key.value=value;key.keyframe_insert(data_path='value',frame=i+1)
+ rest=(0,MOUTH_SHAPES['X'])
+ for frame,(energy,pose) in enumerate([rest]*3+seq+[rest]*5,1):
+  jaw,rounded,wide,upper,press,tuck,tongue=pose
+  effort=(.60+.40*energy) if energy else 0
+  weights={'jawOpen':jaw,'mouthPucker':rounded,'mouthStretch':wide,'upperLipRaise':upper*.75,
+           'mouthPress':press,'lowerLipTuck':tuck,'tongueUp':tongue,'mouthSmileLeft':wide*.20,'mouthSmileRight':wide*.17}
+  for o in faces:
+   keys=o.data.shape_keys.key_blocks
+   for name,value in weights.items():
+    keys[name].value=effort*value;keys[name].keyframe_insert(data_path='value',frame=frame)
+   keys['browInnerUp'].value=energy*jaw*.22;keys['browInnerUp'].keyframe_insert(data_path='value',frame=frame)
  allbones={b.name.split(':')[-1]:b for b in arm.pose.bones} if arm else {}
  qt0={k:b.matrix.to_quaternion().copy() for k,b in allbones.items()}
  def turn(b,q):
@@ -303,8 +271,7 @@ def bake_role(role):
   import qa_check,review_shots
   s.frame_set(int(s.frame_end*.45))
   props=[held.name]+[o.name for o in held.children_recursive] if held else []
-  # The three facial films are separate deforming surfaces attached to the skin.
-  groups=([props] if props else [])+[[o.name] for o,*_ in layers]
+  groups=([props] if props else [])+[[o.name] for o in faces]
   reports=[qa_check.run(objects=g,profile='render',uv=False,eps=.00009,tol=.0018) for g in groups]
   (dest/'qa.json').write_text(json.dumps(reports,ensure_ascii=False,default=str),encoding='utf8')
   for shade in ['random','wire']:

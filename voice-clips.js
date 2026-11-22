@@ -66,6 +66,7 @@ export async function loadVoiceClip(text,{signal,npcId}={}){
    const res=await fetch(new URL(file,import.meta.url),{signal});
    if(!res.ok)throw Error('local');
    const blob=await res.blob();if(blob.size<44)throw Error('local');
+   localFile.set(blob,file);
    return blob;
   }catch(e){if(signal?.aborted)throw e; /* Missing assets may use online TTS. */}
  }
@@ -82,11 +83,11 @@ export function voiceFailure(error){
  return '在线配音暂时失败，请点“更多→重播”重试。字幕仍保留。';
 }
 
-// Jaw, rounding, spread and upper tooth exposure. Rhubarb's A and X are
-// bilabial closure and silence respectively. Keep both completely closed.
+// Jaw, rounding, spread, upper lip, bilabial press, lower lip tuck and tongue lift.
 export const mouthShapes={
- A:[0,0,0,0],B:[.30,0,.7,.90],C:[.66,.05,.36,.75],D:[1,0,.04,.52],
- E:[.62,.57,0,.43],F:[.43,1,0,.12],G:[.31,.04,.15,1],H:[.57,0,.18,.66],X:[0,0,0,0],
+ A:[0,0,0,0,1,0,0],B:[.19,0,.76,.64,0,0,.16],C:[.62,.03,.43,.69,0,0,0],
+ D:[1,0,.06,.53,0,0,.06],E:[.56,.66,0,.24,0,0,0],F:[.28,1,0,.08,0,0,0],
+ G:[.19,.02,.16,.77,0,1,0],H:[.49,0,.22,.50,0,0,1],X:[0,0,0,0,0,0,0],
 };
 function cuePose(timing,time){
  const [starts,shapes]=timing;
