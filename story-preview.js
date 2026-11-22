@@ -1,4 +1,4 @@
-import {accompanySinger} from './nanyin-practice.js';
+import {accompanySinger,songHitMask} from './nanyin-practice.js';
 import {reunionSaveKey,isPrint} from './reunion-wall.js';
 import {reunionIntents} from './story-reunion.js';
 import {chapters, morning, names, voices} from './story-chapters.js';
@@ -13,13 +13,18 @@ const book = chapters[chapter];
 const key = chapter==='reunion'?reunionSaveKey:'yuekei-story-trial-v1:table';
 const defaults = () => chapter==='table'
  ? {node:book.start,drink:null,invited:false}
- : {node:book.start,songHits:0,photos:null,photo:null};
+ : {node:book.start,songVersion:2,songHits:0,photos:null,photo:null};
 let state = defaults();
 try {
  const saved = JSON.parse(localStorage.getItem(key));
+ if(chapter==='reunion'&&saved&&saved.songVersion!==2){
+  if(saved.node==='riddle')saved.node='guess';
+  if(saved.node==='gather')saved.node='wait';
+  saved.songVersion=2;saved.songHits=0;
+ }
  if (saved && Object.hasOwn(book.nodes,saved.node)) Object.assign(state,saved);
  if(chapter==='reunion'){
-  state.songHits=Number.isInteger(state.songHits)?state.songHits & 7:0;
+  state.songHits=Number.isInteger(state.songHits)?state.songHits & songHitMask:0;
   delete state.onBeat;
   delete state.beats;
   if(state.node==='proof' && !(Array.isArray(state.photos)&&state.photos.length===2&&state.photos.every(isPrint)))state.node='ready';
@@ -30,8 +35,7 @@ let song,scene, generation=0, playback, stopTracking, audioUrl;
 const audio=new Audio();
 let recording=false,transcription,revision=0;
 const recorder=createPracticeRecorder(active=>{recording=active;});
-const spokenChoices={
- ...reunionIntents,
+const spokenChoices=chapter==='reunion'?reunionIntents:{
  door:[/搭[台枱桌]|[两兩]位/],ask:[/一[齐齊起]|搭[台枱桌]|介[意唔]/],seat:[/奶茶/,/[柠檸]/],tea:[/林|[听聽倾傾聊]|[邻鄰]桌/],lemon:[/林|[听聽倾傾聊]|[邻鄰]桌/],
  arrive:[/坐|一[齐齊起]/,/[拎帶带]走|打包|杯茶/],invite:[/筷|箸/],takeaway:[/[听聽明][日朝天]|[预預留].*位/],supper:[/[听聽明]朝|[再見见]|出[門门]/],farewell:[/第二[日天]|[听聽明]朝/]
 };
@@ -100,7 +104,7 @@ function showPhotoChoices(){
 let enteringPortrait=false;
 function capturePortraits(){
  state.photos=['snapTidy','snapLaugh'].map(pose=>scene.photograph(pose,state));
- state.portraitVersion=2;
+ state.portraitVersion=3;
 }
 function transition(dest){
  if(enteringPortrait)return;
@@ -128,7 +132,7 @@ function sing(label,dest){
  const tap=button('敲板',()=>{},true);
  const next=button(label,()=>transition(dest));next.hidden=true;
  song=accompanySinger({
-  node:state.node,audio:$('#master-recording'),panel:$('#song-panel'),tap,next,
+  audio:$('#master-recording'),panel:$('#song-panel'),tap,next,
   hits:state.songHits,onHit:hits=>{state.songHits=hits;persist();},
   strike:()=>scene.strike(),advance:()=>transition(dest)
  });
@@ -139,7 +143,7 @@ function display(){
  document.body.dataset.moment=state.node;
  const n=state.node,[actor,original,translation,options]=book.nodes[n];
  const [line,meaning]=n==='morning'?morning(state.drink):[original,translation];
- const afterDinner=['gather','call','ready','proof','tidy','laugh'].includes(n);
+ const afterDinner=['wait','gather','call','ready','proof','tidy','laugh'].includes(n);
  $('#place').textContent=chapter==='reunion'
   ? '粤记茶餐厅　·　年三十'+(afterDinner?'饭后':'团年饭')
   : (n==='farewell'?'粤记门外':'粤记茶餐厅')+'　·　'+(n==='morning'?'第二天早上':n==='farewell'?'晚饭后':'收工时分');
@@ -165,11 +169,12 @@ canvas.addEventListener('click',event=>{
  const target=scene?.hit(event.clientX,event.clientY);
  if(target==='beat')$('#choices button')?.click();
  if(target==='lid')transition('dish');
+ if(state.node==='supper'&&(target==='chicken'||target==='fish'))transition(target);
 });
 window.addEventListener('pagehide',()=>{song?.pause();stopAudio();recorder.cancel();transcription?.abort();});
 try{
  scene=await createStoryScene(canvas,chapter);
- if(chapter==='reunion'&&state.portraitVersion!==2&&['proof','tidy','laugh'].includes(state.node)){
+ if(chapter==='reunion'&&state.portraitVersion!==3&&['proof','tidy','laugh'].includes(state.node)){
   capturePortraits();
   if(state.node!=='proof'){state.photo=state.photos[state.node==='laugh'?1:0];state.photos=null;}
   persist();

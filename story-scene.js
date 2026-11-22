@@ -57,7 +57,32 @@ export async function createStoryScene(canvas,chapter){
   const p=joint.parent.getWorldQuaternion(new T.Quaternion());
   joint.quaternion.premultiply(p.clone().invert().multiply(new T.Quaternion().setFromUnitVectors(dir,aim)).multiply(p));
  }
- function actor(id,x,y,z,yaw,sit=false,rightHandTarget){
+ function placeHand(bones,side,target,front,across,elbowDrop=0,palmDirection,fingerDirection){
+  const shoulder=bones[side+'Arm'],elbow=bones[side+'ForeArm'],wrist=bones[side+'Hand'];
+  const sign=side==='Left'?1:-1;
+  const origin=shoulder.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
+  const l1=origin.distanceTo(joint),l2=joint.distanceTo(wrist.getWorldPosition(v()));
+  const axis=target.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);
+  axis.normalize();const along=(l1*l1-l2*l2+d*d)/(2*d);
+  const pole=across.clone().multiplyScalar(sign).addScaledVector(front,-1.8);
+  pole.y-=elbowDrop;
+  pole.addScaledVector(axis,-pole.dot(axis)).normalize();
+  point(shoulder,elbow,origin.addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,l1*l1-along*along))));
+  point(elbow,wrist,target);
+  const fingers=fingerDirection??front.clone().multiplyScalar(.16).add(v(0,-.025,0));
+  point(wrist,bones[side+'HandMiddle1'],wrist.getWorldPosition(v()).add(fingers));
+  if(palmDirection){
+   const base=wrist.getWorldPosition(v());
+   const knuckle=name=>bones[side+'Hand'+name+'1'].getWorldPosition(v()).sub(base);
+   const axis=knuckle('Middle').normalize();
+   const normal=knuckle('Index').cross(knuckle('Pinky')).multiplyScalar(-sign);
+   normal.addScaledVector(axis,-normal.dot(axis)).normalize();
+   const desired=palmDirection.clone().addScaledVector(axis,-palmDirection.dot(axis)).normalize();
+   const angle=Math.atan2(axis.dot(normal.clone().cross(desired)),normal.dot(desired));
+   wrist.rotateOnAxis(axis.applyQuaternion(wrist.getWorldQuaternion(new T.Quaternion()).invert()),angle);
+  }
+ }
+ function actor(id,x,y,z,yaw,sit=false,rightHandTarget,leftHandTarget){
   const {model,bones,rest}=cast[id];model.visible=true;model.position.set(x,y,z);model.rotation.y=yaw;
   for(const [n,b] of Object.entries(bones))b.quaternion.copy(rest[n]);
   model.updateMatrixWorld(true);
@@ -105,21 +130,13 @@ export async function createStoryScene(canvas,chapter){
     const leg=bones[side+'Leg'],foot=bones[side+'Foot'],ankle=foot.getWorldPosition(v());
     ankle.y=.19+.095;
     point(leg,foot,ankle);
-    const shoulder=bones[side+'Arm'],elbow=bones[side+'ForeArm'],wrist=bones[side+'Hand'];
     const front=v(Math.sin(yaw),0,Math.cos(yaw)),across=v(Math.cos(yaw),0,-Math.sin(yaw));
     const sign=side==='Left'?1:-1;
     const restAt=bones.Hips.getWorldPosition(v()).addScaledVector(front,.19).addScaledVector(across,sign*.22);
     restAt.y=seat+.25;
     if(side==='Right'&&rightHandTarget)restAt.fromArray(rightHandTarget);
-    const origin=shoulder.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
-    const l1=origin.distanceTo(joint),l2=joint.distanceTo(wrist.getWorldPosition(v()));
-    const axis=restAt.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);
-    axis.normalize();const along=(l1*l1-l2*l2+d*d)/(2*d);
-    const pole=across.clone().multiplyScalar(sign).addScaledVector(front,-1.8);
-    pole.addScaledVector(axis,-pole.dot(axis)).normalize();
-    point(shoulder,elbow,origin.addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,l1*l1-along*along))));
-    point(elbow,wrist,restAt);
-    point(wrist,bones[side+'HandMiddle1'],wrist.getWorldPosition(v()).addScaledVector(front,.16).add(v(0,-.025,0)));
+    if(side==='Left'&&leftHandTarget)restAt.fromArray(leftHandTarget);
+    placeHand(bones,side,restAt,front,across);
    }
   }
   for(const [n,b] of Object.entries(bones)){
@@ -252,7 +269,7 @@ export async function createStoryScene(canvas,chapter){
   meal.visible=eating;carry.visible=eating&&!state.invited&&id!=='invite';
  }
  if(chapter==='table')createReunionWall(scene)(savedPrint());
- const reunion=chapter==='reunion' ? createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,print,texture,actor,shot,portraitLean,portraitArm}) : null;
+ const reunion=chapter==='reunion' ? createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,print,texture,actor,placeHand,shot,portraitLean,portraitArm}) : null;
  function set(id,state){
   mode=id;
   canvas.classList.toggle('framing',id==='proof');
@@ -334,7 +351,7 @@ export async function createStoryScene(canvas,chapter){
  }
  function speech(id,value,shape){speaker=id;level=value;speechShape=shape;}
  function tick(time,singing){
-  if(mode==='riddle'||mode==='gather'){
+  if(mode==='gather'){
    const level=singing?.voice??0;
    speech('master',level,[level*.80,level*.18,level*.20,level*.14]);
   }

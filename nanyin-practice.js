@@ -1,18 +1,13 @@
-// Du Huan singing Wu Song Kills the Tiger, part 1, Fu Long Teahouse, 1975.
-// The three player cues in each excerpt are selected accents on the original recording.
-// Each 100 ms mouth sample measures energy in the voice band of that same excerpt.
-// Local WAVs cover 32.5–45.5 s and 45.5–59.5 s of the archive. All times below
-// are relative to the first sample in the individual clip.
-const passages={
- riddle:{duration:13,marks:[2.841,6.586,10.459],
-  mouth:'255dbcd5bb5a355797510000011010c589a23353412012533436516a76cefffbce012001052acdababa9ddfcfdbebbba9aacabfcc55246138faaefffc54785c203'},
- gather:{duration:14,marks:[1.946,8.596,12.281],
-  mouth:'233566641332143311213897fedc0b5fcdf330004222211a543166823945b47780e73687a00002143235204351c71f655642002040b4f74f56fdfded5fc899bff3c955899789'}
-};
+// Du Huan, Wu Song Kills the Tiger, recorded by Bell Yung in 1975.
+// One continuous excerpt, 32.5–62.5 seconds. Cues and mouth samples use its audio clock.
+const duration=30,marks=[2.841,6.586,10.459,14.946,17.961,21.596,25.281,28.841];
+const mouth='254ecdf4cb5a355797510000011010d489a23352312011522335416b75effffcdf012001052bdfbcbbb9eefdfecfcbcbaaaebbfdd55245138fabffffd54784d203121344320111022100102564fcaa093f9bf2100021111007321044611623825560c52354700000022113102130a40d43332100102092d52f33fadbca3fa5678ed29733576566646755443201221211222e25027ad3';
+export const songHitMask=(1<<marks.length)-1;
+// Plucking attacks in the recording; the learner only plays the marked board accents.
+const attacks=[2.15, 2.82, 3.5, 4.18, 5.12, 5.85, 6.58, 7.34, 8.24, 9.7, 10.45, 11.16, 13.08, 14.24, 14.94, 16.57, 17.28, 17.96, 18.63, 19.58, 20.24, 20.92, 21.6, 22.28, 23.14, 24.08, 25.28, 25.94, 27.52, 28.16, 28.84, 29.56];
 const early=.16,late=.23;
 
-export function accompanySinger({node,audio,panel,tap,next,hits,onHit,strike,advance}){
- const {duration,marks,mouth}=passages[node];
+export function accompanySinger({audio,panel,tap,next,hits,onHit,strike,advance}){
  const track=panel.querySelector('.song-track'),holder=panel.querySelector('.song-marks');
  const cue=panel.querySelector('#board-cue'),feedback=panel.querySelector('#board-feedback');
  const events=new AbortController(),options={signal:events.signal};
@@ -84,7 +79,7 @@ export function accompanySinger({node,audio,panel,tap,next,hits,onHit,strike,adv
    if(!clipUrl||previous==='error'){
     // A complete local Blob has a known duration even on static hosts without byte ranges.
     fetching=new AbortController();
-    const response=await fetch('assets/nanyin-wusong-'+node+'.wav',{signal:fetching.signal});
+    const response=await fetch('assets/nanyin-wusong-gather.wav',{signal:fetching.signal});
     if(!response.ok)throw Error('clip');
     const blob=await response.blob();
     if(turn!==generation)return;
@@ -98,7 +93,7 @@ export function accompanySinger({node,audio,panel,tap,next,hits,onHit,strike,adv
   }catch(error){
    if(turn!==generation)return;
    if(error.name==='NotAllowedError'){
-    setMode('paused');tap.textContent='听师傅唱';text(cue,'师傅等你入座。');
+    setMode('paused');tap.textContent='听师傅唱';text(cue,'师傅等你拿好拍板。');
    }else unavailable();
   }
  }
@@ -143,7 +138,11 @@ export function accompanySinger({node,audio,panel,tap,next,hits,onHit,strike,adv
   const a=parseInt(mouth[index]??'0',16),b=parseInt(mouth[index+1]??'0',16);
   const at=marks.find(mark=>mark>t-.18);
   const lift=at===undefined?0:Math.max(0,1-Math.abs(t-at)/(t<at?.6:.18));
-  return {voice:(a+(b-a)*(sample-index))/15,lift};
+  const stroke=attacks.find(a=>a>=t-.30);
+  const elapsed=stroke===undefined?1:t-stroke;
+  const pluck=elapsed<0?Math.max(0,1+elapsed/.12):Math.exp(-elapsed*14);
+  const press=elapsed<0?0:Math.sin(Math.PI*Math.min(1,elapsed/.30));
+  return {time:t,pluck,press,voice:(a+(b-a)*(sample-index))/15,lift};
  }
  tap.onpointerdown=event=>{
   if(event.isPrimary&&event.button===0&&!tap.disabled){event.preventDefault();tap.focus();action();}

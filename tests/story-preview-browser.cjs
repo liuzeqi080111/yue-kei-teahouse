@@ -42,7 +42,7 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    const shot=name=>page.screenshot({path:'output/ba-review/reunion-'+name+(mobile?'-phone':'-desktop')+'.jpg'});
    async function song(node,dest,reload=false){
     assert.equal(await page.locator('#speaker').innerText(),'南音师傅');
-    assert.equal(await page.locator('.song-mark').count(),3);
+    assert.equal(await page.locator('.song-mark').count(),8);
     assert.equal(await page.locator('#record,dialog').count(),0);
     const panel=page.locator('#song-panel'),audio=page.locator('#master-recording');
     const beat=page.getByRole('button',{name:'敲板',exact:true});
@@ -50,7 +50,7 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
     const expected=new URL('/assets/nanyin-wusong-'+node+'.wav',origin).href;
     assert(await audio.evaluate(a=>a.currentSrc.startsWith('blob:'+location.origin+'/')));
     assert(await page.evaluate(url=>performance.getEntriesByName(url).some(entry=>entry.decodedBodySize>0),expected));
-    assert.equal(await audio.evaluate(a=>a.duration),node==='riddle'?13:14);
+    assert.equal(await audio.evaluate(a=>a.duration),30);
     await page.waitForFunction(()=>{const a=document.querySelector('#master-recording');return !a.paused&&a.currentTime>0&&a.volume>.1;});
     async function atMark(index){
      await page.waitForFunction(index=>{
@@ -59,7 +59,7 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
       document.querySelector('#choices button').click();return true;
      },index);
     }
-    if(node==='riddle'){
+    if(!reload){
      await beat.evaluate(b=>b.click());
      assert.equal(await panel.locator('[data-state="hit"]').count(),0);
     }
@@ -73,12 +73,20 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
     assert.equal(await panel.locator('[data-state="hit"]').count(),2);
     assert.equal(await page.locator('body').getAttribute('data-moment'),node);
     await shot(node);
-    await page.waitForFunction(dest=>document.body.dataset.moment===dest,dest);
+    await atMark(7);
+    assert((await stored('reunion')).songHits&128);
+    await page.waitForFunction(dest=>document.body.dataset.moment===dest,dest,{timeout:45000});
     assert.equal(await audio.getAttribute('src'),null);
    }
-   await song('riddle','guess',true);await pick(mobile?1:0);await pick();
+   assert.equal((await stored('reunion')).node,'guess');await pick(mobile?1:0);await pick();
    assert.equal((await stored('reunion')).node,'dish');await page.waitForTimeout(950);await shot('dish');
-   await pick();await pick();await song('gather','call');await pick(mobile?1:0);await pick();
+   await pick();assert.equal((await stored('reunion')).node,'supper');await shot('supper');
+   await pick(mobile?1:0);assert.equal((await stored('reunion')).node,mobile?'fish':'chicken');
+   await pick();assert.equal((await stored('reunion')).node,'passFish');await pick();
+   assert.equal((await stored('reunion')).node,'toast');await pick();
+   assert.equal((await stored('reunion')).node,'wait');await shot('request');await pick();
+   assert.equal(await page.getByText(/1975 年富隆茶楼录音/).count(),0);
+   await song('gather','call',mobile);await pick(mobile?1:0);await pick();
    const proofs=(await stored('reunion')).photos;
    assert.equal(proofs.length,2);assert.notEqual(proofs[0],proofs[1]);
    assert(proofs.every(src=>src.startsWith('data:image/jpeg;base64,')&&src.length>10000));
@@ -99,8 +107,12 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    await page.screenshot({path:'output/ba-review/accepted-table-'+(mobile?'phone':'desktop')+'.jpg'});
    for(const el of await page.locator('#choices button').all()){const box=await el.boundingBox();assert(box.x>=0&&box.x+box.width<=page.viewportSize().width+1);assert(box.y+box.height<=page.viewportSize().height+1);}
    assert.equal((await stored('reunion')).photo,result.photo);await pick();assert.equal((await stored('table')).node,'door');
+   const legacy=mobile?'gather':'riddle';
+   await page.evaluate(node=>localStorage.setItem('yuekei-story-trial-v1:reunion',JSON.stringify({node,songHits:7})),legacy);
+   await open('reunion');
+   assert.equal(await page.locator('body').getAttribute('data-moment'),mobile?'wait':'guess');
    await ctx.close();
-   console.log('Both finales, saved photo, clap rounds, drink, invitation and restart passed',mobile?'390px':'1100px');
+   console.log('Both dishes, saved photo, 30-second accompaniment, drink, invitation and restart passed',mobile?'390px':'1100px');
   }
   const voice=await browser.newContext({permissions:['microphone']});
   const mic=await voice.newPage();let heard=false;
