@@ -1,3 +1,4 @@
+import {barSeconds} from './nanyin-practice.js';
 import {createReunionWall} from './reunion-wall.js';
 import * as T from 'three';
 
@@ -61,20 +62,8 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   box(p,0x9b6139,x,0,0,.028,.15,.012);
   for(const y of [-.053,-.047])box(p,0x8d2822,x,y,.001,.03,.005,.014);
  }
- let lastStrike=-1e5,sound;
- function strike(){
-  lastStrike=performance.now();
-  try{
-   sound??=new AudioContext();void sound.resume().catch(()=>{});
-   const start=sound.currentTime;
-   for(const [hz,gain] of [[910,.13],[1770,.075],[2490,.04]]){
-    const tone=sound.createOscillator(),amp=sound.createGain();
-    tone.type='triangle';tone.frequency.setValueAtTime(hz,start);tone.frequency.exponentialRampToValueAtTime(hz*.72,start+.055);
-    amp.gain.setValueAtTime(gain,start);amp.gain.exponentialRampToValueAtTime(.0001,start+.085);
-    tone.connect(amp).connect(sound.destination);tone.start(start);tone.stop(start+.09);
-   }
-  }catch{}
- }
+ let lastStrike=-1e5;
+ function strike(){lastStrike=performance.now();}
  function groupPose(candid){
   const back=.14,front=.60,face=Math.PI/2;
   actor('master',back,.19,-1.43,face+.25);
@@ -118,8 +107,14 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   }
  }
  function tick(now,entered,mode,playhead){
-  if(boards.visible && playhead>0){
-   const head=cast.master.bones.Head;head.quaternion.copy(cast.master.neutral.Head);head.rotateX(.042*Math.sin(2*Math.PI*playhead/.51));
+  if(boards.visible){
+   const performer=cast.master,arm=performer.bones.LeftForeArm;
+   arm.quaternion.copy(performer.neutral.LeftForeArm);
+   if(playhead>=0){
+    const phase=playhead%barSeconds/barSeconds;
+    const lift=phase>.73?(phase-.73)/.27:Math.max(0,1-phase/.10);
+    arm.rotateX(-.49*lift);performer.bones.Head.rotateX(.056*Math.cos(phase*2*Math.PI));
+   }
   }
   slat.rotation.z=-.24+.20*Math.max(0,1-(now-lastStrike)/180);
   if(mode==='dish'){
