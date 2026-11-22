@@ -1,3 +1,4 @@
+import {createReunionWall,savedPrint} from './reunion-wall.js';
 import * as T from 'three';
 import {mouthShapes} from './voice-clips.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -273,6 +274,7 @@ export async function createDiningRoom(canvas) {
  district.scene.position.set(8.8,0,15.72);
  clearBoothCups(district.scene);
  scene.add(district.scene);
+ createReunionWall(scene)(savedPrint());
  const openCurtain=furnishKitchen(scene,district.scene);
  const sky=new T.HemisphereLight(0xf3ebe2,0xab9680,1.75);
  const sun=new T.DirectionalLight(0xffdfaf,2.1);

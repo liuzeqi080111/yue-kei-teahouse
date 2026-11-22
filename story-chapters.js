@@ -1,20 +1,8 @@
+import {reunion} from './story-reunion.js';
 export const chapters={
- photo:{
-  title:'街口最后一张合照',start:'window',other:'table',nodes:{
-   window:['ale','聽朝永光換招牌。嗱，相入面係洗衣舖芳姐，同窗口飲茶嗰位周叔。你問吓佢哋嗰日等緊邊個？','明早照相馆就换招牌了。照片里是开洗衣店的芳姐和常在窗边喝茶的周叔。问问他们，那天在等谁。', [['拿起旧相','print']]],
-   print:['regular','我同芳姐做咗廿幾年街坊。嗰晚佢收工遲，我搬張凳幫佢留位。等佢嚟齊，我哋先影呢張相。','我和芳姐是二十多年的老邻居。那晚她收工迟，我搬了把椅子给她留位。等她来了，我们才拍了这张照片。',[['翻到背面','back']]],
-   back:['fang','「散工之後，老地方。」呢行字係我寫嘅。嗰日我遲到，佢哋特登留咗位。','下班后，我们还在老地方见。这句话是我写的。那晚我收工迟了，街坊们特意给我留了位置。',[['今天也等你收铺','wait'],['把小木凳留在原位','bench']]],
-   wait:['fang','等埋我呀，周生！上次你幫我留位，今日我仲記得企邊度㗎。','周先生，等等我！上次你给我留了位置，今天我还记得该站在哪儿。',[['请街坊到旧招牌下','assemble']]],
-   bench:['regular','得，張凳擺返前面。等陣俾後生嗰個坐，唔好又叫我坐正中間。','好，凳子放前面。待会儿让年轻人坐，我可不想又坐正中。',[['请阿晴也来入镜','assemble']]],
-   assemble:['aqing','影闊少少得唔得呀？我想連個舊招牌都留低。','能拍宽一点吗？我想把旧招牌也留下来。',[['举起相机','finder']]],
-   finder:['ling','上次係我揸機，張相冇我份。今次交畀你，我都想同佢哋影返張。','上次是我掌镜，照片里没有我。这次交给你，我也想和他们合一张。',[['按下快门','proof']]],
-   proof:['regular','影成點呀？俾我望一眼先。','拍得怎样？让我看看。',[['把这张放进橱窗','hung'],['重新取景','finder']]],
-   hung:['fang','聽朝換咗招牌，人哋都認得返我哋企過邊個位。','明早换了招牌，大家还是能认出我们站过的位置。',[['第二天再经过','tomorrow']]],
-   tomorrow:['regular','嗱，有人停低睇喇。你影嗰張，我哋真係擺咗出嚟。','你看，有人停下来看了。你拍的那张，我们真的挂出来了。',[]]
-  }
- },
+ reunion,
  table:{
-  title:'今晚搭张台',start:'door',other:'photo',nodes:{
+  title:'今晚搭张台',start:'door',other:'reunion',nodes:{
    door:['friend','这回你来开口？咱俩刚住进旅馆，我也想认几个以后能打招呼的人。','',[['唔該，兩位，可以搭枱嗎？','ask']]],
    ask:['aming','兩位呀？窗口周生嗰張枱仲有位，不如你哋問吓佢。','两位？窗边周先生那桌还有位置，你们可以问问他。',[['周先生，介唔介意一齊坐？','seat']]],
    seat:['regular','梗係得啦，我收埋份報紙。你朋友都坐吖。','当然行，我把报纸收起来。你朋友也坐呀。',[['坐下，点杯热奶茶','tea'],['坐下，点杯冻柠茶','lemon']]],
@@ -29,6 +17,6 @@ export const chapters={
   }
  }
 };
-export const voices={friend:'intro',aqing:'qing',regular:'guest',aming:'ming',fang:'fang',ale:'lok',ling:'ling',lin:'lam'};
-export const names={friend:'同行朋友',aqing:'阿晴',regular:'周叔',aming:'阿明',fang:'芳姐',ale:'阿乐',ling:'玲姐',lin:'林伯'};
+export const voices={master:'lam',friend:'intro',aqing:'qing',regular:'guest',aming:'ming',fang:'fang',ale:'lok',ling:'ling',lin:'lam'};
+export const names={master:'南音师傅',friend:'同行朋友',aqing:'阿晴',regular:'周叔',aming:'阿明',fang:'芳姐',ale:'阿乐',ling:'玲姐',lin:'林伯'};
 export function morning(drink){return drink==='lemon'?['又嚟喇？凍檸茶少冰，仲係窗口位，啱唔啱？','又来了？冻柠茶少冰，还是窗边，对吧？']:['又嚟喇？熱奶茶少甜，仲係窗口位，啱唔啱？','又来了？热奶茶少甜，还是窗边，对吧？'];}

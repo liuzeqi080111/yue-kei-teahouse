@@ -5,6 +5,7 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
 (async()=>{
  const browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL||'msedge',headless:true,args:['--enable-unsafe-swiftshader','--use-angle=swiftshader','--autoplay-policy=no-user-gesture-required','--use-fake-device-for-media-stream','--use-file-for-fake-audio-capture='+path.resolve('assets/story-table-tea.wav')]});
  const errors=[];
+ require('node:fs').mkdirSync('output/ba-review',{recursive:true});
  try{
   for(const mobile of [false,true]){
    const ctx=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1100,height:720}});
@@ -13,18 +14,37 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    async function open(story){await page.goto(root+'/story-preview.html?story='+story);await page.locator('#choices button').first().waitFor({timeout:90000});}
    async function pick(n=0){const b=page.locator('#choices button').nth(n);await b.click();assert(await page.locator('#choices button').first().isVisible());}
    const stored=story=>page.evaluate(id=>JSON.parse(localStorage.getItem('yuekei-story-trial-v1:'+id)),story);
-   await open('photo');assert.equal(await page.locator('#speaker').innerText(),'阿乐');await pick();
-   await page.locator('#paper').waitFor();assert.match(await page.locator('#meaning').innerText(),/二十多年的老邻居/);
-   await pick();await page.locator('#paper[aria-label^="芳姐手书"]').waitFor();
-   assert.equal(await page.locator('#speaker').innerText(),'芳姐');
-   await pick(mobile?1:0);await pick();await pick();assert.equal(await page.locator('#speaker').innerText(),'玲姐');
-   assert.equal((await stored('photo')).node,'finder');await pick();const first=(await stored('photo')).photo;
-   assert.ok(first.startsWith('data:image/jpeg;base64,')&&first.length>10000);
-   await pick(1);await page.locator('input').fill('.85');await page.locator('#stage').focus();await page.keyboard.press('ArrowLeft');await page.keyboard.press('Space');
-   assert.notEqual((await stored('photo')).photo,first);await pick();await pick();
-   const result=await stored('photo');assert.equal(result.node,'tomorrow');assert.equal(result.layout,mobile?'bench':'wait');
-   await open('photo');assert.equal(await page.locator('#choices button').first().innerText(),'再玩一次');
-   await page.screenshot({path:'output/ba-review/accepted-photo-'+(mobile?'phone':'desktop')+'.jpg'});
+   await page.goto(root+'/?street=3d');
+   await page.locator('.vinyl-new').click();
+   await page.locator('[data-learning-mode="experienced"]').click();
+   await page.locator('[data-tray="tasks"]').click({timeout:90000});
+   await page.getByRole('link',{name:'新年主线 · 预埋你嗰份'}).click();
+   await page.getByRole('button',{name:'唔該，咁我坐喇！'}).waitFor();
+   await page.evaluate(()=>localStorage.setItem('yuekei-story-trial-v1:photo',JSON.stringify({node:'tomorrow',photo:'old'})));
+   await open('photo'); // Existing bookmarks open the replacement chapter.
+   assert.equal(await page.locator('h1').innerText(),'预埋你嗰份');
+   await pick();
+   const shot=name=>page.screenshot({path:'output/ba-review/reunion-'+name+(mobile?'-phone':'-desktop')+'.jpg'});
+   async function beat(reload=false){
+    assert.equal(await page.locator('#speaker').innerText(),'南音师傅');
+    assert.equal(await page.locator('#record').count(),0);
+    assert(await page.locator('#choices button').nth(1).isDisabled());
+    await pick();
+    if(reload){await open('reunion');assert.match(await page.locator('#choices button').first().innerText(),/1 \/ 2/);}
+    await pick();await pick(1);
+   }
+   await shot('riddle');await beat(true);await pick(mobile?1:0);await pick();
+   assert.equal((await stored('reunion')).node,'dish');await page.waitForTimeout(950);await shot('dish');
+   await pick();await pick();await beat();await pick(mobile?1:0);await pick();
+   const proofs=(await stored('reunion')).photos;
+   assert.equal(proofs.length,2);assert.notEqual(proofs[0],proofs[1]);
+   assert(proofs.every(src=>src.startsWith('data:image/jpeg;base64,')&&src.length>10000));
+   await open('reunion');await page.waitForFunction(()=>Array.from(document.querySelectorAll('#photo-view img')).filter(i=>i.naturalWidth===840).length===2);
+   await shot('proof');await pick(mobile?1:0);
+   const result=await stored('reunion');
+   assert.equal(result.photo,proofs[mobile?1:0]);assert.equal(result.node,mobile?'laugh':'tidy');
+   await open('reunion');assert.equal(await page.locator('#choices button').first().innerText(),'再玩一次');
+   await page.waitForTimeout(600);await shot('wall');
    await open('table');assert.equal(await page.locator('#speaker').innerText(),'同行朋友');
    await pick();await pick();await pick(mobile?1:0);await page.waitForTimeout(3600);await pick();
    assert.equal(await page.locator('#speaker').innerText(),'林伯');await pick(mobile?1:0);
@@ -35,9 +55,9 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    await open('table');assert((await page.locator('#line').innerText()).includes(mobile?'凍檸茶':'熱奶茶'));
    await page.screenshot({path:'output/ba-review/accepted-table-'+(mobile?'phone':'desktop')+'.jpg'});
    for(const el of await page.locator('#choices button').all()){const box=await el.boundingBox();assert(box.x>=0&&box.x+box.width<=page.viewportSize().width+1);assert(box.y+box.height<=page.viewportSize().height+1);}
-   assert.equal((await stored('photo')).photo,result.photo);await pick();assert.equal((await stored('table')).node,'door');
+   assert.equal((await stored('reunion')).photo,result.photo);await pick();assert.equal((await stored('table')).node,'door');
    await ctx.close();
-   console.log('Both finales, saved photo, retake, drink, invitation and restart passed',mobile?'390px':'1100px');
+   console.log('Both finales, saved photo, clap rounds, drink, invitation and restart passed',mobile?'390px':'1100px');
   }
   const voice=await browser.newContext({permissions:['microphone']});
   const mic=await voice.newPage();let heard=false;

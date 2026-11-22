@@ -257,7 +257,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    row.onclick=()=>{track(q.id);renderTasks();};tray.append(row);
   }
   const hint=document.createElement('p');hint.textContent=activeQuest().text;tray.append(hint);
-  for(const [story,label] of [['photo','试玩 B · 街口最后一张合照'],['table','试玩 A · 今晚搭张台']]){
+  for(const [story,label] of [['reunion','新年主线 · 预埋你嗰份'],['table','试玩 A · 今晚搭张台']]){
    const link=document.createElement('a');link.className='quest-row';link.href='./story-preview.html?story='+story;link.textContent=label;tray.append(link);
   }
  }

@@ -7,7 +7,7 @@ import {SHOPS} from './street-space.js';
 
 const cast={
  aming:['阿明','story-table-tea'],aqing:['阿晴','fp1-line-meeting'],
- fang:['方姐','street-line-fang-12'],regular:['周叔','story-photo-bench'],
+ fang:['方姐','street-line-fang-12'],regular:['周叔','story-table-seat'],
  friend:['同行朋友','fp1-line-home'],ale:['阿乐','street-line-3852e2eb415a04'],
  buyer:['等碟的街坊','street-line-a176526070a34a'],ling:['玲姐','street-line-ling-18'],
  lin:['林伯','street-line-lam-15'],vendor:['蔗水摊主','street-line-b7d05e6879dc36'],

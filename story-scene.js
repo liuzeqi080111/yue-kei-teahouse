@@ -1,9 +1,10 @@
+import {createReunionWall,savedPrint} from './reunion-wall.js';
+import {createReunionScene} from './reunion-scene.js';
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {plantedStance,mouthPose,clearBoothCups} from './dining-room.js';
 
 const v=(x,y,z)=>new T.Vector3(x,y,z);
-const colors={bronze:0xae9068,wood:0x694631,paper:0xf1e6c9,wine:0x77433a,dark:0x303637};
 const boothSeat=.605;
 export async function createStoryScene(canvas,chapter){
  const renderer=new T.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
@@ -29,36 +30,17 @@ export async function createStoryScene(canvas,chapter){
  function print(parent,tex,x,y,z,w,h){
   const mesh=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}));mesh.position.set(x,y,z);parent.add(mesh);return mesh;
  }
- function plaque(words,sub,bg='#503e34'){
-  return texture((c,w,h)=>{c.fillStyle=bg;c.fillRect(0,0,w,h);c.strokeStyle='#d4b689';c.lineWidth=4;c.strokeRect(10,9,w-20,h-18);c.textAlign='center';c.fillStyle='#f5e8cc';c.font='bold 114px KaiTi,serif';c.fillText(words,w/2,h*.59,w*.87);c.font='25px Georgia,serif';c.fillText(sub,w/2,h*.82,w*.9)});
- }
- function storefrontPlaque(parent,words,sub,x,y,z,width,height,bg='#503e34'){
-  const pixelHeight=256,pixelWidth=Math.round(pixelHeight*width/height);
-  const artwork=texture((c,w,h)=>{
-   c.fillStyle=bg;c.fillRect(0,0,w,h);
-   const inset=Math.round(h*.045);
-   c.strokeStyle='#d4b689';c.lineWidth=h*.012;c.strokeRect(inset,inset,w-inset*2,h-inset*2);
-   c.textAlign='center';c.textBaseline='middle';c.fillStyle='#f5e8cc';
-   function line(text,y,size,font){
-    c.font=`${size}px ${font}`;
-    const fitted=Math.floor(size*Math.min(1,w*.86/c.measureText(text).width));
-    c.font=`${fitted}px ${font}`;
-    c.fillText(text,w/2,y);
-   }
-   line(words,h*.408,Math.round(h*.55),'KaiTi, serif');
-   line(sub,h*.77,Math.round(h*.155),'Georgia, serif');
-  },pixelWidth,pixelHeight);
-  return print(parent,artwork,x,y,z,width,height);
- }
  const loader=new GLTFLoader(),cast={};
- const ids=chapter==='photo'?['ale','regular','fang','aqing','ling']:['friend','regular','fang','aming','lin'];
+ const ids=['friend','regular','fang','aming','lin'];
+ if(chapter==='reunion')ids.push('master','player');
+ const models={master:'vendor',player:'buyer'};
  const poses=await fetch('assets/story-poses.json').then(r=>r.json());
  await Promise.all(ids.map(async id=>{
-  const {scene:model,animations}=await loader.loadAsync('assets/street/'+id+'-styled-v3.glb');
+  const {scene:model,animations}=await loader.loadAsync('assets/street/'+(models[id]||id)+'-styled-v3.glb');
   const mixer=new T.AnimationMixer(model);if(animations.length){mixer.clipAction(plantedStance(animations[0])).play();mixer.setTime(0);}
   const bones={},rest={};
   model.traverse(o=>{if(o.isBone){const n=o.name.replace(/^mixamorig[:_]?/,'');bones[n]=o;rest[n]=o.quaternion.clone();}});
-  model.scale.setScalar(({regular:1.69,friend:1.75,fang:1.62,aqing:1.67,aming:1.72,ale:1.73,ling:1.64,lin:1.66})[id]);scene.add(model);
+  model.scale.setScalar(({regular:1.69,friend:1.75,fang:1.62,aqing:1.67,aming:1.72,ale:1.73,ling:1.64,lin:1.66,master:1.70,player:1.68})[id]);scene.add(model);
   cast[id]={model,bones,rest,world:{},mouth:mouthPose(model,id)};
  }));
  function point(joint,child,at){
@@ -108,12 +90,12 @@ export async function createStoryScene(canvas,chapter){
     if(heights.length<4)throw Error('Missing seated support patch for '+id);
     heights.sort((a,b)=>a-b);cast[id].supportOffset=heights[Math.floor(heights.length*.025)];
    }
-   const seat=chapter==='table'?boothSeat:.6925;
+   const seat=boothSeat;
    model.position.y=seat-.003-cast[id].supportOffset;
    model.updateMatrixWorld(true);
    for(const side of ['Left','Right']){
     const leg=bones[side+'Leg'],foot=bones[side+'Foot'],ankle=foot.getWorldPosition(v());
-    ankle.y=(chapter==='table'?.19:.16)+.095;
+    ankle.y=.19+.095;
     point(leg,foot,ankle);
     const shoulder=bones[side+'Arm'],elbow=bones[side+'ForeArm'],wrist=bones[side+'Hand'];
     const front=v(Math.sin(yaw),0,Math.cos(yaw)),across=v(Math.cos(yaw),0,-Math.sin(yaw));
@@ -138,48 +120,8 @@ export async function createStoryScene(canvas,chapter){
  }
  for(const entry of Object.values(cast))entry.neutral={};
  let serviceTake;
- let frontage,oldSign,newSign,windowPhoto,bench,meal,carry,cups=[],cupTea,cupLemon,extraSticks,looseNews,newsFold;
- function chair(parent,x,z){
-  const g=group(parent);g.position.set(x,0,z);
-  box(g,colors.wood,0,.50,0,.50,.065,.40);
-  for(const dx of [-.20,.20])for(const dz of [-.15,.15])box(g,colors.wood,dx,.25,dz,.041,.5,.041);
-  return g;
- }
- if(chapter==='photo'){
-  frontage=group();
-  box(frontage,0xc6bfab,0,1.65,-1.21,12.6,3.6,.35);
-  box(frontage,0x82796c,0,-.13,2,18,.22,13);
-  for(let i=-4;i<=4;i++)box(frontage,0x969084,i*1.3,-.012,1.5,.012,.012,8);
-  for(let i=-1;i<5;i++)box(frontage,0x969084,0,-.011,i*1.05,14,.012,.012);
-  box(frontage,0xc4bba4,0,.08,-.25,5.88,.16,1.5);
-  for(const x of [-2.66,-1.25,1.24,2.66])box(frontage,colors.wood,x,1.47,-.88,.11,2.88,.12);
-  for(const x of [-1.96,1.95]){
-   box(frontage,0x65807c,x,1.36,-1.0,1.34,1.95,.045);box(frontage,colors.bronze,x,.58,-.86,1.47,.068,.17);
-   box(frontage,0x835744,x,.35,-.89,1.32,.40,.06);
-  }
-  box(frontage,0x425859,0,1.40,-.985,2.40,2.60,.05);
-  for(const x of [-.6,.6]){
-   box(frontage,0x896e52,x,.58,-.93,1.14,.76,.06);
-   box(frontage,0x4c6970,x,1.79,-.91,1.09,1.45,.035);
-   box(frontage,colors.bronze,x*.23,1.21,-.83,.029,.26,.047);
-  }
-  for(const x of [-2.34,-1.70,1.64,2.26])box(frontage,colors.wood,x,1.39,-.872,.021,1.46,.05);
-  for(const z of [-.94,-.76])box(frontage,colors.wood,0,2.98,z,5.75,.61,.14);
-  oldSign=storefrontPlaque(frontage,'永　光　照　相　館','WING KWONG  ·  PORTRAIT STUDIO',0,2.98,-.675,5.48,.56);
-  newSign=storefrontPlaque(frontage,'永　光　影　像','WING KWONG  ·  PHOTO WORKS',0,2.98,-.673,5.48,.56,'#566363');
-  for(let i=0;i<19;i++){
-   const x=-2.76+i*.306;const awn=box(frontage,i%2?0x895547:0xd5c09b,x,2.57,-.55,.305,.054,.60);awn.rotation.x=.16;
-   box(frontage,i%2?0x895547:0xd5c09b,x,2.46,-.25,.305,.16,.035);
-  }
-  for(const x of [-4,4.1]){
-   box(frontage,0x898277,x,1.35,-.97,2.2,2.63,.08);
-   for(let k=0;k<23;k++)box(frontage,0x736f66,x,.18+k*.105,-.92,2.17,.014,.028);
-  }
-  box(frontage,colors.wood,-1.91,1.47,-.77,1.18,.91,.06);
-  windowPhoto=storefrontPlaque(frontage,'人像攝影','PORTRAITS',-1.91,1.47,-.728,1.09,.82);
-  storefrontPlaque(frontage,'即日沖印','FILM  •  PRINTS',1.96,1.48,-.8,.94,.43,'#984d41');
-  bench=chair(frontage,.28,.32);
- }else{
+ let meal,carry,cups=[],cupTea,cupLemon,extraSticks,looseNews,newsFold;
+ {
   const [districtFile,take]=await Promise.all([loader.loadAsync('assets/street/district.glb'),loader.loadAsync('assets/street/aming-service.glb')]);
   const district=districtFile.scene,rig=take.scene;scene.add(rig);rig.scale.setScalar(1.72);rig.position.set(2.21,.19,-2.42);
   const mixer=new T.AnimationMixer(rig),actions=[];
@@ -236,7 +178,7 @@ export async function createStoryScene(canvas,chapter){
   newsFold=group(looseNews);
   const rightPage=print(newsFold,news,.095,0,0,.19,.25);rightPage.rotation.x=-Math.PI/2;
  }
- let mode='',view={},eye=v(),aim=v(),focus=v(),entered=0,photoTexture,photoURL,photoVersion=0;
+ let mode='',view={},eye=v(),aim=v(),focus=v(),entered=0;
  function shot(pos,target,fov=49){
   eye.fromArray(pos);aim.fromArray(target);view.fov=fov;
  }
@@ -255,44 +197,6 @@ export async function createStoryScene(canvas,chapter){
    joint.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(localAxis,angle));
   }
   neutral.Head.copy(bones.Head.quaternion);
- }
- function castAtPhoto(id,state){
-  const portrait=['assemble','finder','proof','hung','tomorrow','archive'].includes(id);
-  bench.visible=true;newSign.visible=id==='tomorrow';oldSign.visible=!newSign.visible;
-  if(portrait){
-   const old=id==='archive',sit=!old&&state.layout==='bench';
-   const chairX=old?.12:sit?.34:-.35;
-   bench.position.set(chairX,.16,old?.44:.26);
-   actor('regular',old?-.55:sit?-.60:chairX,.16,old?.10:sit?-.05:.26,old?.38:.31,!old&&!sit);
-   actor('fang',old?.67:sit?-.03:.04,.16,old?.02:-.24,old?-.42:-.31);
-   
-   
-   if(!old){
-    actor('aqing',sit?chairX:.67,.16,sit?.26:.08,-.35,sit);
-    actor('ale',sit?-1.18:-.92,.16,-.16,.40);actor('ling',sit?.91:1.16,.16,-.19,-.46);
-    
-    
-    
-    
-   }
-   shot([0,1.58,4.38],[0,1.63,-.12],48);
-   if(id==='hung'){
-    for(const a of Object.values(cast))a.model.visible=false;
-    actor('fang',-1.28,.16,-.14,-.18);
-    shot([-1.37,1.69,1.62],[-1.47,1.50,-.22],47);
-   }
-   if(id==='tomorrow'){
-    for(const a of Object.values(cast))a.model.visible=false;
-    actor('regular',-.69,.16,-.02,-1.57);
-    shot([-1.88,1.56,1.48],[-1.91,1.47,-.73],34);
-   }
-  }else if(id==='window'){
-   actor('ale',-.73,.16,.15,-.38);shot([-.86,1.61,2.14],[-1.22,1.56,-.4],48);
-  }else if(['back','wait'].includes(id)){
-   actor('fang',.38,.16,.24,-.14);actor('regular',-.70,.16,.03,.43);shot([.31,1.64,1.64],[.10,1.46,.15],43);
-  }else{
-   actor('regular',-.41,.16,.25,.10);actor('fang',.69,.16,.07,-.40);shot([-.48,1.65,1.77],[-.72,1.48,.24],47);
-  }
  }
  function castAtTable(id,state){
   const entry=id==='door'||id==='ask'||id==='morning',eating=['supper','invite','takeaway'].includes(id);
@@ -338,11 +242,16 @@ export async function createStoryScene(canvas,chapter){
   looseNews.visible=true;if(!['ask','door','seat'].includes(id)){looseNews.position.set(1.77,.96,-1.84);newsFold.rotation.z=Math.PI-.025;}extraSticks.visible=cups[2].visible;
   meal.visible=eating;carry.visible=eating&&!state.invited&&id!=='invite';
  }
+ if(chapter==='table')createReunionWall(scene)(savedPrint());
+ const reunion=chapter==='reunion' ? createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,print,texture,actor,shot,portraitLean,portraitArm}) : null;
  function set(id,state){
-  mode=id;view.state=state;
-  canvas.classList.toggle('framing',id==='finder'||id==='archive');
+  mode=id;
+  canvas.classList.toggle('framing',id==='proof');
   for(const a of Object.values(cast))a.model.visible=false;
-  if(chapter==='photo')castAtPhoto(id,state);else castAtTable(id,state);
+  if(reunion){
+   for(const prop of [meal,carry,...cups,cupTea,cupLemon,extraSticks,looseNews])prop.visible=false;
+   reunion.stage(id,state);
+  }else castAtTable(id,state);
   entered=performance.now();
  }
  function resize(){
@@ -350,9 +259,9 @@ export async function createStoryScene(canvas,chapter){
   if(canvas.width!==Math.floor(w*p)||canvas.height!==Math.floor(h*p))renderer.setSize(w,h,false);
   camera.aspect=w/h;
  }
- function render({zoom=.2,pan=0,tilt=0}={}){
-  resize();const photo=mode==='finder'||mode==='archive';
-  camera.position.copy(eye);focus.copy(aim);if(photo){focus.x+=pan;focus.y+=tilt;}
+ function render(){
+  resize();
+  camera.position.copy(eye);focus.copy(aim);
   if(mode==='tea'||mode==='lemon'){
    const t=(performance.now()-entered)/1000;
    focus.y+=.20*(1-T.MathUtils.smoothstep(t,.30,1.25))+.08*T.MathUtils.smoothstep(t,2.85,3.55);
@@ -360,33 +269,25 @@ export async function createStoryScene(canvas,chapter){
   if(camera.aspect<.8&&chapter==='table'&&mode==='morning'){
    camera.position.set(2.16,1.66,-.47);focus.set(1.96,1.32,-1.95);
   }
-  const base=photo?view.fov-zoom*15:camera.aspect<.8&&chapter==='table'&&['seat','supper','morning'].includes(mode)?Math.max(view.fov,69):view.fov;
+  const base=camera.aspect<.8&&chapter==='table'&&['seat','supper','morning'].includes(mode)?Math.max(view.fov,69):view.fov;
   camera.fov=camera.aspect<1?T.MathUtils.radToDeg(2*Math.atan(Math.tan(T.MathUtils.degToRad(base)/2)/camera.aspect)):base;
-  if(camera.aspect<.8&&['print','back','wait','takeaway','invite','tea','lemon','hung'].includes(mode))camera.fov=64;
+  if(camera.aspect<.8&&['takeaway','invite','tea','lemon'].includes(mode))camera.fov=64;
   camera.updateProjectionMatrix();camera.lookAt(focus);renderer.render(scene,camera);
  }
- function photograph(options,archived=false){
-  resize();
-  // The shutter records the visible frame, including the player's chosen crop.
-  render(options);const c=document.createElement('canvas');const ar=canvas.width/canvas.height;
-  c.width=Math.round(Math.min(1050,ar*820));c.height=Math.round(c.width/ar);
-  const ctx=c.getContext('2d');if(archived)ctx.filter='grayscale(1) sepia(.56) contrast(.85)';ctx.drawImage(canvas,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.88);
+ // Render both portraits at a fixed print aspect, independent of phone orientation.
+ function photograph(pose,state){
+  set(pose,state);
+  const pixelRatio=renderer.getPixelRatio();
+  renderer.setPixelRatio(1);renderer.setSize(840,560,false);
+  camera.aspect=1.5;camera.fov=view.fov;camera.position.copy(eye);camera.lookAt(aim);camera.updateProjectionMatrix();
+  renderer.render(scene,camera);
+  const photo=canvas.toDataURL('image/jpeg',.87);
+  renderer.setPixelRatio(pixelRatio);resize();
+  return photo;
  }
- function hang(url){
-  if(!windowPhoto||!url||photoURL===url)return;
-  photoURL=url;const version=++photoVersion;new T.TextureLoader().load(url,tex=>{
-   if(version!==photoVersion){tex.dispose();return;}tex.colorSpace=T.SRGBColorSpace;
-   const aspect=tex.image.width/tex.image.height,frame=1.09/.82;
-   // Fit the whole photograph in the mount.
-   windowPhoto.scale.set(aspect>frame?1:aspect/frame,aspect>frame?frame/aspect:1,1);
-   photoTexture?.dispose();photoTexture=tex;windowPhoto.material.map=tex;windowPhoto.material.needsUpdate=true;
-  });
- }
- let oldPhoto=null;
- if(chapter==='photo'){set('archive',{});oldPhoto=photograph({zoom:.53},true);hang(oldPhoto);}
  let level=0,speechShape,speaker=null;
  const q=new T.Quaternion(),nextQ=new T.Quaternion(),parentQ=new T.Quaternion(),yawQ=new T.Quaternion();
- const perform={seat:'regular',bench:'regular',door:'friend'};
+ const perform={seat:'regular',door:'friend'};
  function gesture(id,a,phase){
   const frames=poses[id];
   const index=Math.max(1,frames.findIndex(frame=>frame[0]>=phase));
@@ -423,7 +324,7 @@ export async function createStoryScene(canvas,chapter){
   }
  }
  function speech(id,value,shape){speaker=id;level=value;speechShape=shape;}
- function tick(time){
+ function tick(time,playhead=0){
   if(serviceTake?.rig.visible){
    serviceTake.mixer.setTime(Math.min(serviceTake.duration,(time-entered)/1000));
    serviceTake.mouth(speaker==='aming'?level:0,speechShape);
@@ -443,11 +344,13 @@ export async function createStoryScene(canvas,chapter){
    const sw=targetTalk?.023*Math.sin(time*.006):.009*Math.sin(time*.001+id.length);
    head.rotateY(sw);
   }
+  reunion?.tick(time,entered,mode,playhead);
  }
- function windowView(wide){
-  if(mode!=='tomorrow')return;
-  if(wide)shot([-.55,1.63,4.45],[-.60,1.70,-.70],46);
-  else shot([-1.88,1.56,1.48],[-1.91,1.47,-.73],34);
+ const pointer=new T.Raycaster();
+ function hit(x,y){
+  const rect=canvas.getBoundingClientRect();
+  pointer.setFromCamera(new T.Vector2(2*(x-rect.left)/rect.width-1,1-2*(y-rect.top)/rect.height),camera);
+  return reunion?.hit(pointer,mode);
  }
- return {set,render,tick,speech,photograph,hang,oldPhoto,windowView};
+ return {set,render,tick,speech,photograph,strike:()=>reunion?.strike(),hit};
 }
