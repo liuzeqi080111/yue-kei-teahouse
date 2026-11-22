@@ -25,6 +25,7 @@ export const ACTORS = Object.freeze({
  guest: { model:'regular', point:{x:-13.33,z:10.38}, zone:[-14.05,-12.50,9.60,11.78] },
  lam: { model:'lin', point:{x:14.14,z:-12.88}, zone:[13.38,15.56,-14.78,-11.42] },
  lok: { model:'ale', point:{x:-13.68,z:-6.38}, zone:[-14.61,-12.83,-7.48,-5.78] },
+ southRice: {model:'southRice',point:{x:-19.06,z:-7.46}},
  buyer: { model:'buyer', point:{x:-12.70,z:-5.03}, zone:[-13.60,-11.38,-5.76,-3.62] },
  ling: { model:'ling', point:{x:-14.02,z:-10.46}, zone:[-14.84,-13.07,-11.98,-9.19] },
 });
@@ -109,7 +110,7 @@ export function createStreetNav(layout, blocked=()=>false) {
 }
 
 // Storefront coordinates follow the published district modules. Positive local Z faces the pavement.
-export const SHOPS = Object.fromEntries([
+export const SHOPKEEPER_CAST = Object.fromEntries([
  ["juiceCart","凉茶铺的强叔","drinks",-16.53,.52,90,"vendor","行到口渴呀？我啱啱煲好竹蔗水。","走渴了吗？我刚煮好竹蔗水。","为什么要放茅根？","竹蔗清甜，落少少茅根一齊煲，飲落冇咁膩。","竹蔗清甜，和茅根一起煮，喝起来更清爽。",true],
  ["westBread","南洋饼家的莲姨","bakery",-5.25,7,-90,"ling","啱啱出爐嘅蛋撻，小心熱呀。","蛋挞刚出炉，小心烫。","蛋挞怎么吃？","等一陣先咬，個酥皮一掂就甩㗎。","等一下再吃，酥皮一碰就掉。"],
  ["eastBread","南洋饼家的荣叔","bakery",5.24,-6.94,90,"regular","菠蘿包出爐喇，聞唔聞到香味呀？","菠萝包出炉了，闻到香味了吗？","里面有菠萝吗？","冇菠蘿㗎，面頭層脆皮似菠蘿啫。","没有菠萝，名字来自表面的脆皮。"],
@@ -131,6 +132,10 @@ export const SHOPS = Object.fromEntries([
  ["northTurn","北街果店的威哥","fruit",-9.9,-17.2,0,"vendor","香蕉熟得快，呢梳要先食。","香蕉熟得快，这一串要先吃。","怎么知道熟了？","見到皮上面有兩三點梅花，就啱甜喇。","果皮有两三点褐斑时，甜度正好。",true],
  ["eastTurn","东街米铺的霞姨","rice",9.56,-17.26,0,"fang","街坊寄低個米罌，話收工先嚟攞。","街坊把米缸寄放在这儿，下班才来拿。","为什么用陶罐装米？","個蓋冚得實，擺喺陰涼位就好。","盖子盖得严，放阴凉处就好。",true]
 ].map(([id,name,kind,x,z,degrees,cast,line,meaning,question,reply,translation,stall=false]) => [id,{name,kind,x,z,yaw:degrees*Math.PI/180,cast,line,meaning,question,reply,translation,stall}]));
+
+// Keep the portrait and voice catalogue independent from the playable shops.
+const openShops=['westBread','eastBread','radio','herbs','arcade','marketBack','juiceCart','westCorner'];
+export const SHOPS=Object.fromEntries(openShops.map(id=>[id,SHOPKEEPER_CAST[id]]));
 
 function shopOffset(shop,point){
  const dx=point.x-shop.x,dz=point.z-shop.z;
@@ -181,7 +186,7 @@ export const PASSERS={
  ching:{name:'阿静',model:'banyanCloth',tint:0x9c6552},
  wai:{name:'阿威',model:'workshop',tint:0x606e4b},
 };
-export const streetVoiceIds=['intro','qing','fang','lok','ling','lam','ming','guest','buyer',...Object.keys(SHOPS),...Object.keys(PASSERS)];
+export const streetVoiceIds=['intro','qing','fang','lok','ling','lam','ming','guest','buyer',...Object.keys(SHOPKEEPER_CAST),...Object.keys(PASSERS)];
 const sidewalks=[
  {rect:[8,11.5,-14,15],people:['yan','kit','mei']},
  {rect:[-11.5,-8,-15,15],people:['wing','ching','wai']},

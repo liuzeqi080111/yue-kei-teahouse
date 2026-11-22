@@ -62,6 +62,11 @@ with sync_playwright() as playwright:
     (out/"hands.json").write_text(json.dumps(data,indent=2),encoding="utf-8")
     locomotion=page.evaluate("""()=>{
       const ids=['yan','kit','mei','wing','ching','wai'];
+      const bodyMeshes=Object.fromEntries(ids.map(id=>{
+        let mesh;street.actors.get(id).model.traverse(m=>{if(m.morphTargetDictionary?.stride!==undefined)mesh=m;});
+        if(!mesh)throw Error(id+' has no walking mesh');
+        return [id,mesh];
+      }));
       const metrics=Object.fromEntries(ids.map(id=>[id,{distance:0,maxTurnRate:0,maxSpeed:0,steps:0}]));
       for(let frame=1;frame<=1200;frame++){
         const previous=Object.fromEntries(ids.map(id=>{const a=street.actors.get(id).model;return [id,{x:a.position.x,z:a.position.z,yaw:a.rotation.y}]}));
@@ -75,6 +80,8 @@ with sync_playwright() as playwright:
             m.steps++;
             const error=Math.atan2(Math.sin(Math.atan2(dx,dz)-model.rotation.y),Math.cos(Math.atan2(dx,dz)-model.rotation.y));
             if(Math.abs(error)>.03)throw Error(id+' slid sideways while turning');
+            const mesh=bodyMeshes[id],facing=mesh.getWorldDirection(mesh.position.clone());
+            if((dx*facing.x+dz*facing.z)/d<.999)throw Error(id+' visible body faces away from travel');
           }
         }
       }

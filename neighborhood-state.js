@@ -67,6 +67,9 @@ export function parseSave(raw){
  const s=JSON.parse(raw);validateWorld(s);
  const out=freshWorld();
  for(const key of WORLD_KEYS)if(s[key]!==undefined)out[key]=s[key];
+ if(out.flags.includes('reunion-invite')&&!out.flags.includes('reunion-date')){
+  out.notes=out.notes.map(line=>line==='林伯托你去南街米行邀请祥伯。'?'林伯托你去夜市杂货铺邀请祥伯。':line);
+ }
  out.history=s.history;
  out.position={x:s.position.x,y:s.position.y};
  return out;
@@ -194,12 +197,12 @@ export function optionsFor(s,npc){
    if(has('contact')&&!s.recordOutcome)add('record-contact','把旧友的联系线索告诉林伯','原來佢仲記得我。我會先問聲佢想唔想見面。','原来他还记得我，我会先问他是否愿意见面。',d=>{d.recordOutcome='contact';note(d,'林伯获得了旧友的联系线索，准备先征询重逢意愿。');});
   if(has('record')&&has('contact')&&s.recordOutcome!=='gift')add('record-gift','把唱片交给林伯','連隻唱片都帶返嚟，多謝你。最緊要係搵得返個朋友。','连唱片都带来了，谢谢你，最重要是能联系到朋友。',d=>{take(d,'record');d.recordOutcome='gift';note(d,'林伯收下唱片，并准备联系旧友。');});
   if(firstPerson&&s.recordOutcome){
-   if(!f('reunion-invite'))add('record-after','听回信，替林伯约旧友见面','佢覆咗喇！原來係南街米行嘅阿祥。你幫我問聲，收舖後榕樹頭見，好唔好？','他回信了，是南街米行的祥伯。能替我约他收铺后在榕树下碰面吗？',d=>{flag(d,'reunion-invite');note(d,'林伯托你去南街米行邀请祥伯。');});
+   if(!f('reunion-invite'))add('record-after','听回信，替林伯约旧友见面','佢覆咗喇！係阿祥呀！佢去咗夜市雜貨舖買嘢。你幫我問聲，今晚榕樹頭見，好唔好？','他回信了，是祥伯！他去夜市杂货铺买东西了。能替我约他今晚在榕树下碰面吗？',d=>{flag(d,'reunion-invite');note(d,'林伯托你去夜市杂货铺邀请祥伯。');});
    if(f('reunion-arrived')&&!f('record-reunited'))add('record-reunion','一起听他们当年的曲子','阿祥，你仲記得呢段前奏？嗰年收工，我哋就係聽住佢捉棋。嚟，今次到你行先。','阿祥，你还记得这段前奏吗？那年下班我们总听着它下棋。来，这次你先走。',d=>{flag(d,'record-reunited');note(d,'祥伯带来自己的唱片，两人在榕树下听曲，再开一盘棋。');});
   }else if(s.recordOutcome)add('record-after','后来联系上了吗？','我留咗口訊畀佢，等佢方便先覆。','我给他留了口信，等他方便时回复。');
  }
  if(npc==='southRice'&&firstPerson&&f('reunion-invite')&&!f('reunion-date')){
-  add('record-accept','转达林伯的邀请，约在榕树下见','阿林仲留住副棋！好呀，收舖我就帶埋屋企隻碟過去。','阿林还留着那副棋！收铺后我带上家里那张唱片去榕树下。',d=>{flag(d,'reunion-date');note(d,'祥伯答应赴约。在榕树下等过一个时段就能见面。');});
+  add('record-accept','转达林伯的邀请，约在榕树下见','阿林仲留住副棋！好呀，今晚我帶埋屋企隻碟過去。','阿林还留着那副棋！今晚我带上家里那张唱片去榕树下。',d=>{flag(d,'reunion-date');note(d,'祥伯答应赴约。在榕树下等过一个时段就能见面。');});
  }
  if(npc==='lok'){
   add('record-chat','有什么唱片推荐？','你鍾意聽邊類？慢慢睇，唔買都可以傾吓。','你喜欢听哪种？慢慢看，不买也可以聊。');

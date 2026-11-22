@@ -110,7 +110,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  }
  const currentPhase=()=>getState().period;
  const body=id=>scene?.character(ACTORS[id]?.model||id)?.model;
- const shopName=id=>id==='southRice'&&worldFlag('reunion-arrived')?'米行的伙计':SHOPS[id]?.name;
+ const shopName=id=>id==='southRice'?'祥伯':SHOPS[id]?.name;
  const qingCounterPoint=()=>current.x>16?{x:15.25,z:-.47}:{x:14.59,z:-.21};
  const qingAtCounter=()=>distance(pointOf(body('qing')),qingCounterPoint())<.28;
  function actionList(npc){
@@ -143,6 +143,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   getContext:()=>{
    if(talking==='intro')return {npcId:'intro',name:'老朋友',role:'陪你熟悉街区的老朋友',facts:[WELCOME],allowedActions:actionList(talking)};
    if(PASSERS[talking])return {npcId:talking,name:PASSERS[talking].name,role:'正在街上散步的街坊',facts:[streetReply[1]],allowedActions:actionList(talking)};
+   if(talking==='southRice')return {npcId:talking,name:'祥伯',role:'林伯的旧友',facts:['正在夜市杂货铺买东西。'],allowedActions:actionList(talking)};
    const shop=SHOPS[talking];
    if(shop)return {npcId:talking,name:shopName(talking),role:'街坊店主',facts:[shop.meaning,shop.translation],allowedActions:actionList(talking)};
    if(!NPCS[talking])return null;
@@ -152,6 +153,10 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
     allowedActions:actionList(talking).filter(o=>o.effect||o.id==='enter-restaurant'||(o.id==='show-coat'&&qingAtCounter())).map(({id,label})=>({id,label}))};
   },
   matchFixedChoice:(context,text)=>{
+   if(context.npcId==='southRice'){
+    if(/邀[请請]|[约約].*[见見]|榕[树樹]|[捉下]棋/.test(text)&&context.allowedActions.some(a=>a.id==='record-accept'))return {actionId:'record-accept'};
+    return {text:'你識阿林？我同佢以前晚晚收工都捉棋㗎。',meaning:'你认识阿林？我们以前收铺后天天下棋。'};
+   }
    if(PASSERS[context.npcId])return {actionId:'greet-neighbour'};
    const shop=SHOPS[context.npcId];
    if(!shop&&context.npcId!=='intro')return null;
@@ -421,7 +426,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    if(completed)publish('✓ '+completed.name+' · 已完成');
    if(id==='record-reunion'){onRecordPlay?.();chess=null;delete host.dataset.chess;$('.street-gomoku').hidden=true;pendingLook={heading:angle(current,{x:16.05,z:-12.71}),pitch:-.04};}
    if(id.startsWith('coat-route-'))pendingLook={heading:angle(current,pointOf(body('fang'))),pitch:-.09};
-   if(!fromVoice){setText('.street-speaker',(NPCS[npc]||SHOPS[npc])?.name||'街坊');setText('#street-voice-state','');setLine(result.text,result.meaning,true);}
+   if(!fromVoice){setText('.street-speaker',NPCS[npc]?.name||shopName(npc)||'街坊');setText('#street-voice-state','');setLine(result.text,result.meaning,true);}
    if(id==='stall-observe')pendingLook={heading:angle(current,rackLayout(getState())),pitch:-.19};
    if(id==='shop-check'){
     const paper=document.createElement('span');paper.className='street-ticket';
@@ -460,6 +465,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(!worldFlag('shop-check'))startRoute(COUNTER);
  }
  function canTalk(id,position){
+  if(id==='southRice')return worldFlag('reunion-invite')&&!worldFlag('reunion-date')&&atShopCounter(SHOPS.marketBack,position);
   if(PASSERS[id]){const model=body(id);return model?.visible&&distance(position,model.position)<=2.15&&nav.line(position,model.position);}
   if(SHOPS[id])return atShopCounter(SHOPS[id],position);
   if(!id||!ACTORS[id])return false;
@@ -600,7 +606,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(talking==='fang'&&lastSpeech?.speaker==='qing'&&!route())pendingLook={heading:angle(current,pointOf(body('qing'))),pitch:-.23};
   if(talking==='fang'&&worldFlag('coat-inspected')&&!route()&&scene.face('aqing',current,dt))dirty=true;
   if(talking==='intro'&&scene.face('friend',current,dt))dirty=true;
-  if(talking!=='lam'&&(NPCS[talking]||SHOPS[talking]||PASSERS[talking])&&scene.face(ACTORS[talking]?.model||talking,current,dt))dirty=true;
+  if(talking!=='lam'&&(NPCS[talking]||shopName(talking)||PASSERS[talking])&&scene.face(ACTORS[talking]?.model||talking,current,dt))dirty=true;
  }
  let cameraY=1.64;
  function frame(now){
@@ -690,13 +696,19 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   restoreId++;cancelAnimationFrame(frameId);dropDialogue();
   visible=false;active=false;keys.clear();host.hidden=true;tray.hidden=true;drag=null;
  }
+ function keyCode(event){
+  if(event.code&&event.code!=='Unidentified')return event.code;
+  const key=event.key||'';
+  return /^[wasde]$/i.test(key)?'Key'+key.toUpperCase():key;
+ }
  addEventListener('keydown',event=>{
   if(!visible||document.querySelector('dialog[open]')||event.altKey||event.metaKey||event.ctrlKey||event.target.closest?.('input,textarea,summary'))return;
-  if(event.code==='Escape'){if(talking)dropDialogue();else tray.hidden=true;return;}
-  if(event.code==='KeyE'&&!event.repeat&&!talking){event.preventDefault();doInteract();return;}
-  if(!talking&&keymap[event.code]){event.preventDefault();keys.add(event.code);}
+  const code=keyCode(event);
+  if(code==='Escape'){if(talking)dropDialogue();else tray.hidden=true;return;}
+  if(code==='KeyE'&&!event.repeat&&!talking){event.preventDefault();doInteract();return;}
+  if(!talking&&keymap[code]){event.preventDefault();keys.add(code);}
  });
- addEventListener('keyup',event=>{if(keys.delete(event.code)&&visible)persist(true);});
+ addEventListener('keyup',event=>{if(keys.delete(keyCode(event))&&visible)persist(true);});
  function release(){keys.clear();drag=null;if(visible)persist(true);}
  addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
  addEventListener('resize',()=>{dirty=true;});

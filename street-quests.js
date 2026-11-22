@@ -30,7 +30,7 @@ export function streetQuests(w){
   if(f('record-reunited'))return [null,'林伯和祥伯在榕树下听完了当年的曲子。'];
   if(f('reunion-arrived'))return ['lam','两位老友都到了。去棋桌边，请林伯放唱片。','record-reunion'];
   if(f('reunion-date'))return ['rest','到榕树下等到约定时段，和两位老人碰面。','rest'];
-  if(f('reunion-invite'))return ['southRice','到南街米行找祥伯，把林伯的邀约带给他。','record-accept'];
+  if(f('reunion-invite'))return ['southRice','到夜市杂货铺找祥伯，把林伯的邀约带给他。','record-accept'];
   if(w.recordOutcome)return ['lam','回棋桌问林伯旧友的回音，约他们见一面。','record-after'];
   if(has('contact'))return ['lam','回棋桌把旧友的消息告诉林伯。','record-contact'];
   if(!f('record-start'))return ['lam','在榕树下陪林伯下两手棋，问起他和旧友的唱片。','record-start'];
@@ -50,7 +50,6 @@ export function streetQuests(w){
 
 export function questPoint(quest,world){
  if(quest.npc==='rest')return REST;
- if(quest.npc==='southRice')return {x:-10.25,z:20.0};
  if(quest.npc==='qing'&&world.flags.includes('coat-route-buy')&&!world.coatOutcome)return {x:-13.55,z:-9.14};
  return ACTORS[quest.npc]?.point;
 }

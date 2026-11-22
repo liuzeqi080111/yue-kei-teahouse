@@ -60,7 +60,7 @@ test('其它朝向以各自局部前方为准', () => {
   westBread:{x:-6.25,z:7},
   herbs:{x:-6.25,z:-6.94},
   arcade:{x:0.10,z:-18.16},
-  southPrint:{x:-21,z:19.75},
+  juiceCart:{x:-15.53,z:.52},
  };
  for(const [id,expected] of Object.entries(cardinal)){
   const shop=SHOPS[id];
@@ -71,18 +71,12 @@ test('其它朝向以各自局部前方为准', () => {
   assert.equal(shopBlocks(shop,counterPoint(shop,-0.73)),true,id+' 柜面后阻挡');
  }
 
- // 带 -5° 旋转的布庄：前方仍沿 yaw 方向，背后与横向不可交谈。
- const cloth=SHOPS.banyanCloth;
- assert.ok(cloth,'banyanCloth 必须存在');
- near(counterPoint(cloth,1),{x:-20.516,z:-16.812},1e-3);
- assert.equal(atShopCounter(cloth,counterPoint(cloth,1)),true);
- assert.equal(atShopCounter(cloth,counterPoint(cloth,-1)),false);
- assert.equal(atShopCounter(cloth,counterPoint(cloth,0,2)),false);
+
 });
 
 test('全部商铺前方一米可交谈，背后与横向两米不可', () => {
  const ids=Object.keys(SHOPS);
- assert.ok(ids.length>=19,'街区应包含全部商铺');
+ assert.deepEqual(ids.sort(),['arcade','eastBread','herbs','juiceCart','marketBack','radio','westBread','westCorner']);
  for(const id of ids){
   const shop=SHOPS[id];
   for(const depth of [1,1.5])assert.equal(atShopCounter(shop,counterPoint(shop,depth)),true,id+' 前方 '+depth);

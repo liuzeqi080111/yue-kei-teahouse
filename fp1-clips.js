@@ -184,5 +184,7 @@ export const ROLE_CLIPS={
  "wai|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-9278b1b68d6835.wav",
  "ming|玲姐個衫架擋住出入。你得閒，去夜市衫舖問吓佢。": "assets/street-line-ea5733bf819e6a.wav",
  "fang|可以去衫舖問玲姐借件褸，記住要還。": "assets/street-line-fa17d2e55d7195.wav",
- "ling|依家睇得見舖頭，路又留返出嚟。": "assets/street-line-251fa37885dc82.wav"
+ "ling|依家睇得見舖頭，路又留返出嚟。": "assets/street-line-251fa37885dc82.wav",
+ "lam|佢覆咗喇！係阿祥呀！佢去咗夜市雜貨舖買嘢。你幫我問聲，今晚榕樹頭見，好唔好？": "assets/street-line-c556c0d13bd1d5.wav",
+ "southRice|阿林仲留住副棋！好呀，今晚我帶埋屋企隻碟過去。": "assets/street-line-7d08e1130b95fa.wav"
 };
