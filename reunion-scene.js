@@ -110,7 +110,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    if(id==='gather')shot([2.20,1.60,-1.91],[.22,1.48,-1.79],52);
   }else{
    actor('fang',1.61,.19,-1.21,1.55,true);actor('regular',1.61,.19,-1.83,1.53,true);
-   actor('master',2.65,.19,-1.84,-1.57,true,id==='riddle'?[2.433,1.082,-2.01]:undefined);
+   actor('master',2.65,.19,-1.84,-1.57,true,id==='riddle'?[2.48,1.118,-2.01]:undefined);
    if(id!=='riddle')actor('aming',2.21,.19,-2.46,.03);
    shot([2.34,1.53,-.68],[1.65,1.34,-1.32],54);
    if(id==='riddle')shot([1.72,1.49,-1.15],[2.62,1.32,-1.81],50);
