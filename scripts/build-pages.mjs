@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {NPC_VOICE_CLIPS} from '../npc-voice-manifest.js';
 import {FP1_CLIPS,ROLE_CLIPS} from '../fp1-clips.js';
-import {SHOPS} from '../street-space.js';
+import {SHOPKEEPER_CAST} from '../street-space.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const target=path.join(root,'dist');
 // Explicit allowlist: no environment files, recordings, server code or local notes.
@@ -17,7 +17,7 @@ export const publicFiles=[
  'street-game.js','street-game.css','street-fang.js','street-quests.js','street-fixtures.js','street-gomoku.js','street-render.js','fp1-clips.js','fp1-travel.js','fp1-follow.js',
  'assets/vinyl-title.png','assets/street/walk.json','assets/street/district.glb',
  ...['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].map(id=>'assets/street/'+id+'-styled-v3.glb'),
- ...Object.keys(SHOPS).filter(id=>id!=='juiceCart').map(id=>'assets/street/shopkeepers/'+id+'.glb'),
+ ...Object.keys(SHOPKEEPER_CAST).filter(id=>id!=='juiceCart').map(id=>'assets/street/shopkeepers/'+id+'.glb'),
  ...new Set([...Object.values(FP1_CLIPS),...Object.values(ROLE_CLIPS)]),
  'assets/street/three/build/three.module.min.js','assets/street/three/build/three.core.min.js',
  'assets/street/three/examples/jsm/loaders/GLTFLoader.js','assets/street/three/examples/jsm/utils/BufferGeometryUtils.js',

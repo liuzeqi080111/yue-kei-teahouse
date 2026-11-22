@@ -3,7 +3,53 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 import {furnishKitchen,mouthPose,plantedStance} from './dining-room.js';
-import {SHOPS,ACTORS,createStreetNav} from './street-space.js';
+import {SHOPS,ACTORS,createStreetNav,shopBlocks,marketRoomBlocks,pedestrianRoutes,PASSERS} from './street-space.js';
+
+// The stall portraits have no leg bones. Add a stride to their existing body
+// geometry in bind space. Both skin and shadows then see the same moving feet.
+function residentStride(model){
+ const legs=[];
+ model.traverse(mesh=>{
+  if(!mesh.isMesh || mesh.morphTargetDictionary?.workLeft===undefined ||
+     mesh.morphTargetDictionary.jawOpen!==undefined)return;
+  const geometry=mesh.geometry=mesh.geometry.clone(),pos=geometry.attributes.position;
+  const swing=new Float32Array(pos.count*3),left=new Float32Array(swing.length),right=new Float32Array(swing.length);
+  let min=Infinity,max=-Infinity;
+  for(let i=0;i<pos.count;i++)if(pos.getY(i)<.11){min=Math.min(min,pos.getX(i));max=Math.max(max,pos.getX(i));}
+  const mid=(min+max)/2;
+  for(let i=0;i<pos.count;i++){
+   const y=pos.getY(i),x=pos.getX(i)-mid;
+   const side=T.MathUtils.smoothstep(x,-.017,.017)*2-1;
+   const leg=1-T.MathUtils.smoothstep(y,.06,.52);
+   swing[i*3+2]=side*.084*leg;
+   // On the recovery half-step bend the knee forward and lift the shoe.
+   const lift=x>0?left:right;
+   lift[i*3+1]=.037*leg*Math.abs(side);
+   lift[i*3+2]=.027*Math.exp(-(((y-.24)/.085)**2))*Math.abs(side);
+   const arm=T.MathUtils.smoothstep(Math.abs(x),.11,.21)*(1-T.MathUtils.smoothstep(y,.58,.78))*T.MathUtils.smoothstep(y,.32,.48);
+   swing[i*3+2]-=side*.021*arm;
+  }
+  const start=geometry.morphAttributes.position.length;
+  for(const [name,values] of [['stride',swing],['leftStep',left],['rightStep',right]]){
+   const attr=new T.BufferAttribute(values,3);attr.name=name;geometry.morphAttributes.position.push(attr);
+   if(geometry.morphAttributes.normal)geometry.morphAttributes.normal.push(new T.BufferAttribute(new Float32Array(values.length),3));
+  }
+  const originalKeys=mesh.morphTargetDictionary;mesh.updateMorphTargets();Object.assign(mesh.morphTargetDictionary,originalKeys);legs.push({weights:mesh.morphTargetInfluences,start});
+ });
+ let phase=0,amount=0;
+ return (distance,dt)=>{
+  if(distance===0 && amount===0)return false;
+  phase+=distance*Math.PI*2/(.336*model.scale.x);
+  amount=T.MathUtils.clamp(amount+(distance>0?5:-6)*dt,0,1);
+  const wave=2*Math.asin(Math.sin(phase))/Math.PI;
+  for(const {weights,start} of legs){
+   weights[start]=wave*amount;
+   weights[start+1]=Math.max(0,Math.cos(phase))*amount;
+   weights[start+2]=Math.max(0,-Math.cos(phase))*amount;
+  }
+  return true;
+ };
+}
 
 export async function loadStreet(canvas) {
  const scene=new T.Scene(),camera=new T.PerspectiveCamera(59,1,.055,200);
@@ -149,64 +195,187 @@ export async function loadStreet(canvas) {
  const palette=new Map();
  env.model.traverse(o=>{if(o.isMesh&&o.material?.name)palette.set(o.material.name,o.material);});
  const working=[];
+ const templates=new Map();
  const heights={eastBread:1.66,radio:1.81,herbs:1.52,westBread:1.70,arcade:1.61,marketBack:1.63,riceCorner:1.75,banyanCloth:1.58,lanePrint:1.68,southPrint:1.72,southRice:1.59,southCloth:1.74,eastPrint:1.70,eastRice:1.68,westCorner:1.51,workshop:1.80,gardenHomes:1.58,northTurn:1.82,eastTurn:1.67};
- await Promise.all(Object.entries(SHOPS).map(async ([id,shop],index)=>{
-  if(id==='juiceCart'){actors.set(id,actors.get('vendor'));return;}
-  furnishShop(scene,shop,palette);
+ const needed=new Set([...Object.keys(SHOPS),...Object.values(PASSERS).map(p=>p.model),'southRice']);
+ needed.delete('juiceCart');
+ await Promise.all([...needed].map(async id=>{
   const {model}=await load('shopkeepers/'+id+'.glb');
-  const bounds=new T.Box3().setFromObject(model);
+  const bounds=new T.Box3().setFromObject(model,true);
   model.scale.setScalar(heights[id]/(bounds.max.y-bounds.min.y));
-  const depth=shop.stall?-.31:-1.06,side=shop.stall?.95:.49;
-  model.position.set(shop.x+depth*shop.sin+side*shop.cos,shop.stall?.105:.225,shop.z+depth*shop.cos-side*shop.sin);
+  templates.set(id,model);
+ }));
+ for(const [index,[id,shop]] of Object.entries(SHOPS).entries()){
+  if(id==='juiceCart'){
+   // The old cart is replaced by a shop bay against the west market wall.
+   const cart=env.model.getObjectByName('cart_|_cart');if(cart)cart.visible=false;
+   furnishShop(scene,shop,palette);
+   const actor=actors.get('vendor');actors.set(id,actor);
+   actor.model.position.set(shop.x-1.28,.174,shop.z+.18);continue;
+  }
+  furnishShop(scene,shop,palette);
+  const model=templates.get(id).clone(true);
+  const depth=shop.stall?-1.30:-1.32,side=shop.stall?.29:.34;
+  model.position.set(shop.x+depth*shop.sin+side*shop.cos,shop.stall?.174:.225,shop.z+depth*shop.cos-side*shop.sin);
   model.rotation.y=shop.yaw;scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
   const hands=[];model.traverse(o=>{if(o.morphTargetDictionary?.workLeft!==undefined)hands.push(o.morphTargetInfluences);});
-  working.push({id,model,hands,phase:index*1.73,pace:({bakery:1.65,radio:.84,rice:1.06,cloth:.73,print:1.31,herbs:.94,fruit:1.15})[shop.kind],amount:0});
- }));
- const pedestrianNav=createStreetNav(layout);
- const strolls=[];
- for(const [id,dx,dz] of [['buyer',.9,1.6],['regular',.9,1.0],['ale',.4,1.15],['ling',.35,1.1]]){
-  const actor=actors.get(id),start={...ACTORS[({buyer:'buyer',regular:'guest',ale:'lok',ling:'ling'})[id]].point};
-  const end={x:start.x+dx,z:start.z+dz};
-  if(pedestrianNav.line(start,end)){
-   const index=strolls.length;
-   actor.model.position.set(start.x,(pedestrianNav.cell(start.x,start.z)-11)/100,start.z);
-   strolls.push({id,actor,start,end,index,state:'wait',wait:.25+index*1.1,target:end,speed:0,last:null});
+  working.push({id,model,hands,phase:index*1.73,pace:({bakery:1.65,radio:.84,herbs:.94,fruit:1.15})[shop.kind],amount:0});
+ }
+ const shops=Object.values(SHOPS);
+ const pedestrianNav=createStreetNav(layout,p=>marketRoomBlocks(p)||shops.some(shop=>shopBlocks(shop,p)));
+ // The scans are unskinned. Instances share textures, but each has its own
+ // morph weights and wardrobe material. Colour only the clothes below the neck.
+ function resident(source,tint,height){
+  const model=templates.get(source).clone(true);
+  // A neutral template keeps pitch and roll out of turns and dialogue facing.
+  model.rotation.set(0,0,0,'YXZ');
+  model.scale.multiplyScalar(height);
+  const color=new T.Color(tint);
+  model.traverse(mesh=>{
+   if(!mesh.isMesh || mesh.morphTargetDictionary?.workLeft===undefined || mesh.morphTargetDictionary.jawOpen!==undefined)return;
+   const material=mesh.material=mesh.material.clone();
+   material.onBeforeCompile=shader=>{
+    shader.uniforms.coatTint={value:color};
+    shader.vertexShader='varying vec3 residentBind;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nresidentBind=position;');
+    shader.fragmentShader='varying vec3 residentBind;uniform vec3 coatTint;\n'+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+     float torso=smoothstep(.41,.46,residentBind.y)*(1.-smoothstep(.70,.76,residentBind.y))*(1.-smoothstep(.11,.16,abs(residentBind.x)));
+     diffuseColor.rgb=mix(diffuseColor.rgb,(.12+dot(diffuseColor.rgb,vec3(.30,.59,.11)))*coatTint,torso*.83);`);
+   };
+  });
+  scene.add(model);return model;
+ }
+ for(const [id,p] of Object.entries(PASSERS)){
+  const model=resident(p.model,p.tint,.985);
+  actors.set(id,{model,spec:{rotationY:0}});
+ }
+ const crowd=pedestrianRoutes().map((route,index)=>{
+  const actor=actors.get(route.id),model=actor.model;
+  actor.step=residentStride(model);
+  const {start,points,next}=route,target=points[next];
+  model.position.set(start.x,(pedestrianNav.cell(start.x,start.z)-11)/100,start.z);
+  model.rotation.y=Math.atan2(target.x-start.x,target.z-start.z);
+  return {...route,actor,cruise:.68+.025*(index%5),speed:.48,last:null,detour:null};
+ });
+ function stepResident(walk,player,engaged,now){
+  const {actor,id,points}=walk,model=actor.model,p=model.position;
+  const dt=walk.last===null?0:T.MathUtils.clamp((now-walk.last)/1000,0,.12);walk.last=now;
+  if(engaged===id){
+   walk.speed=0;return actor.step(0,dt);
   }
+  let target=walk.detour||points[walk.next],dx=target.x-p.x,dz=target.z-p.z,len=Math.hypot(dx,dz);
+  if(len<.045){
+   if(walk.detour)walk.detour=null;else walk.next=(walk.next+1)%points.length;
+   return false;
+  }
+  const ux=dx/len,uz=dz/len;
+  // Pass a stopped player or neighbour on the clear side of the pavement.
+  const blocker=q=>{
+   const x=q.x-p.x,z=q.z-p.z,along=x*ux+z*uz;
+   return along>.02 && along<1.22 && Math.abs(x*uz-z*ux)<.62;
+  };
+  const obstacle=blocker(player)?player:crowd.find(other=>other!==walk&&blocker(other.actor.model.position))?.actor.model.position;
+  if(obstacle && !walk.detour){
+   const side=((obstacle.x-p.x)*uz-(obstacle.z-p.z)*ux)>0?-1:1;
+   for(const sign of [side,-side]){
+    const pass={x:obstacle.x+uz*.86*sign+ux*.18,z:obstacle.z-ux*.86*sign+uz*.18};
+    if(pedestrianNav.line(p,pass)&&pedestrianNav.line(pass,target)){
+     walk.detour=pass;return true;
+    }
+   }
+  }
+  const heading=Math.atan2(dx,dz);
+  const turn=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
+  model.rotation.y+=T.MathUtils.clamp(turn,-1.9*dt,1.9*dt);
+  if(Math.abs(turn)>.025){walk.speed=0;actor.step(.23*dt,dt);return true;}
+  walk.speed=Math.min(walk.cruise,walk.speed+1.4*dt);
+  const step=Math.min(len,walk.speed*dt),x=p.x+ux*step,z=p.z+uz*step;
+  if([player,...crowd.filter(c=>c!==walk).map(c=>c.actor.model.position)].some(q=>
+   Math.hypot(q.x-x,q.z-z)<.51 && Math.hypot(q.x-x,q.z-z)<Math.hypot(q.x-p.x,q.z-p.z))){
+   walk.detour=null;walk.speed=0;return actor.step(0,dt);
+  }
+  p.set(x,(pedestrianNav.cell(x,z)-11)/100,z);actor.step(step,dt);return true;
+ }
+
+ // The record seller and tailor stay inside their premises. Their customers
+ // look across the counter instead of pacing the street during a transaction.
+ actors.get('ale').model.position.x=-15.78;
+ actors.get('aming').model.position.x=-15.99;
+ const counterCustomers=[['buyer','ale',-14.44,-5.28],['regular','aming',-14.47,9.66]];
+ for(const [id,host,x,z] of counterCustomers){
+  const model=actors.get(id).model,clerk=actors.get(host).model;
+  model.position.set(x,.11,z);model.rotation.y=Math.atan2(clerk.position.x-x,clerk.position.z-z);
+  actors.get(id).spec.rotationY=model.rotation.y;
+ }
+ const visits=[],donors=Object.values(PASSERS).map(p=>p.model);
+ const shopsInOrder=Object.entries(SHOPS);
+ for(const [index,[id,shop]] of shopsInOrder.entries()){
+  const isElder=id==='marketBack';
+  const guest=isElder?templates.get('southRice'):resident(donors[index%donors.length],[0x856540,0x585478,0x456c72,0x7a5150][index%4],.95+.024*(index%4));
+  if(isElder){scene.add(guest);actors.set('southRice',{model:guest,spec:{rotationY:shop.yaw+Math.PI}});}
+  const owner=actors.get(id).model,side=-.52,depth=.06;
+  const x=shop.x+depth*shop.sin+side*shop.cos,z=shop.z+depth*shop.cos-side*shop.sin;
+  guest.position.set(x,shop.stall?.174:.110,z);
+  guest.rotation.y=Math.atan2(owner.position.x-x,owner.position.z-z);
+  const weights=[];
+  guest.traverse(m=>{if(m.morphTargetDictionary?.workLeft!==undefined)weights.push(m.morphTargetInfluences);});
+  visits.push({id,guestId:isElder?'southRice':null,shop,guest,owner,weights,guestMouth:mouthPose(guest),ownerMouth:mouthPose(owner),phase:index*3.97,near:false});
+ }
+ const conversations=[...visits];
+ for(const [guestId,id] of counterCustomers){
+  const guest=actors.get(guestId).model,owner=actors.get(id).model;
+  const record=id==='ale',shop={x:owner.position.x,z:owner.position.z,sin:1,cos:0,
+   name:record?'阿乐':'阿明',
+   customerLine:record?'呢隻碟兩面都有歌㗎？':'阿明，今日個包出爐未呀？',
+   reply:record?'係呀，反轉仲有兩首㗎。':'啱啱出爐，周叔，坐陣先啦。'};
+  conversations.push({id,guestId,shop,owner,guest,weights:[],guestMouth:mouthPose(guest),ownerMouth:mouthPose(owner),phase:record?7.3:2.9,near:false});
+ }
+ let overheard=null,visitTime=null;
+ function shopVisits(point,engaged,now){
+  let changed=false,best=3.8;overheard=null;
+  const dt=visitTime===null?0:T.MathUtils.clamp((now-visitTime)/1000,0,.12);visitTime=now;
+  for(const v of conversations){
+   const {id,guest,owner,shop}=v,dist=Math.hypot(point.x-guest.position.x,point.z-guest.position.z);
+   const near=dist<19 && !(v.guestId==='southRice'&&fittings.reunion.visible);
+   if(!near&&!v.near)continue;
+   const t=(now*.001+v.phase)%13;
+   const guestTalking=Boolean(v.guestId)&&engaged===v.guestId;
+   const isTalking=engaged===id||guestTalking;
+   const ask=near&&!isTalking&&t>=2&&t<4.2,reply=near&&!isTalking&&t>=4.8&&t<8.9;
+   // The customer indicates an item, asks, then nods as the clerk replies.
+   for(const w of v.weights){
+    w[0]=near&&!isTalking?.16+.52*Math.max(0,1-Math.abs(t-2.3)/1.9):0;
+    w[1]=near&&!isTalking?.10+.24*Math.max(0,1-Math.abs(t-9.6)/1.2):0;
+    w[2]=near&&!isTalking?.31*Math.max(0,1-Math.abs(t-1)/1.2)+.34*Math.max(0,1-Math.abs(t-8)/.65):0;
+   }
+   const pulse=.46+.34*Math.sin(t*15);
+   if(!guestTalking)v.guestMouth(ask?pulse:0,'C');
+   if(engaged!==id)v.ownerMouth(reply?pulse:0,'C');
+   if(near&&!isTalking&&v.weights.length){
+    const browse=t<2||t>10;
+    const x=browse?shop.x-.48*shop.cos-.63*shop.sin:owner.position.x;
+    const z=browse?shop.z+.48*shop.sin-.63*shop.cos:owner.position.z;
+    const turn=Math.atan2(x-guest.position.x,z-guest.position.z)-guest.rotation.y;
+    guest.rotation.y+=T.MathUtils.clamp(Math.atan2(Math.sin(turn),Math.cos(turn)),-1.25*dt,1.25*dt);
+   }
+   if(near&&!isTalking)face(id,(ask||reply)?guest.position:null,dt);
+   if((ask||reply)&&!engaged&&dist<best){
+    const dx=point.x-shop.x,dz=point.z-shop.z;
+    if(dx*shop.sin+dz*shop.cos>=-.25 && ((guest.position.x-point.x)*Math.sin(point.heading)-(guest.position.z-point.z)*Math.cos(point.heading))>0){
+     best=dist;overheard={name:ask?(v.guestId==='regular'?'周叔':v.guestId==='buyer'?'小文':v.guestId==='southRice'?'祥伯':'顾客'):shop.name,text:ask?shop.customerLine:shop.reply};
+    }
+   }
+   v.near=near;changed=true;
+  }
+  return changed;
  }
  const workNearby=createOccupations(scene,actors,fittings);
  function animateWork(point,engaged,now){
   let strolling=false;
-  for(const walk of strolls){
-   const dt=walk.last===null?0:T.MathUtils.clamp((now-walk.last)/1000,0,.1);walk.last=now;
-   walk.actor.walking=engaged!==walk.id&&walk.state!=='wait';
-   if(engaged===walk.id){walk.speed=0;walk.actor.step(0,dt);continue;}
-   if(walk.state==='wait'){
-    walk.wait-=dt;walk.actor.step(0,dt);
-    if(walk.wait<=0){walk.state='turn';walk.actor.walking=true;}
-    continue;
-   }
-   const model=walk.actor.model,dx=walk.target.x-model.position.x,dz=walk.target.z-model.position.z;
-   const remaining=Math.hypot(dx,dz),heading=Math.atan2(dx,dz);
-   const angle=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
-   if(Math.abs(angle)>.025){
-    model.rotation.y+=T.MathUtils.clamp(angle,-1.05*dt,1.05*dt);
-    walk.speed=0;walk.actor.step(.38*dt,dt);strolling=true;continue;
-   }
-   walk.state='walk';
-   const desired=Math.min(.56+walk.index*.035,Math.sqrt(2*.85*remaining));
-   walk.speed+=T.MathUtils.clamp(desired-walk.speed,-1.1*dt,.75*dt);
-   const distance=Math.min(remaining,walk.speed*dt);
-   if(remaining>0){model.position.x+=dx/remaining*distance;model.position.z+=dz/remaining*distance;}
-   strolling=walk.actor.step(distance,dt)||strolling;
-   if(remaining-distance<.0001){
-    walk.state='wait';walk.wait=3.2+walk.index*.83+(walk.target===walk.end?1.1:0);
-    walk.target=walk.target===walk.end?walk.start:walk.end;walk.speed=0;walk.actor.walking=false;
-   }
-  }
+  for(const walk of crowd)strolling=stepResident(walk,point,engaged,now)||strolling;
   const bodiesChanged=workNearby(point,engaged,now);
   let changed=false;
   for(const actor of working){
-   if(actor.id==='southRice'&&fittings.reunion.visible||Math.hypot(actor.model.position.x-point.x,actor.model.position.z-point.z)>9)continue;
+   if(Math.hypot(actor.model.position.x-point.x,actor.model.position.z-point.z)>9)continue;
    const t=actor.phase+now*.001*actor.pace,active=engaged!==actor.id;
    const target=active?1:0;
    if(!active&&actor.amount===0)continue;
@@ -216,9 +385,9 @@ export async function loadStreet(canvas) {
     weights[1]=actor.amount*(.52+.39*Math.sin(t*1.12+.8));
     weights[2]=actor.amount*(.60+.28*Math.cos(t*.65));
    }
-   if(active)face(actor.id,null,.06);
    changed=true;
   }
+  changed=shopVisits(point,engaged,now)||changed;
   if(strolling)refreshShadows();
   return changed||bodiesChanged||strolling;
  }
@@ -259,7 +428,7 @@ export async function loadStreet(canvas) {
  function showCoat(visible){coat.visible=visible;fittings.coatShown=visible;fittings.pressing.visible=!visible;}
  illuminate(false);
  function face(id,point,dt){
-  const actor=actors.get(id);
+  const actor=character(id);
   if(!actor)return;
   const {model}=actor;
   const target=point?Math.atan2(point.x-model.position.x,point.z-model.position.z):actor.spec.rotationY;
@@ -270,19 +439,20 @@ export async function loadStreet(canvas) {
  }
  const mouths=new Map();
  function speak(id,level,shape){
-  const actor=actors.get(id);if(!actor)return;
+  const actor=character(id);if(!actor)return;
   if(!mouths.has(actor))mouths.set(actor,mouthPose(actor.model,id==='juiceCart'?'vendor':id));
   mouths.get(actor)(level,shape);
  }
- const elder=actors.get('southRice').model,stallPosition=elder.position.clone(),stallYaw=elder.rotation.y;
+ const elder=actors.get('southRice').model,guestPosition=elder.position.clone(),guestYaw=elder.rotation.y;
+ function character(id){return actors.get(id);}
  function reunion(arrived){
   if(fittings.reunion.visible===arrived)return;
   fittings.reunion.visible=arrived;
   if(arrived){elder.position.set(16.16,.18,-11.58);elder.rotation.y=Math.atan2(lin.model.position.x-elder.position.x,lin.model.position.z-elder.position.z);}
-  else{elder.position.copy(stallPosition);elder.rotation.y=stallYaw;}
+  else{elder.position.copy(guestPosition);elder.rotation.y=guestYaw;}
   refreshShadows();
  }
- return {reunion,speak,layout,actors,render,face,showCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
+ return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
 }
 
 function storeSign(text,w,h){
@@ -311,15 +481,8 @@ function furnishShop(scene,shop,palette){
    box(i%2?wood:teal,x,y+.16,z,.43,.32,.22);box(0xc4ab84,x-.07,y+.16,z+.114,.22,.21,.014);
    for(let k=0;k<5;k++)box(iron,x-.07,y+.08+k*.039,z+.125,.2,.012,.01);
    box(cream,x+.13,y+.2,z+.12,.07,.045,.02);box(iron,x+.13,y+.42,z,.012,.23,.012);
-  }else if(shop.kind==='cloth'){
-   const dyes=[0x285f61,0xd6ae88,0x9d5655,0x52688a];
-   box(dyes[i%4],x,y+.075,z,.38,.14,.29);box(cream,x+.1,y+.15,z,.047,.012,.29);
-  }else if(shop.kind==='print'){
-   for(let j=0;j<3;j++)box(j===2?0xb96d57:cream,x+.013*j,y+.022+j*.037,z,.34,.035,.25);
   }else if(shop.kind==='fruit'){
    for(let j=0;j<3;j++)piece(bun,i%3?0xd98a30:0xa4ac57,x+(j-1)*.092,y+.078,z,.14,.14,.15);
-  }else if(shop.kind==='rice'){
-   piece(bun,0xb99c72,x,y+.16,z,.39,.36,.32);piece(round,cream,x,y+.29,z,.25,.045,.22);
   }else{
    piece(round,[0x9c6945,0xab8955,0x765d43][i%3],x,y+.18,z,.25,.36,.25);
    piece(round,iron,x,y+.375,z,.27,.036,.27);box(cream,x,y+.18,z+.125,.14,.13,.014);
@@ -348,8 +511,8 @@ function furnishShop(scene,shop,palette){
  function plaque(text,x,y,z,w,h){
   const sign=storeSign(text,w,h);sign.position.set(x,y,z);group.add(sign);
  }
- const captions={bakery:'每日出爐',radio:'收音機維修',rice:'本地米行',cloth:'棉麻布匹',herbs:'街坊乾貨',fruit:'時令鮮果',print:'街坊印務'};
- const counterLabels={bakery:'蛋撻　菠蘿包',radio:'零件配換',rice:'絲苗米',cloth:'剪布量身',herbs:'陳皮　乾貨',fruit:'鮮果到貨',print:'單簿　信紙'};
+ const captions={drinks:'街坊涼茶',bakery:'每日出爐',radio:'收音機維修',herbs:'街坊乾貨',fruit:'時令鮮果'};
+ const counterLabels={drinks:'竹蔗　茅根',bakery:'蛋撻　菠蘿包',radio:'零件配換',herbs:'陳皮　乾貨',fruit:'鮮果到貨'};
  plaque(counterLabels[shop.kind],0,.67,-.435,1.03,.26);
  if(!shop.stall){
   // A tiled dado, task lamp and workstation frame the display at eye level.
@@ -377,20 +540,22 @@ function furnishShop(scene,shop,palette){
     box(wood,x,y,-2.07,.47,.25,.55);box(cream,x,y,-1.78,.15,.055,.035);}
   }
  }else{
-  box(wood,0,1.10,-1.64,2.57,.07,.37);
-  for(const x of [-1.22,1.22])box(wood,x,.7,-1.64,.075,1.37,.19);
-  for(let i=0;i<5;i++)stock(-.93+i*.45,1.15,-1.63,i);
-  if(shop.kind==='print'){
-   box(iron,-.91,1.34,-1.57,.48,.11,.39);box(iron,-1.1,1.52,-1.59,.075,.36,.1);
-   box(iron,-.92,1.66,-1.59,.42,.07,.11);box(wood,-.70,1.73,-1.59,.07,.21,.07);
-  }else if(shop.kind==='rice'){
-   box(iron,-.92,1.24,-1.59,.41,.11,.30);box(cream,-.92,1.40,-1.59,.28,.22,.13);
-   piece(round,iron,-.92,1.55,-1.59,.39,.033,.29);
-  }else if(shop.kind==='cloth'){
-   for(let i=0;i<4;i++)piece(round,[0x285f61,0xd6ae88,0x9d5655,0x52688a][i],-.87+i*.24,1.53,-1.62,.21,.74,.21);
+  // A shallow shop extension meets the existing facade 1.9 m behind
+  // the threshold. The keeper stands between the counter and the back wall.
+  box(cream,0,.034,-.91,2.96,.06,2.12);
+  for(const side of [-1,1]){
+   box(cream,side*1.43,1.22,-.92,.10,2.46,2.06);
+   box(teal,side*1.43,1.19,.10,.12,2.40,.12);
+   box(wood,side*.96,.43,.04,.78,.84,.10);
+   box(cream,side*.96,1.03,-.12,.78,.065,.43);
+   stock(side*.96,1.07,-.13,1);
   }
-  box(wood,-1.03,.31,-.82,.48,.52,.55);box(wood,1.03,.28,-.74,.48,.46,.49);
-  stock(-1.03,.58,-.82,2);stock(1.03,.52,-.74,1);
+  box(wood,0,1.21,-1.88,2.89,2.46,.09);
+  box(teal,0,2.46,-.9,3.03,.12,2.19);
+  plaque(captions[shop.kind],0,2.29,.17,2.92,.36);
+  box(wood,0,1.66,-1.75,2.54,.055,.25);
+  for(let i=0;i<5;i++)stock(-1+i*.49,1.69,-1.74,i);
+
  }
  for(const {shape,color,matrices} of batches.values()){
   const original=new Map([[wood,'wood'],[teal,'jade'],[iron,'metal'],[cream,'cream'],[0xb99c72,'linen'],[0xd6ae88,'linen'],[0x285f61,'cloth']]).get(color);

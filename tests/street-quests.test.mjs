@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {freshWorld, applyWorldAction, restEvent, parseSave} from '../neighborhood-state.js';
-import {ACTORS, SHOPS, createStreetNav, rackBlocks, rackLayout, shopBlocks} from '../street-space.js';
+import {ACTORS, SHOPS, createStreetNav, rackBlocks, rackLayout, marketRoomBlocks, shopBlocks} from '../street-space.js';
 import {streetQuests, questPoint} from '../street-quests.js';
 import {createFp1Travel} from '../fp1-travel.js';
 
@@ -53,7 +53,11 @@ for(const route of ['buy','borrow']){
 test('guided walks between story destinations reach the interaction point',()=>{
  const layout=JSON.parse(readFileSync(new URL('../assets/street/walk.json',import.meta.url)));
  const w=firstPerson(),rack=rackLayout(w);
- const nav=createStreetNav(layout,p=>Object.values(SHOPS).some(shop=>shopBlocks(shop,p))||rackBlocks(rack,p));
+ const nav=createStreetNav(layout,p=>marketRoomBlocks(p)||Object.values(SHOPS).some(shop=>shopBlocks(shop,p))||rackBlocks(rack,p));
+ for(const [id,shop] of Object.entries(SHOPS)){
+  const counter={x:shop.x+1.2*shop.sin,z:shop.z+1.2*shop.cos};
+  assert.ok(nav.path(ACTORS.qing.point,counter).length,'shop entrance '+id);
+ }
  const points=Object.fromEntries(Object.entries(ACTORS).map(([id,a])=>[id,a.point]));
  for(const id of ['southRice','rest'])points[id]=questPoint({npc:id},w);
  for(const [a,from] of Object.entries(points))for(const [b,to] of Object.entries(points)){

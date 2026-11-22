@@ -28,24 +28,27 @@ with sync_playwright() as p:
     }}""")
     for pose,key in [('双唇闭合','mouthPress'),('张口','jawOpen'),('圆唇','mouthPucker'),('展唇','mouthStretch'),('唇齿音','lowerLipTuck'),('抬舌','tongueUp')]:
         page.get_by_role('button',name=pose,exact=True).click()
-        assert page.evaluate('key=>weights()[key]',key)>.7,pose
+        weights=page.evaluate('weights()')
+        assert 0 < weights[key] <= .20, (pose, weights)
+        assert weights['jawOpen'] <= .20 and weights['mouthPucker'] <= .10 and weights['mouthStretch'] <= .06
+        assert weights['browInnerUp']==weights['mouthSmileLeft']==weights['mouthSmileRight']==0
     page.get_by_text('播放对白',exact=True).click()
-    page.wait_for_function("weights().jawOpen>.40")
+    page.wait_for_function("weights().jawOpen>.04")
     page.wait_for_function("new Set(window.shownJaw).size >= 4")
     page.evaluate("document.querySelector('audio').pause()")
     page.wait_for_function('Object.values(weights()).every(v=>v===0)')
     page.evaluate("async()=>{const a=document.querySelector('audio');a.playbackRate=.72;a.currentTime=.45;await a.play()}")
-    page.wait_for_function("weights().jawOpen>.2")
+    page.wait_for_function("weights().jawOpen>.025")
     page.locator('#actor').select_option('fang')
     page.wait_for_function("!document.querySelector('#play').disabled && faceAudit.length===2")
     assert page.evaluate('Object.values(weights(0)).every(v=>v===0)')
     page.get_by_text('播放对白',exact=True).click()
-    page.wait_for_function("weights().jawOpen>.2")
+    page.wait_for_function("weights().jawOpen>.025")
     page.wait_for_function("document.querySelector('audio').ended && Object.values(weights()).every(v=>v===0)",timeout=15000)
     page.goto(url+'/story-preview.html?story=table')
     page.locator('#choices button').first.wait_for(timeout=90000)
     page.get_by_text('听这句',exact=True).click()
-    page.wait_for_function('faceAudit.some(group=>group.some(b=>b.weights[b.keys.jawOpen]>.15))')
+    page.wait_for_function('faceAudit.some(group=>group.some(b=>b.weights[b.keys.jawOpen]>.025))')
     assert not errors,errors
     print('PASS six distinct poses, real speech, pause, slow seek, speaker switch, ending closure and story dialogue')
     browser.close()

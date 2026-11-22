@@ -1,3 +1,4 @@
+import {PASSERS} from './street-space.js';
 import {NPC_VOICE_CLIPS,NPC_SPEECH_CUES} from './npc-voice-manifest.js';
 import {voiceUrl} from './voice-endpoint.js';
 
@@ -18,6 +19,7 @@ const cast={
  northTurn:['Rocky',.96,1.04], eastTurn:['Kiki',.93,.96],
 };
 export function characterVoice(id){
+ if(Object.hasOwn(PASSERS,id))id=PASSERS[id].model;
  if(!Object.hasOwn(cast,id))return null;
  const [voice,register,tempo]=cast[id];
  return {voice,register,tempo};
@@ -84,10 +86,11 @@ export function voiceFailure(error){
 }
 
 // Jaw, rounding, spread, upper lip, bilabial press, lower lip tuck and tongue lift.
+// Dialogue uses a small part of the rig's travel, even on a stressed vowel.
 export const mouthShapes={
- A:[0,0,0,0,1,0,0],B:[.19,0,.76,.64,0,0,.16],C:[.62,.03,.43,.69,0,0,0],
- D:[1,0,.06,.53,0,0,.06],E:[.56,.66,0,.24,0,0,0],F:[.28,1,0,.08,0,0,0],
- G:[.19,.02,.16,.77,0,1,0],H:[.49,0,.22,.50,0,0,1],X:[0,0,0,0,0,0,0],
+ A:[0,0,0,0,.09,0,0],B:[.05,0,.05,.04,0,0,.01],C:[.14,.01,.025,.05,0,0,0],
+ D:[.20,0,0,.06,0,0,0],E:[.13,.05,0,.03,0,0,0],F:[.08,.09,0,.02,0,0,0],
+ G:[.045,0,.01,.05,0,.09,0],H:[.10,0,.015,.04,0,0,.10],X:[0,0,0,0,0,0,0],
 };
 function cuePose(timing,time){
  const [starts,shapes]=timing;

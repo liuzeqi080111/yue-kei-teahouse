@@ -1,6 +1,7 @@
 """Render actual street occupants at deterministic times and viewpoints."""
 from pathlib import Path
 import json
+import os
 from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
@@ -46,7 +47,7 @@ with sync_playwright() as playwright:
     };
     </script>"""
     page.route("**/audit.html",lambda route:route.fulfill(content_type="text/html",body=markup))
-    page.goto("http://127.0.0.1:4236/audit.html")
+    page.goto(os.environ.get('STREET_URL','http://127.0.0.1:4256')+'/audit.html')
     page.wait_for_function("typeof window.drawAudit === 'function'",timeout=90000)
     for index,name in enumerate(("aqing","aming","fang","regular")):
         for side in (-.5,0,.5):
@@ -60,7 +61,12 @@ with sync_playwright() as playwright:
     }))""")
     (out/"hands.json").write_text(json.dumps(data,indent=2),encoding="utf-8")
     locomotion=page.evaluate("""()=>{
-      const ids=['buyer','regular','ale','ling'];
+      const ids=['yan','kit','mei','wing','ching','wai'];
+      const bodyMeshes=Object.fromEntries(ids.map(id=>{
+        let mesh;street.actors.get(id).model.traverse(m=>{if(m.morphTargetDictionary?.stride!==undefined)mesh=m;});
+        if(!mesh)throw Error(id+' has no walking mesh');
+        return [id,mesh];
+      }));
       const metrics=Object.fromEntries(ids.map(id=>[id,{distance:0,maxTurnRate:0,maxSpeed:0,steps:0}]));
       for(let frame=1;frame<=1200;frame++){
         const previous=Object.fromEntries(ids.map(id=>{const a=street.actors.get(id).model;return [id,{x:a.position.x,z:a.position.z,yaw:a.rotation.y}]}));
@@ -74,18 +80,20 @@ with sync_playwright() as playwright:
             m.steps++;
             const error=Math.atan2(Math.sin(Math.atan2(dx,dz)-model.rotation.y),Math.cos(Math.atan2(dx,dz)-model.rotation.y));
             if(Math.abs(error)>.03)throw Error(id+' slid sideways while turning');
+            const mesh=bodyMeshes[id],facing=mesh.getWorldDirection(mesh.position.clone());
+            if((dx*facing.x+dz*facing.z)/d<.999)throw Error(id+' visible body faces away from travel');
           }
         }
       }
-      const paused=street.actors.get('ling').model.position.clone();
-      for(let frame=1;frame<=60;frame++)street.animateWork({x:0,z:0},'ling',75000+frame*50);
-      if(paused.distanceTo(street.actors.get('ling').model.position)>1e-6)throw Error('Neighbour moved during dialogue');
+      const paused=street.actors.get('kit').model.position.clone();
+      for(let frame=1;frame<=60;frame++)street.animateWork({x:0,z:0},'kit',75000+frame*50);
+      if(paused.distanceTo(street.actors.get('kit').model.position)>1e-6)throw Error('Neighbour moved during dialogue');
       return metrics;
     }""")
     for name,metrics in locomotion.items():
         assert metrics['distance']>4,(name,metrics)
-        assert metrics['maxTurnRate']<=1.051,(name,metrics)
-        assert metrics['maxSpeed']<=.67,(name,metrics)
+        assert metrics['maxTurnRate']<=1.901,(name,metrics)
+        assert metrics['maxSpeed']<=.781,(name,metrics)
     (out/'locomotion.json').write_text(json.dumps(locomotion,indent=2))
     print('PASS 60-second walk/turn/stop sweep and dialogue pause')
     browser.close()

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import {storyFiles} from './story-files.js';
-import {SHOPS} from './street-space.js';
+import {SHOPKEEPER_CAST} from './street-space.js';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
@@ -15,7 +15,7 @@ try{process.loadEnvFile(path.join(root,'.env'));}catch{/* 缺文件或其他读�
 const allowed=new Set(['index.html','style.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','practice-audio.js','practice-recorder.js','dining-actions.js','dining-room.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','controller.js','voice.js','voice-bridge.js','voice.css','ambient.js','sound-priority.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','music.js','voice-capture.js','voice-endpoint.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css','assets/ow-world.png','assets/ow-player.png','assets/ow-npcs.png','assets/ow-home.png','assets/ow-laundry.png','assets/ow-qing-coats.png','assets/ow-world-day.png','assets/ow-world-night.png']);
 for(const name of [...storyFiles,'street-game.js','street-game.css','street-space.js','street-gomoku.js','street-quests.js','street-fixtures.js','street-fang.js','street-render.js',
  'assets/street/walk.json','assets/street/district.glb',
- ...Object.keys(SHOPS).filter(id=>id!=='juiceCart').map(id=>'assets/street/shopkeepers/'+id+'.glb'),
+ ...Object.keys(SHOPKEEPER_CAST).filter(id=>id!=='juiceCart').map(id=>'assets/street/shopkeepers/'+id+'.glb'),
  'assets/street/three/build/three.module.min.js','assets/street/three/build/three.core.min.js',
  'assets/street/three/examples/jsm/loaders/GLTFLoader.js','assets/street/three/examples/jsm/utils/BufferGeometryUtils.js',
  ...['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].map(id=>'assets/street/'+id+'-styled-v3.glb'),

@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mouthPose} from './dining-room.js';
 import {followSpeech} from './voice-clips.js';
 import {STREET_CLIPS,ROLE_CLIPS} from './fp1-clips.js';
-import {SHOPS} from './street-space.js';
+import {SHOPKEEPER_CAST} from './street-space.js';
 
 const cast={
  aming:['阿明','story-table-tea'],aqing:['阿晴','fp1-line-meeting'],
@@ -13,7 +13,7 @@ const cast={
  lin:['林伯','street-line-lam-15'],vendor:['蔗水摊主','street-line-b7d05e6879dc36'],
 };
 const rows=Object.entries(cast).map(([id,[name,clip]])=>[id,name,id+'-styled-v3','assets/'+clip+'.wav']);
-for(const [id,shop] of Object.entries(SHOPS)){
+for(const [id,shop] of Object.entries(SHOPKEEPER_CAST)){
  if(id!=='juiceCart') rows.push([id,shop.name,'shopkeepers/'+id,ROLE_CLIPS[id+'|'+shop.line]??STREET_CLIPS[shop.line]]);
 }
 const get=selector=>document.querySelector(selector);
