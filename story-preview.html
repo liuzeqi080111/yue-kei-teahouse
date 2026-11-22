@@ -3,21 +3,13 @@
 <header><div><span id="place"></span><h1></h1></div><nav><a id="other"></a><a href="./">回街区封面</a></nav></header>
 <div id="loading" role="status">正在打开街区…</div>
 <section id="photo-view" aria-label="待选的街坊合照" hidden></section>
-<section id="dialogue" hidden><span id="speaker"></span><p id="line" lang="yue"></p><p id="meaning"></p><div id="board-lesson" hidden>
- <div class="board-heading"><b class="board-phase"></b><span class="board-score"></span></div>
- <div class="board-pulse" aria-label="第一拍是板，后面三拍是叮"><span>一 · 板</span><span>二 · 头叮</span><span>三 · 中叮</span><span>四 · 尾叮</span></div>
- <div class="board-sweep" aria-hidden="true"><i></i></div>
- <strong class="board-cue"></strong><small class="board-feedback" role="status"></small>
+<section id="dialogue" hidden><span id="speaker"></span><p id="line" lang="yue"></p><p id="meaning"></p><div id="song-panel" hidden>
+ <div class="song-heading"><strong id="board-cue" role="status"></strong><span id="board-feedback" role="status"></span></div>
+ <div class="song-track" role="progressbar" aria-label="南音唱段进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <i class="song-fill"></i><span class="song-marks" aria-hidden="true"></span><i class="song-head" aria-hidden="true"></i>
+ </div>
+ <small>白线碰到金色板位时，敲一下。</small>
+ <a class="song-credit" href="https://chinoperl.org/journal/back-volumes-2021-2030.html" target="_blank" rel="noopener noreferrer">杜焕演唱 · 1975 年富隆茶楼录音 ↗</a>
+ <audio id="master-recording" preload="none"></audio>
 </div><div id="choices"></div><small id="status" role="status"></small></section>
-<dialog id="nanyin-listen" aria-labelledby="listen-title">
- <header><h2 id="listen-title">听真人唱南音</h2><button id="close-listen" type="button">回到拍板</button></header>
- <div id="listen-recording"><p>杜焕《武松打虎》 · 1975 年香港富隆茶楼现场，荣鸿曾录音</p>
- <audio id="master-recording" controls preload="none" aria-label="杜焕在茶楼唱南音"></audio>
- <div id="live-practice" hidden><strong id="live-cue" role="status"></strong><span id="live-score"></span><button id="live-tap" type="button">敲拍板</button></div>
- <button id="start-live-practice" type="button">跟这段原声敲两下</button>
- <a href="https://chinoperl.org/journal/back-volumes-2021-2030.html" target="_blank" rel="noopener noreferrer">CHINOPERL 期刊原录音 ↗</a></div>
- <p id="video-title" hidden>一才鑼鼓《講下嘢，唱下歌》 · 13:52 慢板唱法</p>
- <div id="nanyin-player"></div>
- <footer><button id="switch-reference" type="button">看慢板教学</button>
- <a href="https://www.youtube.com/watch?v=DtuYBU4DKas&amp;t=832s" target="_blank" rel="noopener noreferrer">艺团教学原片 ↗</a></footer>
-</dialog></main><script type="module" src="story-preview.js"></script></body></html>
+</main><script type="module" src="story-preview.js"></script></body></html>

@@ -9,24 +9,17 @@
 #choices button:disabled{opacity:.46;cursor:default}
 @media(max-width:600px){#photo-view{inset:14% 4% 32%;flex-direction:column;gap:5px}#photo-view figure{max-width:80%;max-height:48%;padding:4px}#photo-view img{height:100%}#photo-view figcaption{font-size:12px}}
 
-#board-lesson{width:min(420px,96%);margin:8px auto;padding:10px 16px;background:#302920f2;border:1px solid #ae8d61;border-radius:12px;color:#fff4d9;text-shadow:none}
-.board-heading,.board-pulse{display:flex;justify-content:space-between;align-items:center;gap:5px}
-.board-heading{font-size:14px}.board-score{color:#e8c999;font-variant-numeric:tabular-nums}
-.board-pulse{margin:8px 0}.board-pulse span{width:25%;padding:6px 2px;border-radius:6px;color:#ead8b8;background:#504437;font-size:14px}
-.board-pulse .current{background:#efd6a6;color:#342a20;box-shadow:inset 0 -3px #bd8f51}
-.board-pulse span:first-child.current{background:#ffe9ac;box-shadow:inset 0 -4px #dc8051;font-weight:700}
-.board-cue,.board-feedback{display:block}.board-feedback{min-height:1.4em;font-size:13px;margin-top:2px;color:#ead8b8}
-#nanyin-listen{width:min(560px,94vw);max-height:90dvh;color:#f9ebcc;background:#302920;border:1px solid #d8b986;border-radius:14px;padding:18px;box-shadow:0 10px 45px #0008}
-#nanyin-listen::backdrop{background:#18130cbb}
-#nanyin-listen header{position:static;pointer-events:auto;padding:0;background:none;align-items:center}
-#nanyin-listen h2{margin:0;font-size:21px}#nanyin-listen p{line-height:1.5}#nanyin-listen audio{width:100%;margin-bottom:12px}
-#nanyin-listen button{background:#f4ddb3;color:#392c1e;border:none;border-radius:20px;padding:8px 14px;min-height:42px;cursor:pointer}
-#nanyin-listen footer{display:flex;align-items:center;gap:16px;margin-top:14px}#nanyin-listen a{color:#f3d5a1;font-size:14px}
-#nanyin-player iframe{width:100%;aspect-ratio:16 / 9;border:0}
-@media(max-height:550px){body:has(#board-lesson:not([hidden])) #line{font-size:18px}#board-lesson{padding:5px 12px;margin:4px auto}.board-pulse{margin:3px 0}}
-
-.board-sweep{height:3px;background:#685944;margin:0 0 6px;overflow:hidden;border-radius:3px}.board-sweep i{display:block;height:100%;background:#e6bf74;transform-origin:left;transform:scaleX(0)}
-#board-lesson[data-window="hit"] .board-cue{color:#ffe095}#board-lesson[data-window="hit"] .board-pulse span:first-child{background:#ffe09c;color:#382415}
-
-#listen-recording>a{display:inline-block;margin:8px 0}#start-live-practice{margin-right:12px}#live-practice{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:4px 0 12px;padding:12px;background:#45392c;border-radius:8px}
-#live-tap{grid-column:1/-1}#live-tap[data-window="hit"]{box-shadow:0 0 0 3px #eba659}
+#song-panel{width:min(470px,96%);margin:8px auto;padding:10px 18px 8px;background:#302920f5;border:1px solid #ae8d61;border-radius:12px;text-shadow:none}
+.song-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;color:#ffdf9e}
+#board-feedback,#song-panel small{font-size:13px;color:#f0dfc2}
+.song-credit{display:block;margin-top:2px;color:#d6bf98;font-size:12px;text-underline-offset:2px}
+.song-track{position:relative;height:9px;margin:14px 3px 10px;background:#615342;border-radius:8px;--position:0%}
+.song-fill{position:absolute;inset:0 auto 0 0;width:var(--position);background:#a78150;border-radius:inherit}
+.song-head,.song-mark{position:absolute;top:50%;transform:translate(-50%,-50%)}
+.song-head{left:var(--position);width:4px;height:24px;background:#fffaf0;border-radius:2px;box-shadow:0 0 0 1px #4c3727}
+.song-mark{border:2px solid #ffd078;width:11px;height:16px;border-radius:3px;background:#75522b}
+.song-mark[data-state="now"]{background:#ffe5a5;box-shadow:0 0 0 4px #f5bb514d}
+.song-mark[data-state="hit"]{background:#a9d4a6;border-color:#d2e8c8}
+.song-mark[data-state="missed"]{background:#514940;border-color:#a29889}
+#song-panel[data-window="hit"]+#choices .primary{background:#ffe191;box-shadow:0 0 0 3px #f5bd6266}
+@media(max-height:550px){#song-panel{margin:3px auto;padding:5px 12px}.song-track{margin:9px 3px}body:has(#song-panel:not([hidden])) #line{font-size:18px}}

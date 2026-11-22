@@ -324,7 +324,11 @@ export async function createStoryScene(canvas,chapter){
   }
  }
  function speech(id,value,shape){speaker=id;level=value;speechShape=shape;}
- function tick(time,playhead=0){
+ function tick(time,singing){
+  if(mode==='riddle'||mode==='gather'){
+   const level=singing?.voice??0;
+   speech('master',level,[level*.80,level*.18,level*.20,level*.14]);
+  }
   if(serviceTake?.rig.visible){
    serviceTake.mixer.setTime(Math.min(serviceTake.duration,(time-entered)/1000));
    serviceTake.mouth(speaker==='aming'?level:0,speechShape);
@@ -344,7 +348,7 @@ export async function createStoryScene(canvas,chapter){
    const sw=targetTalk?.023*Math.sin(time*.006):.009*Math.sin(time*.001+id.length);
    head.rotateY(sw);
   }
-  reunion?.tick(time,entered,mode,playhead);
+  reunion?.tick(time,entered,mode,singing);
  }
  const pointer=new T.Raycaster();
  function hit(x,y){

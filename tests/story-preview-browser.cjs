@@ -11,6 +11,20 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    const ctx=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1100,height:720}});
    const page=await ctx.newPage();page.on('pageerror',err=>errors.push(err.message));
    page.on('response',r=>{if(r.status()>=400)errors.push(r.status()+' '+r.url());});
+    // Exercise native media seeking and wall-clock playback without depending on the journal's network.
+    const sampleRate=8000;
+    const wav=Buffer.alloc(44+sampleRate*2*65);
+    wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);
+    wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);
+    wav.writeUInt32LE(sampleRate,24);wav.writeUInt32LE(sampleRate*2,28);
+    wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);
+    await page.route('https://chinoperl.org/audio/*.mp3',async route=>{
+     const range=/bytes=(\d+)-(\d*)/.exec(route.request().headers().range||'');
+     const start=range?Number(range[1]):0,end=range?.[2]?Number(range[2]):wav.length-1;
+     const headers={'Accept-Ranges':'bytes','Content-Type':'audio/wav'};
+     if(range)headers['Content-Range']='bytes '+start+'-'+end+'/'+wav.length;
+     await route.fulfill({status:range?206:200,headers,body:wav.subarray(start,end+1)});
+    });
    async function open(story){await page.goto(root+'/story-preview.html?story='+story);await page.locator('#choices button').first().waitFor({timeout:90000});}
    async function pick(n=0){const b=page.locator('#choices button').nth(n);await b.click();assert(await page.locator('#choices button').first().isVisible());}
    const stored=story=>page.evaluate(id=>JSON.parse(localStorage.getItem('yuekei-story-trial-v1:'+id)),story);
@@ -25,63 +39,40 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    assert.equal(await page.locator('h1').innerText(),'预埋你嗰份');
    await pick();
    const shot=name=>page.screenshot({path:'output/ba-review/reunion-'+name+(mobile?'-phone':'-desktop')+'.jpg'});
-   async function beat(reload=false){
+   async function song(node,dest,reload=false){
     assert.equal(await page.locator('#speaker').innerText(),'南音师傅');
-    assert.equal(await page.locator('#record').count(),0);
-    assert(await page.locator('#choices button').nth(1).isDisabled());
-    const lesson=page.locator('#board-lesson'),beat=page.locator('#choices button').first();
-    const count=()=>lesson.locator('.board-score').innerText();
-    const atPulse=(phase,pulse)=>page.waitForFunction(([phase,pulse])=>{
-     const d=document.querySelector('#board-lesson').dataset;return d.phase===phase&&d.pulse===pulse;
-    },[phase,pulse]);
-    async function onTime(){
-     await page.waitForFunction(()=>document.querySelector('#board-lesson').dataset.window==='hit');
+    assert.equal(await page.locator('.song-mark').count(),3);
+    assert.equal(await page.locator('#record,dialog').count(),0);
+    const panel=page.locator('#song-panel'),audio=page.locator('#master-recording');
+    const beat=page.getByRole('button',{name:'敲板',exact:true});
+    await beat.waitFor();assert(await audio.evaluate(a=>!a.paused&&a.currentTime>30));
+    async function atMark(index){
+     await page.waitForFunction(index=>{
+      const mark=document.querySelectorAll('.song-mark')[index];
+      if(mark?.dataset.state!=='now')return false;
+      document.querySelector('#choices button').click();return true;
+     },index);
+    }
+    if(node==='riddle'){
      await beat.evaluate(b=>b.click());
+     assert.equal(await panel.locator('[data-state="hit"]').count(),0);
     }
-    await beat.click();await atPulse('demo','1');await beat.evaluate(b=>b.click());
-    assert.match(await count(),/0 \/ 2/);
-    await atPulse('play','1');await beat.evaluate(b=>b.click());
-    assert.match(await lesson.locator('.board-feedback').innerText(),/迟/);
-    await atPulse('play','3');await beat.evaluate(b=>b.click());
-    assert.match(await lesson.locator('.board-feedback').innerText(),/早/);
-    await onTime();assert.match(await count(),/1 \/ 2/);
-    await beat.evaluate(b=>b.click());assert.match(await count(),/1 \/ 2/);
-    if(reload){await open('reunion');assert.match(await count(),/1 \/ 2/);await beat.click();}
-    else await atPulse('play','2');
-    await onTime();assert.match(await count(),/2 \/ 2/);await pick(1);
-   }
-   async function recordingBeat(){
-    // Exercise native media seeking and wall-clock playback without depending on the journal's network.
-    const sampleRate=8000;
-    const wav=Buffer.alloc(44+sampleRate*2*50);
-    wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);
-    wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);
-    wav.writeUInt32LE(sampleRate,24);wav.writeUInt32LE(sampleRate*2,28);
-    wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);
-    await page.route('https://chinoperl.org/audio/*.mp3',async route=>{
-     const range=/bytes=(\d+)-(\d*)/.exec(route.request().headers().range||'');
-     const start=range?Number(range[1]):0,end=range?.[2]?Number(range[2]):wav.length-1;
-     const headers={'Accept-Ranges':'bytes','Content-Type':'audio/wav'};
-     if(range)headers['Content-Range']='bytes '+start+'-'+end+'/'+wav.length;
-     await route.fulfill({status:range?206:200,headers,body:wav.subarray(start,end+1)});
-    });
-    await page.getByRole('button',{name:/听真人唱/}).click();
-    await page.getByRole('button',{name:'跟这段原声敲两下'}).click();
-    const tap=page.locator('#live-tap');
-    await page.waitForFunction(()=>!document.querySelector('#live-tap').disabled);
-    await tap.evaluate(b=>b.click());assert.match(await page.locator('#live-score').innerText(),/0 \/ 2/);
-    for(const score of [1,2]){
-     await page.waitForFunction(()=>document.querySelector('#live-tap').dataset.window==='hit');
-     await tap.evaluate(b=>b.click());assert.match(await page.locator('#live-score').innerText(),new RegExp(score+' / 2'));
-     if(score===1)await page.waitForFunction(()=>document.querySelector('#live-tap').dataset.window==='closed');
+    await atMark(0);
+    await beat.evaluate(b=>b.click());assert.equal(await panel.locator('[data-state="hit"]').count(),1);
+    if(reload){
+     await open('reunion');await beat.waitFor();
+     assert.equal(await panel.locator('[data-state="hit"]').count(),1);
     }
-    await page.getByRole('button',{name:'回到拍板'}).click();
-    assert.equal(await page.locator('#master-recording').getAttribute('src'),null);
-    await pick(1);
+    await atMark(1);
+    assert.equal(await panel.locator('[data-state="hit"]').count(),2);
+    assert.equal(await page.locator('body').getAttribute('data-moment'),node);
+    await shot(node);
+    await page.waitForFunction(dest=>document.body.dataset.moment===dest,dest);
+    assert.equal(await audio.getAttribute('src'),null);
    }
-   await shot('riddle');await beat(true);await pick(mobile?1:0);await pick();
+   await song('riddle','guess',true);await pick(mobile?1:0);await pick();
    assert.equal((await stored('reunion')).node,'dish');await page.waitForTimeout(950);await shot('dish');
-   await pick();await pick();if(mobile)await recordingBeat();else await beat();await pick(mobile?1:0);await pick();
+   await pick();await pick();await song('gather','call');await pick(mobile?1:0);await pick();
    const proofs=(await stored('reunion')).photos;
    assert.equal(proofs.length,2);assert.notEqual(proofs[0],proofs[1]);
    assert(proofs.every(src=>src.startsWith('data:image/jpeg;base64,')&&src.length>10000));

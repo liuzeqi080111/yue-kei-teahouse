@@ -1,4 +1,4 @@
-import {createBoardLesson,rehearseRecording} from './nanyin-practice.js';
+import {accompanySinger} from './nanyin-practice.js';
 import {reunionSaveKey,isPrint} from './reunion-wall.js';
 import {reunionIntents} from './story-reunion.js';
 import {chapters, morning, names, voices} from './story-chapters.js';
@@ -13,19 +13,20 @@ const book = chapters[chapter];
 const key = chapter==='reunion'?reunionSaveKey:'yuekei-story-trial-v1:table';
 const defaults = () => chapter==='table'
  ? {node:book.start,drink:null,invited:false}
- : {node:book.start,onBeat:0,photos:null,photo:null};
+ : {node:book.start,songHits:0,photos:null,photo:null};
 let state = defaults();
 try {
  const saved = JSON.parse(localStorage.getItem(key));
  if (saved && Object.hasOwn(book.nodes,saved.node)) Object.assign(state,saved);
  if(chapter==='reunion'){
-  state.onBeat=Number.isInteger(state.onBeat)?Math.max(0,Math.min(2,state.onBeat)):0;
+  state.songHits=Number.isInteger(state.songHits)?state.songHits & 7:0;
+  delete state.onBeat;
   delete state.beats;
   if(state.node==='proof' && !(Array.isArray(state.photos)&&state.photos.length===2&&state.photos.every(isPrint)))state.node='ready';
   if(['tidy','laugh'].includes(state.node)&&!isPrint(state.photo))state.node='ready';
  }
 } catch {}
-let lesson,scene, generation=0, playback, stopTracking, audioUrl;
+let song,scene, generation=0, playback, stopTracking, audioUrl;
 const audio=new Audio();
 let recording=false,transcription,revision=0;
 const recorder=createPracticeRecorder(active=>{recording=active;});
@@ -102,60 +103,22 @@ function transition(dest){
   state.photo=state.photos[dest==='tidy'?0:1];
   state.photos=null;
  }
- if(chapter==='reunion')state.onBeat=0;
+ if(chapter==='reunion')state.songHits=0;
  if(chapter==='table'&&(dest==='tea'||dest==='lemon'))state.drink=dest;
  if(dest==='invite'||dest==='takeaway')state.invited=dest==='invite';
  state.node=dest;display();persist();
 }
-const listening=$('#nanyin-listen');
-const recordingExample=$('#master-recording');
-let endRecordingPractice;
-function resetRecordingPractice(){
- endRecordingPractice?.();endRecordingPractice=null;$('#live-practice').hidden=true;
- $('#start-live-practice').disabled=recordingExample.readyState<1;
-}
-recordingExample.addEventListener('loadedmetadata',()=>{$('#start-live-practice').disabled=false;});
-$('#start-live-practice').onclick=()=>{
- resetRecordingPractice();$('#live-practice').hidden=false;
- endRecordingPractice=rehearseRecording(recordingExample,state.node,{
-  button:$('#live-tap'),cue:$('#live-cue'),progress:$('#live-score'),
-  knock:()=>lesson.knock(),done:()=>lesson.completeFromRecording()
+function sing(label,dest){
+ const tap=button('敲板',()=>{},true);
+ const next=button(label,()=>transition(dest));next.hidden=true;
+ song=accompanySinger({
+  node:state.node,audio:$('#master-recording'),panel:$('#song-panel'),tap,next,
+  hits:state.songHits,onHit:hits=>{state.songHits=hits;persist();},
+  strike:()=>scene.strike(),advance:()=>transition(dest)
  });
-};
-function referenceMode(video){
- resetRecordingPractice();
- recordingExample.pause();$('#nanyin-player').replaceChildren();
- $('#listen-recording').hidden=video;$('#video-title').hidden=!video;
- $('#switch-reference').textContent=video?'听杜焕现场录音':'看慢板教学';
- if(video){
-  const player=document.createElement('iframe');
-  player.title='一才鑼鼓 · 南音慢板真人示范';
-  player.src='https://www.youtube-nocookie.com/embed/DtuYBU4DKas?start=832&autoplay=1&playsinline=1';
-  player.allow='autoplay; encrypted-media; fullscreen';player.allowFullscreen=true;
-  player.referrerPolicy='strict-origin-when-cross-origin';$('#nanyin-player').append(player);
- }else{
-  // Stream the journal's published listening example with its original credit.
-  if(!recordingExample.hasAttribute('src'))recordingExample.src='https://chinoperl.org/audio/1-01WuSongKillsTheTiger.mp3';
-  void recordingExample.play().catch(()=>{});
- }
-}
-function openReference(){lesson?.interrupt();listening.showModal();referenceMode(false);}
-$('#switch-reference').onclick=()=>referenceMode($('#video-title').hidden);
-function closeReference(){
- resetRecordingPractice();
- recordingExample.pause();recordingExample.removeAttribute('src');recordingExample.load();
- $('#nanyin-player').replaceChildren();listening.close();
-}
-$('#close-listen').onclick=closeReference;
-listening.addEventListener('cancel',event=>{event.preventDefault();closeReference();});
-function boardControls(label,dest){
- const beatButton=button('',()=>{},true),nextButton=button(label,()=>transition(dest));
- button('听真人唱 · 跟原声敲',openReference);
- lesson=createBoardLesson({panel:$('#board-lesson'),beatButton,nextButton,points:state.onBeat,
-  onPoint:points=>{state.onBeat=points;persist();},onStrike:()=>scene.strike()});
 }
 function display(){
- revision++;recorder.cancel();transcription?.abort();lesson?.destroy();lesson=null;stopAudio();
+ revision++;recorder.cancel();transcription?.abort();song?.destroy();song=null;stopAudio();
 
  document.body.dataset.moment=state.node;
  const n=state.node,[actor,original,translation,options]=book.nodes[n];
@@ -168,8 +131,8 @@ function display(){
  $('#meaning').textContent=meaning;$('#status').textContent='';$('#choices').replaceChildren();
  scene.set(n,state);scene.tick(performance.now());scene.render();showPhotoChoices();
  const playing=actor==='master';
- $('#board-lesson').hidden=!playing;
- if(playing)boardControls(...options[0]);
+ $('#song-panel').hidden=!playing;
+ if(playing)sing(...options[0]);
  else for(const [index,[label,dest]] of options.entries())button(label,()=>transition(dest),index===0);
  if(!options.length){
   button('再玩一次',()=>{state=defaults();display();persist();},true);
@@ -181,15 +144,14 @@ function display(){
 }
 $('h1').textContent=book.title;document.title=book.title+' · 街坊故事';
 $('#other').href='?story='+book.other;$('#other').textContent=chapters[book.other].title;
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&listening.open)closeReference();});
 const canvas=$('#stage');
 canvas.addEventListener('click',event=>{
  const target=scene?.hit(event.clientX,event.clientY);
  if(target==='beat')$('#choices button')?.click();
  if(target==='lid')transition('dish');
 });
-window.addEventListener('pagehide',()=>{lesson?.interrupt();if(listening.open)closeReference();stopAudio();recorder.cancel();transcription?.abort();});
+window.addEventListener('pagehide',()=>{song?.pause();stopAudio();recorder.cancel();transcription?.abort();});
 try{
  scene=await createStoryScene(canvas,chapter);$('#loading').hidden=true;$('#dialogue').hidden=false;display();
- let last=0;function frame(t){if(!document.hidden&&t-last>40){scene.tick(t,lesson?.elapsed()??-1);scene.render();last=t;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+ let last=0;function frame(t){if(!document.hidden&&t-last>40){scene.tick(t,song?.pose());scene.render();last=t;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
 }catch(error){console.error(error);$('#loading').textContent='场景未能载入，请使用支持 WebGL 的浏览器刷新重试。';}

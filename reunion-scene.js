@@ -1,4 +1,3 @@
-import {barSeconds} from './nanyin-practice.js';
 import {createReunionWall} from './reunion-wall.js';
 import * as T from 'three';
 
@@ -96,6 +95,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    actor('friend',.18,.19,-3.12,1.42);
    actor('aming',id==='ready'?.63:-.32,.19,id==='ready'?-3.55:-3.21,id==='ready'?1.42:-1.24);
    shot([2.76,1.59,-2.69],[.29,1.48,-2.48],57);
+   if(id==='gather')shot([2.20,1.60,-1.91],[.22,1.48,-1.79],52);
   }else{
    actor('fang',1.61,.19,-1.21,1.55,true);actor('regular',1.61,.19,-1.83,1.53,true);
    actor('master',2.65,.19,-1.84,-1.57,true);
@@ -106,15 +106,12 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    if(id==='dish')shot([2.12,1.52,-1.01],[2.09,.98,-1.54],44);
   }
  }
- function tick(now,entered,mode,playhead){
+ function tick(now,entered,mode,singing){
   if(boards.visible){
    const performer=cast.master,arm=performer.bones.LeftForeArm;
    arm.quaternion.copy(performer.neutral.LeftForeArm);
-   if(playhead>=0){
-    const phase=playhead%barSeconds/barSeconds;
-    const lift=phase>.73?(phase-.73)/.27:Math.max(0,1-phase/.10);
-    arm.rotateX(-.49*lift);performer.bones.Head.rotateX(.056*Math.cos(phase*2*Math.PI));
-   }
+   arm.rotateX(-.49*(singing?.lift??0));
+   if(singing)performer.bones.Head.rotateX(.045*singing.lift);
   }
   slat.rotation.z=-.24+.20*Math.max(0,1-(now-lastStrike)/180);
   if(mode==='dish'){
