@@ -11,22 +11,23 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    const ctx=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1100,height:720}});
    const page=await ctx.newPage();page.on('pageerror',err=>errors.push(err.message));
    page.on('response',r=>{if(r.status()>=400)errors.push(r.status()+' '+r.url());});
-    // Exercise native media seeking and wall-clock playback without depending on the journal's network.
-    const sampleRate=8000;
-    const wav=Buffer.alloc(44+sampleRate*2*65);
-    wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);
-    wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);
-    wav.writeUInt32LE(sampleRate,24);wav.writeUInt32LE(sampleRate*2,28);
-    wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);
-    await page.route('https://chinoperl.org/audio/*.mp3',async route=>{
-     const range=/bytes=(\d+)-(\d*)/.exec(route.request().headers().range||'');
-     const start=range?Number(range[1]):0,end=range?.[2]?Number(range[2]):wav.length-1;
-     const headers={'Accept-Ranges':'bytes','Content-Type':'audio/wav'};
-     if(range)headers['Content-Range']='bytes '+start+'-'+end+'/'+wav.length;
-     await route.fulfill({status:range?206:200,headers,body:wav.subarray(start,end+1)});
-    });
+   const origin=new URL(root).origin;
+   await ctx.route(/^https?:/,route=>{
+    const request=route.request();
+    if(new URL(request.url()).origin===origin)return route.continue();
+    if(request.resourceType()==='media'||/\.(wav|mp3)(\?|$)/i.test(request.url()))errors.push('External audio: '+request.url());
+    return route.abort('internetdisconnected');
+   });
    async function open(story){await page.goto(root+'/story-preview.html?story='+story);await page.locator('#choices button').first().waitFor({timeout:90000});}
-   async function pick(n=0){const b=page.locator('#choices button').nth(n);await b.click();assert(await page.locator('#choices button').first().isVisible());}
+   async function pick(n=0){
+    const before=await page.locator('body').getAttribute('data-moment');
+    await page.locator('#choices button').nth(n).click();
+    if(before==='ready'){
+     assert.equal(await page.locator('body').getAttribute('data-moment'),'enterPortrait');
+     await page.getByRole('button',{name:/挂第一张/}).waitFor();
+    }
+    assert(await page.locator('#choices button').first().isVisible());
+   }
    const stored=story=>page.evaluate(id=>JSON.parse(localStorage.getItem('yuekei-story-trial-v1:'+id)),story);
    await page.goto(root+'/?street=3d');
    await page.locator('.vinyl-new').click();
@@ -45,7 +46,12 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
     assert.equal(await page.locator('#record,dialog').count(),0);
     const panel=page.locator('#song-panel'),audio=page.locator('#master-recording');
     const beat=page.getByRole('button',{name:'敲板',exact:true});
-    await beat.waitFor();assert(await audio.evaluate(a=>!a.paused&&a.currentTime>30));
+    await beat.waitFor();
+    const expected=new URL('/assets/nanyin-wusong-'+node+'.wav',origin).href;
+    assert(await audio.evaluate(a=>a.currentSrc.startsWith('blob:'+location.origin+'/')));
+    assert(await page.evaluate(url=>performance.getEntriesByName(url).some(entry=>entry.decodedBodySize>0),expected));
+    assert.equal(await audio.evaluate(a=>a.duration),node==='riddle'?13:14);
+    await page.waitForFunction(()=>{const a=document.querySelector('#master-recording');return !a.paused&&a.currentTime>0&&a.volume>.1;});
     async function atMark(index){
      await page.waitForFunction(index=>{
       const mark=document.querySelectorAll('.song-mark')[index];

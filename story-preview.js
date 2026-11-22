@@ -97,8 +97,24 @@ function showPhotoChoices(){
   fig.append(img,caption);gallery.append(fig);
  });
 }
+let enteringPortrait=false;
+function capturePortraits(){
+ state.photos=['snapTidy','snapLaugh'].map(pose=>scene.photograph(pose,state));
+ state.portraitVersion=2;
+}
 function transition(dest){
- if(dest==='proof')state.photos=['snapTidy','snapLaugh'].map(pose=>scene.photograph(pose,state));
+ if(enteringPortrait)return;
+ if(dest==='proof'){
+  enteringPortrait=true;revision++;recorder.cancel();transcription?.abort();stopAudio();
+  document.body.dataset.moment='enterPortrait';
+  $('#choices').replaceChildren();$('#speaker').textContent='你';$('#line').textContent='我嚟喇！';
+  $('#meaning').textContent='你走到前排，站进街坊给你留的位置。';$('#status').textContent='';
+  scene.set('enterPortrait',state);scene.tick(performance.now());scene.render();
+  setTimeout(()=>{
+   capturePortraits();enteringPortrait=false;state.node='proof';display();persist();
+  },2100);
+  return;
+ }
  if(dest==='tidy'||dest==='laugh'){
   state.photo=state.photos[dest==='tidy'?0:1];
   state.photos=null;
@@ -152,6 +168,12 @@ canvas.addEventListener('click',event=>{
 });
 window.addEventListener('pagehide',()=>{song?.pause();stopAudio();recorder.cancel();transcription?.abort();});
 try{
- scene=await createStoryScene(canvas,chapter);$('#loading').hidden=true;$('#dialogue').hidden=false;display();
+ scene=await createStoryScene(canvas,chapter);
+ if(chapter==='reunion'&&state.portraitVersion!==2&&['proof','tidy','laugh'].includes(state.node)){
+  capturePortraits();
+  if(state.node!=='proof'){state.photo=state.photos[state.node==='laugh'?1:0];state.photos=null;}
+  persist();
+ }
+ $('#loading').hidden=true;$('#dialogue').hidden=false;display();
  let last=0;function frame(t){if(!document.hidden&&t-last>40){scene.tick(t,song?.pose());scene.render();last=t;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
 }catch(error){console.error(error);$('#loading').textContent='场景未能载入，请使用支持 WebGL 的浏览器刷新重试。';}

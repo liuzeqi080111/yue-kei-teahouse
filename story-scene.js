@@ -31,16 +31,24 @@ export async function createStoryScene(canvas,chapter){
   const mesh=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}));mesh.position.set(x,y,z);parent.add(mesh);return mesh;
  }
  const loader=new GLTFLoader(),cast={};
- const ids=['friend','regular','fang','aming','lin'];
- if(chapter==='reunion')ids.push('master','player');
- const models={master:'vendor',player:'buyer'};
+ const ids=['friend','regular','fang','aming',...(chapter==='reunion'?['master','player']:['lin'])];
+ const roleLibraries={master:'lin',player:'ale'};
  const poses=await fetch('assets/story-poses.json').then(r=>r.json());
  await Promise.all(ids.map(async id=>{
-  const {scene:model,animations}=await loader.loadAsync('assets/street/'+(models[id]||id)+'-styled-v3.glb');
+  const library=roleLibraries[id];
+  const actorLoader=library?new GLTFLoader().register(parser=>({
+   name:'ReunionCast',beforeRoot(){
+    const {asset,meshes}=parser.json,variant=asset.extras?.reunionMeshSet;
+    if(variant?.role!==id)throw Error('Missing supper character '+id);
+    for(const [base,index] of Object.entries(variant.meshes))Object.assign(meshes[base],meshes[index]);
+   }
+  })):loader;
+  const {scene:model,animations}=await actorLoader.loadAsync('assets/street/'+(library||id)+'-styled-v3.glb');
+  model.name=id;
   const mixer=new T.AnimationMixer(model);if(animations.length){mixer.clipAction(plantedStance(animations[0])).play();mixer.setTime(0);}
   const bones={},rest={};
   model.traverse(o=>{if(o.isBone){const n=o.name.replace(/^mixamorig[:_]?/,'');bones[n]=o;rest[n]=o.quaternion.clone();}});
-  model.scale.setScalar(({regular:1.69,friend:1.75,fang:1.62,aqing:1.67,aming:1.72,ale:1.73,ling:1.64,lin:1.66,master:1.70,player:1.68})[id]);scene.add(model);
+  model.scale.setScalar(({regular:1.69,friend:1.75,fang:1.62,aqing:1.67,aming:1.72,ale:1.73,ling:1.64,lin:1.66,master:1.64,player:1.79})[id]);scene.add(model);
   cast[id]={model,bones,rest,world:{},mouth:mouthPose(model,id)};
  }));
  function point(joint,child,at){
@@ -49,7 +57,7 @@ export async function createStoryScene(canvas,chapter){
   const p=joint.parent.getWorldQuaternion(new T.Quaternion());
   joint.quaternion.premultiply(p.clone().invert().multiply(new T.Quaternion().setFromUnitVectors(dir,aim)).multiply(p));
  }
- function actor(id,x,y,z,yaw,sit=false){
+ function actor(id,x,y,z,yaw,sit=false,rightHandTarget){
   const {model,bones,rest}=cast[id];model.visible=true;model.position.set(x,y,z);model.rotation.y=yaw;
   for(const [n,b] of Object.entries(bones))b.quaternion.copy(rest[n]);
   model.updateMatrixWorld(true);
@@ -102,6 +110,7 @@ export async function createStoryScene(canvas,chapter){
     const sign=side==='Left'?1:-1;
     const restAt=bones.Hips.getWorldPosition(v()).addScaledVector(front,.19).addScaledVector(across,sign*.22);
     restAt.y=seat+.25;
+    if(side==='Right'&&rightHandTarget)restAt.fromArray(rightHandTarget);
     const origin=shoulder.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
     const l1=origin.distanceTo(joint),l2=joint.distanceTo(wrist.getWorldPosition(v()));
     const axis=restAt.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);

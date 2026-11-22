@@ -63,12 +63,23 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
  }
  let lastStrike=-1e5;
  function strike(){lastStrike=performance.now();}
- function groupPose(candid){
+ // A wooden zheng rests on the narrow table in front of the seated singer.
+ const zheng=group();
+ zheng.position.set(2.40,.966,-1.87);
+ box(zheng,0x533327,0,.026,0,.19,.05,.72);
+ box(zheng,0x935d37,0,.057,0,.18,.015,.69);
+ for(const z of [-.335,.335])box(zheng,0x442d25,0,.069,z,.185,.022,.018);
+ for(let i=0;i<16;i++){
+  const x=-.081+i*.0108;
+  box(zheng,0xd7ba84,x,.079,0,.0013,.0013,.66);
+  box(zheng,0x493327,x,.071,-.11+i*.014,.007,.015,.008);
+ }
+ function groupPose(candid,includePlayer=true){
   const back=.14,front=.60,face=Math.PI/2;
   actor('master',back,.19,-1.43,face+.25);
   actor('fang',front,.19,-1.88,face+.12);
   actor('regular',back,.19,-2.32,face+.10);
-  actor('player',front,.19,-2.73,face);
+  if(includePlayer)actor('player',front,.19,-2.73,face);
   actor('friend',back,.19,-3.15,face-.12);
   actor('aming',front,.19,-3.61,face-.20);
   orange.visible=candid;
@@ -82,14 +93,15 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
  }
  function stage(id,state){
   const wall=['tidy','laugh'].includes(id);
-  const afterDinner=['gather','call','ready','proof','snapTidy','snapLaugh'].includes(id);
+  const afterDinner=['gather','call','ready','enterPortrait','proof','snapTidy','snapLaugh'].includes(id);
+  zheng.visible=id==='riddle';
   oranges.visible=afterDinner&&!wall;orange.visible=false;showWall(wall?state.photo:null);boards.visible=id==='riddle'||id==='gather';
   table.visible=!wall&&!afterDinner&&id!=='join';
   lid.visible=['riddle','guess','goose','right','dish'].includes(id);lid.position.set(0,0,0);
   if(wall){
    shot([1.50,1.78,-1.62],[3.56,1.76,-1.66],42);
-  }else if(['snapTidy','snapLaugh','proof'].includes(id)){
-   groupPose(id==='snapLaugh');
+  }else if(['ready','enterPortrait','snapTidy','snapLaugh','proof'].includes(id)){
+   groupPose(id==='snapLaugh',id!=='ready');
   }else if(afterDinner){
    actor('master',.22,.19,-1.60,1.9);actor('fang',.35,.19,-2.26,1.6);
    actor('friend',.18,.19,-3.12,1.42);
@@ -98,8 +110,8 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    if(id==='gather')shot([2.20,1.60,-1.91],[.22,1.48,-1.79],52);
   }else{
    actor('fang',1.61,.19,-1.21,1.55,true);actor('regular',1.61,.19,-1.83,1.53,true);
-   actor('master',2.65,.19,-1.84,-1.57,true);
-   actor('aming',2.21,.19,-2.46,.03);
+   actor('master',2.65,.19,-1.84,-1.57,true,id==='riddle'?[2.433,1.082,-2.01]:undefined);
+   if(id!=='riddle')actor('aming',2.21,.19,-2.46,.03);
    shot([2.34,1.53,-.68],[1.65,1.34,-1.32],54);
    if(id==='riddle')shot([1.72,1.49,-1.15],[2.62,1.32,-1.81],50);
    if(['guess','right','goose'].includes(id))shot([2.04,1.53,-.92],[2.17,1.33,-2.24],55);
@@ -107,11 +119,24 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   }
  }
  function tick(now,entered,mode,singing){
+  if(mode==='enterPortrait'){
+   const player=cast.player,step=T.MathUtils.smootherstep((now-entered)/1650,0,1);
+   const stride=Math.sin(step*Math.PI*4)*Math.sin(step*Math.PI);
+   player.model.position.set(.60+1.23*(1-step),.19+Math.abs(stride)*.022,-2.73-1.05*(1-step));
+   player.model.rotation.y=T.MathUtils.lerp(-.86,Math.PI/2,T.MathUtils.smoothstep(step,.62,1));
+   for(const [bone,angle] of [['LeftUpLeg',.31],['RightUpLeg',-.31],['LeftArm',-.17],['RightArm',.17]]){
+    player.bones[bone].quaternion.copy(player.neutral[bone]);player.bones[bone].rotateX(stride*angle);
+   }
+  }
   if(boards.visible){
    const performer=cast.master,arm=performer.bones.LeftForeArm;
    arm.quaternion.copy(performer.neutral.LeftForeArm);
    arm.rotateX(-.49*(singing?.lift??0));
-   if(singing)performer.bones.Head.rotateX(.045*singing.lift);
+   if(mode==='riddle'){
+    const right=performer.bones.RightForeArm;
+    right.quaternion.copy(performer.neutral.RightForeArm);right.rotateX(-.035*(singing?.voice??0));
+   }
+   if(singing)performer.bones.Head.rotateX(.12+.045*singing.lift);
   }
   slat.rotation.z=-.24+.20*Math.max(0,1-(now-lastStrike)/180);
   if(mode==='dish'){
