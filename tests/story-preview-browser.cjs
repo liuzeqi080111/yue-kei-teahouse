@@ -58,7 +58,13 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
     wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);
     wav.writeUInt32LE(sampleRate,24);wav.writeUInt32LE(sampleRate*2,28);
     wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);
-    await page.route('https://chinoperl.org/audio/*.mp3',route=>route.fulfill({contentType:'audio/wav',body:wav}));
+    await page.route('https://chinoperl.org/audio/*.mp3',async route=>{
+     const range=/bytes=(\d+)-(\d*)/.exec(route.request().headers().range||'');
+     const start=range?Number(range[1]):0,end=range?.[2]?Number(range[2]):wav.length-1;
+     const headers={'Accept-Ranges':'bytes','Content-Type':'audio/wav'};
+     if(range)headers['Content-Range']='bytes '+start+'-'+end+'/'+wav.length;
+     await route.fulfill({status:range?206:200,headers,body:wav.subarray(start,end+1)});
+    });
     await page.getByRole('button',{name:/听真人唱/}).click();
     await page.getByRole('button',{name:'跟这段原声敲两下'}).click();
     const tap=page.locator('#live-tap');
