@@ -12,7 +12,7 @@ export function accompanySinger({audio,panel,tap,next,hits,onHit,strike,advance}
  const cue=panel.querySelector('#board-cue'),feedback=panel.querySelector('#board-feedback');
  const events=new AbortController(),options={signal:events.signal};
  let mode='loading',frame=0,generation=0,lastTap=-Infinity,lastTime=0,lastMove=0;
- let sound,clipUrl,fetching;
+ let sound,boardTap,clipUrl,fetching;
  const markers=marks.map(at=>{
   const mark=document.createElement('i');mark.className='song-mark';
   mark.style.left=100*at/duration+'%';return mark;
@@ -102,18 +102,26 @@ export function accompanySinger({audio,panel,tap,next,hits,onHit,strike,advance}
   generation++;fetching?.abort();audio.pause();setMode('paused');text(cue,'唱段已暂停');tap.textContent='接着听师傅唱';
  }
  function knock(){
-  strike();
   try{
-   sound??=new AudioContext();
+   sound??=new AudioContext({latencyHint:'interactive'});
    if(sound.state!=='running')void sound.resume().catch(()=>{});
-   const at=sound.currentTime;
-   for(const [hz,volume] of [[870,.24],[1760,.11]]){
-    const tone=sound.createOscillator(),gain=sound.createGain();
-    tone.frequency.value=hz;gain.gain.setValueAtTime(volume,at);gain.gain.exponentialRampToValueAtTime(.0001,at+.075);
-    tone.connect(gain);gain.connect(sound.destination);tone.onended=()=>{tone.disconnect();gain.disconnect();};
-    tone.start(at);tone.stop(at+.08);
+   if(!boardTap){
+    boardTap=sound.createBuffer(1,Math.floor(sound.sampleRate*.075),sound.sampleRate);
+    const samples=boardTap.getChannelData(0);
+    for(let i=0;i<samples.length;i++){
+     const t=i/sound.sampleRate;
+     // A short impact transient followed by the two damped wooden resonances.
+     samples[i]=.24*Math.sin(2*Math.PI*890*t)*Math.exp(-t*88)
+      +.13*Math.sin(2*Math.PI*2130*t)*Math.exp(-t*150)
+      +.10*(Math.random()*2-1)*Math.exp(-t*620);
+    }
    }
   }catch{}
+  strike(()=>{
+   if(!isPlaying()||!boardTap||sound.state==='closed')return;
+   const tap=sound.createBufferSource();tap.buffer=boardTap;tap.connect(sound.destination);
+   tap.onended=()=>tap.disconnect();tap.start(sound.currentTime);
+  });
  }
  function action(){
   if(mode==='paused'){startSinging(true);return;}
@@ -138,11 +146,12 @@ export function accompanySinger({audio,panel,tap,next,hits,onHit,strike,advance}
   const a=parseInt(mouth[index]??'0',16),b=parseInt(mouth[index+1]??'0',16);
   const at=marks.find(mark=>mark>t-.18);
   const lift=at===undefined?0:Math.max(0,1-Math.abs(t-at)/(t<at?.6:.18));
-  const stroke=attacks.find(a=>a>=t-.30);
+  const strokeIndex=attacks.findIndex(a=>a>=t-.30);
+  const stroke=attacks[strokeIndex];
   const elapsed=stroke===undefined?1:t-stroke;
   const pluck=elapsed<0?Math.max(0,1+elapsed/.12):Math.exp(-elapsed*14);
   const press=elapsed<0?0:Math.sin(Math.PI*Math.min(1,elapsed/.30));
-  return {time:t,pluck,press,voice:(a+(b-a)*(sample-index))/15,lift};
+  return {time:t,pluck,press,thumb:strokeIndex>=0&&strokeIndex%2===1,voice:(a+(b-a)*(sample-index))/15,lift};
  }
  tap.onpointerdown=event=>{
   if(event.isPrimary&&event.button===0&&!tap.disabled){event.preventDefault();tap.focus();action();}

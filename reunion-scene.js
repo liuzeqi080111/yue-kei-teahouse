@@ -1,7 +1,11 @@
+import {createPlayerMeal} from './reunion-player-meal.js';
+import {createReunionBoards} from './reunion-boards.js';
 import {createReunionWall} from './reunion-wall.js';
 import * as T from 'three';
+import {handFrame,positionChopsticks,applyChopstickGrip,applyCupGrip,fingerContact,registerSkinPads,stringContact} from './reunion-hand-poses.js';
 
 export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,print,texture,actor,placeHand,shot,portraitLean,portraitArm}){
+ for(const id of ['regular','aming','master','player'])registerSkinPads(cast[id]);
  const table=group();
  table.position.set(2.09,.952,-1.55);
  const plate=group(table);
@@ -43,11 +47,15 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   return dish;
  }
  function bowl(parent,x,z,size,filling){
-  const crock=group(parent);crock.position.set(x,0,z);
+  const crock=group(parent);crock.position.set(x,0,z);crock.userData.diameter=size;
   const profile=[[0,.02],[.27,.02],[.34,.19],[.48,.35],[.5,.43],[.47,.44],[.43,.38],[.31,.23],[0,.23]];
   part(crock,new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),28),0xf1e6d1,0,0,0,size,size,size);
-  cyl(crock,0x417378,0,size*.405,0,size*.994,size*.025,size*.994);
-  if(filling!==null)cyl(crock,filling,0,size*.417,0,size*.90,size*.016,size*.90);
+  const rim=new T.LatheGeometry([new T.Vector2(.490,.385),new T.Vector2(.497,.409)],28);
+  part(crock,rim,0x417378,0,0,0,size,size,size);
+  if(filling!==null){
+   const liquid=filling===0xa96d36;
+   cyl(crock,filling,0,size*(liquid?.365:.406),0,size*(liquid?.846:.89),size*.006,size*(liquid?.846:.89));
+  }
   return crock;
  }
  const fish=platter(feast,0,-.19,.46,.22);
@@ -111,7 +119,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
  const dip=bowl(feast,.176,.094,.079,0x96904c);
  for(let i=0;i<13;i++)box(dip,i%3?0xaab053:0xdebf82,Math.sin(i*2.4)*.022,.034,Math.cos(i*2.4)*.019,.007,.003,.004);
  const rice=0xe9e0cb,tea=0xa96d36;
- const riceBowls=[[-.254,-.23],[-.245,.286],[.245,.26],[.24,-.33]]
+ const riceBowls=[[-.230,-.055],[-.245,.286],[.245,.26],[.24,-.33]]
   .map(([x,z])=>bowl(feast,x,z,.112,rice));
  const elderBowl=riceBowls[0];
  for(const crock of riceBowls){
@@ -122,7 +130,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    grain.rotation.y=a;
   }
  }
- const teaCup=bowl(feast,.17,.399,.085,tea);
+ const teaCup=bowl(feast,.10,.393,.085,tea);
  const toastGuests=[['regular',-.178,-.353],['aming',.204,.175]]
   .map(([id,x,z])=>({id,x,z,cup:bowl(feast,x,z,.079,tea)}));
  function sticks(parent){
@@ -140,15 +148,17 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
  for(let i=0;i<3;i++)box(sidePlate,0xbd9c62,.025*i-.034,.026,.012*Math.sin(i),.003,.003,.030).rotation.y=i;
  const laidDown=sticks(afterMeal);laidDown.position.set(-.23,.021,-.059);laidDown.rotation.x=Math.PI/2-.025;
  const eatingSticks=sticks(feast);
- const morsel=part(feast,sphere,0xf4dfb9,0,0,0,.039,.022,.024);
+ const morsel=part(feast,sphere,0xf4dfb9,0,0,0,.016,.030,.023);
  const shared=part(elderBowl,sphere,0xe7d5b4,0,.052,0,.045,.024,.029);
+ const playerMeal=createPlayerMeal({player:cast.player,actor,placeHand,shot,sticks:eatingSticks,bite:morsel,shared,cup:teaCup,table});
  const diners=[
-  {id:'regular',bowl:[1.836,1.016,-1.78],delay:1.7},
-  {id:'master',bowl:[2.33,1.016,-1.88],delay:4.0},
-  {id:'aming',bowl:[2.335,1.016,-1.29],delay:.1}
+  {id:'regular',bowl:elderBowl,delay:1.7},
+  {id:'master',bowl:riceBowls[3],delay:4.0},
+  {id:'aming',bowl:riceBowls[2],delay:.1}
  ].map(diner=>{
-  const pair=sticks(scene);const grain=part(pair,sphere,0xf0dfbb,0,-.123,0,.016,.012,.014);
-  return {...diner,pair,grain};
+  const pair=sticks(scene);const grain=part(pair,sphere,0xe1c4a2,0,-.123,0,.021,.014,.018);
+  const serving=part(diner.bowl,sphere,0xe1c4a2,0,.062,0,.021,.014,.018);
+  return {...diner,pair,grain,serving};
  });
  const showWall=createReunionWall(scene);
  // The red paper and lanterns frame the bench where the group gathers.
@@ -167,33 +177,54 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
  for(const [x,z] of [[-.05,0],[.045,-.014],[.021,.045]])part(oranges,sphere,0xd98227,x,.026,z,.070,.054,.069);
  const orange=part(cast.aming.bones.RightHand,sphere,0xe68c29,.01,.035,.025,.038,.042,.043);
 
- const boards=group(camera);scene.add(camera);
- boards.position.set(.158,-.078,-.48);boards.rotation.set(.09,-.40,-.26);boards.scale.setScalar(.72);
- const slat=group(boards);
- for(const [p,x] of [[boards,0],[slat,.023]]){
-  const outline=new T.Shape();
-  outline.moveTo(-.010,-.074);outline.quadraticCurveTo(-.014,-.073,-.014,-.063);
-  outline.lineTo(-.012,.065);outline.quadraticCurveTo(-.012,.078,0,.078);
-  outline.quadraticCurveTo(.012,.078,.012,.065);outline.lineTo(.014,-.063);
-  outline.quadraticCurveTo(.014,-.074,.010,-.074);outline.closePath();
-  part(p,new T.ExtrudeGeometry(outline,{depth:.007,bevelThickness:.0016,bevelSize:.0016,bevelSegments:2}),0x85502e,x,0,0,1,1,1);
-  for(const y of [-.053,-.047])box(p,0x873a2c,x,y,.003,.03,.003,.013);
- }
- let lastStrike=-1e5;
- function strike(){lastStrike=performance.now();}
+ scene.add(camera);
+ const {rig:boards,tick:tickBoards,strike,slats}=createReunionBoards(cast.player,camera);
  // A wooden zheng rests on the narrow table in front of the seated singer.
  const zheng=group();
- zheng.position.set(2.40,.966,-1.87);
+ zheng.position.set(2.28,.966,-1.87);
  box(zheng,0x533327,0,.026,0,.19,.05,.72);
  box(zheng,0x935d37,0,.057,0,.18,.015,.69);
  for(const z of [-.335,.335])box(zheng,0x442d25,0,.069,z,.185,.022,.018);
+ const strings=[];
  for(let i=0;i<16;i++){
-  const x=-.081+i*.0108;
-  box(zheng,0xd7ba84,x,.079,0,.0013,.0013,.66);
+  const x=-.081+i*.0108,bridge=-.11+i*.014;
+  const string=group(zheng);string.position.x=x;
+  const lengths=[[-.33,bridge],[bridge,.205],[.205,.33]];
+  for(const [a,b] of lengths)box(string,0xd7ba84,0,.079,(a+b)/2,.0013,.0013,b-a);
+  strings.push(string);
   box(zheng,0x493327,x,.071,-.11+i*.014,.007,.015,.008);
  }
  for(const z of [-.23,.23])box(zheng,0x402e25,0,-.009,z,.15,.033,.028);
  const eating=['supper','fish','chicken','passFish','toast'];
+ // Heights fit the underside of each seated character's relaxed hand to the
+ // 0.9425 m terrazzo top. The finger length and natural curl differ by rig.
+ const restingHeight={fang:{Left:.996,Right:1.008},regular:{Left:1.001,Right:1.010},
+  master:{Left:1.003,Right:1.001},aming:{Left:1.022}};
+ function restHand(id,side,thanks=null){
+  const bones=cast[id].bones,dir=id==='regular'||id==='fang'?1:-1;
+  const front=new T.Vector3(dir,0,0),across=new T.Vector3(0,0,-dir);
+  const shoulder=bones[side+'Arm'].getWorldPosition(new T.Vector3());
+  const z=T.MathUtils.clamp(shoulder.z,-2.05,-1.145);
+  const palm=new T.Vector3(0,-1,0),fingers=front.clone();
+  const edge=dir===1?1.73:2.51;
+  const wrist=new T.Vector3(edge+(side==='Right'?.014:.026)*dir,restingHeight[id][side],z);
+  if(id==='master'&&side==='Left')wrist.z+=.036;
+  if(id==='fang'&&side==='Left')wrist.z-=.016;
+  if(id==='regular'&&side==='Right')wrist.z-=.027;
+  if(thanks!==null){
+   // A small invitation beside his bowl; the hand stays in front of the jacket.
+   wrist.set(1.787+.021*thanks,1.080+.030*thanks,-1.703+.015*thanks);
+   palm.set(0,-.72,.48+.24*thanks);fingers.set(1,.035+.07*thanks,.12);
+  }
+  placeHand(bones,side,wrist,front,across,3.1,palm,fingers);
+ }
+ function settleDiners(id,concert,dining){
+  for(const role of ['fang','regular','master',...(dining?['aming']:[])]){
+   if(concert&&role==='master')continue;
+   restHand(role,'Left');
+   if(role==='fang'||!dining||id==='toast'&&role==='master')restHand(role,'Right');
+  }
+ }
  function groupPose(candid,includePlayer=true){
   const back=.14,front=.60,face=Math.PI/2;
   actor('master',back,.19,-1.43,face+.25);
@@ -224,7 +255,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   plate.position.set(0,0,feast.visible?.356:0);plate.scale.setScalar(feast.visible?.75:1);
   eatingSticks.visible=['chicken','fish','passFish'].includes(id);
   shared.visible=id==='toast';morsel.visible=eatingSticks.visible;
-  teaCup.position.set(.17,0,.399);
+  teaCup.position.set(.10,0,.393);teaCup.rotation.set(0,0,0);
   for(const {cup,x,z} of toastGuests)cup.position.set(x,0,z);
   lid.visible=['guess','goose','right','dish'].includes(id);lid.position.set(0,0,0);
   if(wall){
@@ -251,9 +282,9 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    if(['guess','right','goose'].includes(id))shot([2.04,1.53,-.92],[2.17,1.33,-2.24],55);
    if(id==='dish')shot([2.12,1.52,-1.01],[2.09,.98,-1.54],44);
    if(feast.visible)shot([2.10,1.68,-.65],[2.09,1.02,-1.62],57);
-   if(id==='passFish')shot([2.29,1.52,-.93],[1.88,1.09,-1.81],54);
-   if(id==='toast')shot([2.11,1.55,-.70],[2.12,1.23,-1.76],61);
   }
+  if(concert||!wall&&!afterDinner)settleDiners(id,concert,feast.visible);
+  playerMeal.stage(id);
  }
  function tick(now,entered,mode,singing){
   if(mode==='enterPortrait'){
@@ -266,89 +297,117 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    }
   }
   if(zheng.visible){
-   const master=cast.master;
-   const turn=(name,axis,angle)=>{
-    const bone=master.bones[name];if(!bone)return;
-    bone.quaternion.copy(master.neutral[name]);bone[axis](angle);
-   };
-   const t=singing?.time??0,accent=singing?.lift??0;
-   const pluck=singing?.pluck??0,press=singing?.press??0;
+   const master=cast.master,t=singing?.time??0;
    const front=new T.Vector3(-1,0,0),across=new T.Vector3(0,0,1);
-   const right=new T.Vector3(2.55+.016*Math.sin(t*1.4),1.120-.007*pluck,-1.993+.012*Math.sin(t*1.15));
-   const left=new T.Vector3(2.55+.009*Math.sin(t*.77),1.124-.008*press,-1.684);
-   for(const finger of ['Index','Middle','Thumb']){
-    const amount=finger==='Thumb'?.13:finger==='Index'?.38:.27;
-    turn('RightHand'+finger+'2','rotateZ',-amount*pluck);
-    turn('LeftHand'+finger+'2','rotateZ',.16*press);
-   }
-   // The strings are 79 mm above the instrument origin. Solve at the fingertip,
-   // so rolling the wrist or curling a finger cannot lift it away from its string.
-   for(const [side,wrist,stroke] of [['Right',right,pluck],['Left',left,press]]){
-    const fingertip=master.bones[side+'HandMiddle4'];
-    const height=zheng.position.y+.079+.009*(1-stroke);
-    for(let pass=0;pass<3;pass++){
-     placeHand(master.bones,side,wrist,front,across,.8,new T.Vector3(0,-1,0));
-     const delta=height-fingertip.getWorldPosition(new T.Vector3()).y;
-     if(Math.abs(delta)<.001)break;
-     wrist.y+=delta;
+   const smooth=T.MathUtils.smootherstep;
+   const lane=6+2*smooth(t,5.25,5.65)-smooth(t,12,12.55)+2*smooth(t,21.95,22.25)-2*smooth(t,26.25,26.8);
+   const stringX=zheng.position.x-.081+.0108*lane;
+   const press=singing?.press??0,pluck=singing?.pluck??0,depth=.0025*press;
+   // On the left, the string changes slope about its bridge as the pad presses.
+   for(let i=0;i<strings.length;i++){
+    const amount=depth*Math.max(0,1-Math.abs(i-lane));
+    for(const section of strings[i].children.slice(1)){
+     section.position.y=.079-amount/2;
+     section.rotation.x=(section===strings[i].children[1]?1:-1)*Math.atan2(amount,section.scale.z);
     }
    }
-   const nod=mode==='gather'&&t<1.6?.09*Math.sin(Math.PI*t/1.6)**2:0;
-   master.bones.Head.rotateX(.085+nod+.037*accent+.016*Math.sin(t*1.37));
-   master.bones.Head.rotateY(mode==='wait'?.12:.035*Math.sin(t*.75));
-  }
-  for(const {id,bowl,delay,pair,grain} of diners){
-   if(!pair.visible)continue;
-   const a=cast[id],direction=id==='regular'?1:-1;
-   const phase=((now-entered)/1000+delay)%6.8;
-   const lift=T.MathUtils.smootherstep(phase,.8,2.5)*(1-T.MathUtils.smootherstep(phase,3,4.7));
-   const front=new T.Vector3(direction,0,0),across=new T.Vector3(0,0,-direction);
-   const tip=new T.Vector3(...bowl);
-   const mouth=a.bones.Head.getWorldPosition(new T.Vector3()).addScaledVector(front,.112);
-   mouth.y-=.010;tip.lerp(mouth,lift);
-   const toward=front.clone().multiplyScalar(.33-lift*1.14).addScaledVector(across,.46);
-   toward.y=-.76+lift*1.02;toward.normalize();
-   const fingers=front.clone().lerp(toward,.72).normalize();
-   const target=tip.clone().addScaledVector(toward,-.172).addScaledVector(fingers,-.125);
-   placeHand(a.bones,'Right',target,front,across,3.5,new T.Vector3(0,-.72,-direction*.6),fingers);
-   const grip=a.bones.RightHandIndex2.getWorldPosition(new T.Vector3())
-    .lerp(a.bones.RightHandThumb3.getWorldPosition(new T.Vector3()),.5);
-   pair.position.copy(grip).addScaledVector(toward,.049);
-   pair.quaternion.setFromUnitVectors(new T.Vector3(0,-1,0),toward);
-   grain.visible=phase>.72&&phase<2.68;
-   a.bones.Head.rotateX(.075*(1-lift));
-  }
-  if(eatingSticks.visible){
-   const s=T.MathUtils.smootherstep((now-entered)/1850,0,1);
-   const sharing=mode==='passFish',start=mode==='chicken'?[0,.090,.083]:[-.012,.083,-.18];
-   const end=sharing?[-.254,.052,-.23]:[.049,.28,.52];
-   morsel.position.fromArray(start).lerp(new T.Vector3(...end),s);
-   morsel.position.y+=.092*Math.sin(s*Math.PI);
-   eatingSticks.position.copy(morsel.position);
-   eatingSticks.rotation.set(.66,0,sharing?-.43:-.26);
-   eatingSticks.translateY(.116);
-   eatingSticks.visible=s<.998;morsel.visible=s<.998;shared.visible=sharing&&s>=.998;
-  }
-  if(mode==='toast'){
-   const t=T.MathUtils.clamp((now-entered)/2600,0,1);
-   const lift=Math.sin(Math.PI*t)**2;
-   teaCup.position.y=.178*lift;
-   teaCup.rotation.z=-.13*Math.sin(Math.PI*t);
-   for(const {id,cup,x,z} of toastGuests){
-    const dir=id==='regular'?1:-1,front=new T.Vector3(dir,0,0),across=new T.Vector3(0,0,-dir);
-    cup.position.set(x+dir*.048*lift,.17*lift,z);
-    const wrist=cup.getWorldPosition(new T.Vector3()).addScaledVector(front,-.14);
-    wrist.y+=.061;
-    placeHand(cast[id].bones,'Right',wrist,front,across,3.5,new T.Vector3(0,-.4,-dir));
+   for(const side of ['Right','Left']){
+    const right=side==='Right',stroke=right?(singing?.thumb?0:pluck):press;
+    const z=right?-2.066:-1.665,contact=new T.Vector3(stringX,1.045+(right?.007*(1-stroke):.003*(1-stroke)-depth)+.0035,z);
+    const active=right?'Index':'Middle';
+    if(right)contact.x+=.005*(1-stroke);
+    const wrist=new T.Vector3(contact.x+.175,1.070+(right?.006:0),z+(right?.018:-.018));
+    const fingers=new T.Vector3(-1,-.16,right?.10:-.10);
+    for(let i=0;i<3;i++){
+     placeHand(master.bones,side,wrist,front,across,2.7,new T.Vector3(0,-1,0),fingers);
+     const f=handFrame(master.bones,side);
+     const root=master.bones[side+'Hand'+active+'1'].getWorldPosition(new T.Vector3());
+     const restPad=root.addScaledVector(f.forward,.045).addScaledVector(f.palm,.034);
+     wrist.addScaledVector(contact.clone().sub(restPad),.72);
+    }
+    const f=handFrame(master.bones,side);
+    for(const digit of ['Index','Middle','Ring','Pinky','Thumb']){
+     const root=master.bones[side+'Hand'+digit+'1'].getWorldPosition(new T.Vector3());
+     const target=root.addScaledVector(f.forward,digit==='Thumb'?.066:.040).addScaledVector(f.palm,digit==='Pinky'?.017:.025);
+     target.y=Math.max(target.y,1.058);
+     if(digit==='Thumb')target.addScaledVector(f.radial,.035);
+     if(right&&digit==='Thumb'){
+      const lane=T.MathUtils.clamp(Math.round((target.x-zheng.position.x+.081)/.0108),0,15);
+      const thumbStroke=singing?.thumb?pluck:0;
+      target.x=zheng.position.x-.081+.0108*lane-.004*(1-thumbStroke);
+      target.y=1.0485+.011*(1-thumbStroke);
+     }
+     if(digit===active)stringContact(master.bones,side,digit,contact,f,contact.y-.0025);
+     else if(right&&digit==='Thumb')stringContact(master.bones,side,digit,target,f,target.y-.0025);
+     else fingerContact(master.bones,side,digit,target,f);
+    }
    }
-  }else teaCup.rotation.z=0;
-  slat.rotation.z=-.24+.20*Math.max(0,1-(now-lastStrike)/180);
+   const nod=mode==='gather'&&t<1.6?.075*Math.sin(Math.PI*t/1.6)**2:0;
+   master.bones.Head.rotateX(.07+nod+.018*(singing?.lift??0)+.011*Math.sin(t*1.37));
+   master.bones.Head.rotateY(mode==='wait'?.12:.025*Math.sin(t*.75));
+  }
+  for(const {id,bowl,delay,pair,grain,serving} of diners){
+   serving.visible=false;
+   if(!pair.visible)continue;
+   const a=cast[id],dir=id==='regular'?1:-1,phase=((now-entered)/1000+delay)%6.8;
+   const ease=T.MathUtils.smootherstep;
+   const carry=ease(phase,.95,2.65)*(1-ease(phase,3.15,4.95));
+   const front=new T.Vector3(dir,0,0),across=new T.Vector3(0,0,-dir);
+   const own=bowl.getWorldPosition(new T.Vector3());own.y+=id==='regular'?.074:.064;
+   own.x+=dir*(id==='regular'?.028:.008);
+   const start=new T.Vector3(id==='regular'?2.015:2.145,id==='aming'?1.031:1.025,id==='aming'?-1.465:-1.743);
+   const tip=start.clone().lerp(own,carry);
+   const clear=ease(phase,.93,1.58)*(1-ease(phase,2.2,2.68))+ease(phase,3.28,3.95)*(1-ease(phase,4.55,5.08));
+   tip.y+=.062*clear+.018*(1-ease(phase,.14,.62)+ease(phase,5.65,6.1));
+   const wrist=tip.clone().addScaledVector(front,-.19).addScaledVector(across,-.075);
+   wrist.y+=.108;
+   const fingers=front.clone().addScaledVector(across,.29);fingers.y=.02;
+   for(let iteration=0;iteration<7;iteration++){
+    placeHand(a.bones,'Right',wrist,front,across,3.5,new T.Vector3(0,-.78,-dir*.62),fingers);
+    positionChopsticks(a.bones,'Right',pair);
+    const actual=pair.localToWorld(new T.Vector3(0,-.1225,0));
+    const delta=tip.clone().sub(actual);
+    if(delta.lengthSq()<.00000025)break;
+    wrist.addScaledVector(delta,.65);
+   }
+   const opening=1-ease(phase,.50,.90)+ease(phase,2.76,3.1)-ease(phase,3.45,3.8)+ease(phase,5.1,5.44);
+   grain.visible=phase>.84&&phase<2.87;serving.visible=phase>=2.87;
+   applyChopstickGrip(a.bones,'Right',pair,T.MathUtils.clamp(opening,grain.visible?.30:0,1));
+   a.bones.Head.rotateX(.085*carry+.030*(1-carry));
+  }
+  if(mode==='passFish'){
+   const seconds=(now-entered)/1000;
+   const thanks=T.MathUtils.smootherstep(seconds,.45,1.35)*(1-T.MathUtils.smootherstep(seconds,2.8,3.75));
+   restHand('regular','Right',thanks);
+  }
+  playerMeal.tick(mode,(now-entered)/1000);
+  if(mode==='toast'){
+   for(const {id,cup,x,z} of toastGuests){
+    const seconds=(now-entered)/1000,ease=T.MathUtils.smootherstep;
+    const reach=ease(seconds,0,.70)*(1-ease(seconds,3.65,4.42));
+    const grip=ease(seconds,.66,.91)*(1-ease(seconds,3.38,3.65));
+    const lift=ease(seconds,.94,1.83)*(1-ease(seconds,2.38,3.34));
+    const dir=id==='regular'?1:-1,front=new T.Vector3(dir,0,0),across=new T.Vector3(0,0,-dir);
+    cup.position.set(x+dir*.046*lift,.16*lift,z);
+    const centre=cup.getWorldPosition(new T.Vector3());
+    const palm=across.clone().multiplyScalar(.95);palm.y=-.28;
+    const wrist=centre.clone().addScaledVector(front,-.111).addScaledVector(across,-.086);
+    wrist.y+=.056;
+    const home=new T.Vector3(id==='regular'?1.74:2.50,1.036,id==='regular'?-1.655:-1.395);
+    // Approach the rim from above. On release the fingers clear the table
+    // before the forearm withdraws toward the diner's side of the booth.
+    home.lerp(wrist,reach);home.y+=.038*Math.sin(Math.PI*reach)+.056*(1-grip);
+    placeHand(cast[id].bones,'Right',home,front,across,3.3,palm,front.clone().addScaledVector(across,.22));
+    applyCupGrip(cast[id].bones,'Right',cup,grip);
+   }
+  }
+  tickBoards(now);
   if(mode==='dish'){
    const t=T.MathUtils.smootherstep((now-entered)/850,0,1);lid.position.set(-.26*t,.18*t,0);lid.rotation.z=t*.6;lid.visible=t<.99;
   }else lid.rotation.z=0;
  }
  function hit(ray,mode){
-  if(boards.visible&&ray.intersectObject(boards,true).length)return 'beat';
+  if(boards.visible&&ray.intersectObjects(slats,false).length)return 'beat';
   if(['right','goose'].includes(mode)&&ray.intersectObject(lid,true).length)return 'lid';
   if(mode==='supper'){
    if(ray.intersectObject(fish,true).length)return 'fish';

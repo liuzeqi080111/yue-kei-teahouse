@@ -10,6 +10,7 @@ import {voiceUrl} from './voice-endpoint.js';
 const $ = selector => document.querySelector(selector);
 const chapter = new URLSearchParams(location.search).get('story') === 'table' ? 'table' : 'reunion';
 const book = chapters[chapter];
+const portraitVersion=4;
 const key = chapter==='reunion'?reunionSaveKey:'yuekei-story-trial-v1:table';
 const defaults = () => chapter==='table'
  ? {node:book.start,drink:null,invited:false}
@@ -104,7 +105,7 @@ function showPhotoChoices(){
 let enteringPortrait=false;
 function capturePortraits(){
  state.photos=['snapTidy','snapLaugh'].map(pose=>scene.photograph(pose,state));
- state.portraitVersion=3;
+ state.portraitVersion=portraitVersion;
 }
 function transition(dest){
  if(enteringPortrait)return;
@@ -134,7 +135,7 @@ function sing(label,dest){
  song=accompanySinger({
   audio:$('#master-recording'),panel:$('#song-panel'),tap,next,
   hits:state.songHits,onHit:hits=>{state.songHits=hits;persist();},
-  strike:()=>scene.strike(),advance:()=>transition(dest)
+  strike:onContact=>scene.strike(onContact),advance:()=>transition(dest)
  });
 }
 function display(){
@@ -174,7 +175,7 @@ canvas.addEventListener('click',event=>{
 window.addEventListener('pagehide',()=>{song?.pause();stopAudio();recorder.cancel();transcription?.abort();});
 try{
  scene=await createStoryScene(canvas,chapter);
- if(chapter==='reunion'&&state.portraitVersion!==3&&['proof','tidy','laugh'].includes(state.node)){
+ if(chapter==='reunion'&&state.portraitVersion!==portraitVersion&&['proof','tidy','laugh'].includes(state.node)){
   capturePortraits();
   if(state.node!=='proof'){state.photo=state.photos[state.node==='laugh'?1:0];state.photos=null;}
   persist();

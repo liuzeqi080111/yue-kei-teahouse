@@ -60,7 +60,23 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
      },index);
     }
     if(!reload){
-     await beat.evaluate(b=>b.click());
+     const knocks=await beat.evaluate(async button=>{
+      const start=AudioBufferSourceNode.prototype.start,times=[];
+      let handlingClick=true;
+      AudioBufferSourceNode.prototype.start=function(...args){
+       times.push(handlingClick?'press':'animation');
+       return start.apply(this,args);
+      };
+      try{
+       button.click();handlingClick=false;
+       // Wait for the closing stroke even when software rendering is slow.
+       const deadline=performance.now()+2500;
+       while(!times.length&&performance.now()<deadline)await new Promise(requestAnimationFrame);
+       await new Promise(requestAnimationFrame);
+       return times;
+      }finally{AudioBufferSourceNode.prototype.start=start;}
+     });
+     assert.deepEqual(knocks,['animation'],'One wooden knock after the boards close');
      assert.equal(await panel.locator('[data-state="hit"]').count(),0);
     }
     await atMark(0);
@@ -82,8 +98,9 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    assert.equal((await stored('reunion')).node,'dish');await page.waitForTimeout(950);await shot('dish');
    await pick();assert.equal((await stored('reunion')).node,'supper');await shot('supper');
    await pick(mobile?1:0);assert.equal((await stored('reunion')).node,mobile?'fish':'chicken');
-   await pick();assert.equal((await stored('reunion')).node,'passFish');await pick();
-   assert.equal((await stored('reunion')).node,'toast');await pick();
+   await page.waitForTimeout(1150);await shot('pick-up');
+   await pick();assert.equal((await stored('reunion')).node,'passFish');await page.waitForTimeout(2700);await shot('pass-fish');await pick();
+   assert.equal((await stored('reunion')).node,'toast');await page.waitForTimeout(1900);await shot('toast');await pick();
    assert.equal((await stored('reunion')).node,'wait');await shot('request');await pick();
    assert.equal(await page.getByText(/1975 年富隆茶楼录音/).count(),0);
    await song('gather','call',mobile);await pick(mobile?1:0);await pick();
@@ -96,6 +113,14 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    assert.equal(result.photo,proofs[mobile?1:0]);assert.equal(result.node,mobile?'laugh':'tidy');
    await open('reunion');assert.equal(await page.locator('#choices button').first().innerText(),'再玩一次');
    await page.waitForTimeout(600);await shot('wall');
+   const oldPhoto='data:image/jpeg;base64,/9j/2Q==';
+   await page.evaluate(({oldPhoto,result})=>localStorage.setItem('yuekei-story-trial-v1:reunion',
+    JSON.stringify({...result,portraitVersion:3,photo:oldPhoto})),{oldPhoto,result});
+   await open('reunion');
+   const migrated=await stored('reunion');
+   assert.equal(migrated.portraitVersion,4);
+   assert.equal(migrated.node,result.node);assert.equal(migrated.photos,null);
+   assert(migrated.photo.startsWith('data:image/jpeg;base64,')&&migrated.photo.length>10000);
    await open('table');assert.equal(await page.locator('#speaker').innerText(),'同行朋友');
    await pick();await pick();await pick(mobile?1:0);await page.waitForTimeout(3600);await pick();
    assert.equal(await page.locator('#speaker').innerText(),'林伯');await pick(mobile?1:0);
@@ -106,7 +131,7 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    await open('table');assert((await page.locator('#line').innerText()).includes(mobile?'凍檸茶':'熱奶茶'));
    await page.screenshot({path:'output/ba-review/accepted-table-'+(mobile?'phone':'desktop')+'.jpg'});
    for(const el of await page.locator('#choices button').all()){const box=await el.boundingBox();assert(box.x>=0&&box.x+box.width<=page.viewportSize().width+1);assert(box.y+box.height<=page.viewportSize().height+1);}
-   assert.equal((await stored('reunion')).photo,result.photo);await pick();assert.equal((await stored('table')).node,'door');
+   assert.equal((await stored('reunion')).photo,migrated.photo);await pick();assert.equal((await stored('table')).node,'door');
    const legacy=mobile?'gather':'riddle';
    await page.evaluate(node=>localStorage.setItem('yuekei-story-trial-v1:reunion',JSON.stringify({node,songHits:7})),legacy);
    await open('reunion');

@@ -32,7 +32,7 @@ export async function createStoryScene(canvas,chapter){
  }
  const loader=new GLTFLoader(),cast={};
  const ids=['friend','regular','fang','aming',...(chapter==='reunion'?['master','player']:['lin'])];
- const roleLibraries={master:'lin',player:'ale'};
+ const roleLibraries=chapter==='reunion'?{master:'lin',player:'ale',regular:'regular'}:{};
  const poses=await fetch('assets/story-poses.json').then(r=>r.json());
  await Promise.all(ids.map(async id=>{
   const library=roleLibraries[id];
@@ -57,19 +57,40 @@ export async function createStoryScene(canvas,chapter){
   const p=joint.parent.getWorldQuaternion(new T.Quaternion());
   joint.quaternion.premultiply(p.clone().invert().multiply(new T.Quaternion().setFromUnitVectors(dir,aim)).multiply(p));
  }
+ const bindRotation=new WeakMap();
+ for(const a of Object.values(cast))for(const [name,bone] of Object.entries(a.bones))bindRotation.set(bone,a.rest[name]);
  function placeHand(bones,side,target,front,across,elbowDrop=0,palmDirection,fingerDirection){
   const shoulder=bones[side+'Arm'],elbow=bones[side+'ForeArm'],wrist=bones[side+'Hand'];
   const sign=side==='Left'?1:-1;
+  if(palmDirection)for(const bone of [shoulder,elbow,wrist])bone.quaternion.copy(bindRotation.get(bone)??bone.quaternion);
   const origin=shoulder.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
   const l1=origin.distanceTo(joint),l2=joint.distanceTo(wrist.getWorldPosition(v()));
-  const axis=target.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);
+  const axis=target.clone().sub(origin);
+  const reach=angle=>Math.sqrt(l1*l1+l2*l2+2*l1*l2*Math.cos(angle*T.MathUtils.DEG2RAD));
+  const d=T.MathUtils.clamp(axis.length(),palmDirection?reach(131):Math.abs(l1-l2)+.001,palmDirection?reach(12):l1+l2-.001);
   axis.normalize();const along=(l1*l1-l2*l2+d*d)/(2*d);
   const pole=across.clone().multiplyScalar(sign).addScaledVector(front,-1.8);
   pole.y-=elbowDrop;
   pole.addScaledVector(axis,-pole.dot(axis)).normalize();
   point(shoulder,elbow,origin.addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,l1*l1-along*along))));
-  point(elbow,wrist,target);
+  point(elbow,wrist,shoulder.getWorldPosition(v()).addScaledVector(axis,d));
   const fingers=fingerDirection??front.clone().multiplyScalar(.16).add(v(0,-.025,0));
+  const fore=wrist.getWorldPosition(v()).sub(elbow.getWorldPosition(v())).normalize();
+  if(palmDirection){
+   fingers.normalize();
+   const bend=fore.angleTo(fingers),limit=.54;
+   if(bend>limit){
+    const hinge=fore.clone().cross(fingers).normalize();
+    fingers.copy(fore).applyAxisAngle(hinge,limit);
+   }
+   // Pronation belongs on the forearm, not as a large twist in the wrist.
+   const k=name=>bones[side+'Hand'+name+'1'].getWorldPosition(v()).sub(wrist.getWorldPosition(v()));
+   const normal=k('Index').cross(k('Pinky')).multiplyScalar(-sign);
+   normal.addScaledVector(fore,-normal.dot(fore)).normalize();
+   const desired=palmDirection.clone().addScaledVector(fore,-palmDirection.dot(fore)).normalize();
+   const roll=Math.atan2(fore.dot(normal.clone().cross(desired)),normal.dot(desired));
+   elbow.rotateOnAxis(fore.clone().applyQuaternion(elbow.getWorldQuaternion(new T.Quaternion()).invert()),T.MathUtils.clamp(roll,-1.42,1.42));
+  }
   point(wrist,bones[side+'HandMiddle1'],wrist.getWorldPosition(v()).add(fingers));
   if(palmDirection){
    const base=wrist.getWorldPosition(v());
@@ -79,7 +100,7 @@ export async function createStoryScene(canvas,chapter){
    normal.addScaledVector(axis,-normal.dot(axis)).normalize();
    const desired=palmDirection.clone().addScaledVector(axis,-palmDirection.dot(axis)).normalize();
    const angle=Math.atan2(axis.dot(normal.clone().cross(desired)),normal.dot(desired));
-   wrist.rotateOnAxis(axis.applyQuaternion(wrist.getWorldQuaternion(new T.Quaternion()).invert()),angle);
+   wrist.rotateOnAxis(axis.applyQuaternion(wrist.getWorldQuaternion(new T.Quaternion()).invert()),T.MathUtils.clamp(angle,-.27,.27));
   }
  }
  function actor(id,x,y,z,yaw,sit=false,rightHandTarget,leftHandTarget){
@@ -382,5 +403,5 @@ export async function createStoryScene(canvas,chapter){
   pointer.setFromCamera(new T.Vector2(2*(x-rect.left)/rect.width-1,1-2*(y-rect.top)/rect.height),camera);
   return reunion?.hit(pointer,mode);
  }
- return {set,render,tick,speech,photograph,strike:()=>reunion?.strike(),hit};
+ return {set,render,tick,speech,photograph,strike:onContact=>reunion?.strike(onContact),hit};
 }

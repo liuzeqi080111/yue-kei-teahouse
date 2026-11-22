@@ -12,6 +12,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from face_glb import Glb
+from reunion_player_waist import rebuild_waist
 
 OUT = ROOT / 'output' / 'ba-review'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -33,8 +34,12 @@ def style(pos, rgb, role, is_cloth, collar):
     r, g, b = c.T
     if role == 'player':
         # Broader shoulders, tapered waist, firmer chin and swept asymmetric fringe.
-        out[:, 0] *= 1 + .07 * bell(y - .745, .065) - .055 * bell(y - .54, .07)
-        out[:, 0] *= 1 + .048 * bell(y - .866, .022)
+        # The scan is in a T-pose. Keep its elbows, wrists and fingers in their
+        # original bind positions when broadening the shoulders and shaping the waist.
+        torso=np.clip((.245-ax)/.11,0,1)
+        torso=torso*torso*(3-2*torso)
+        out[:, 0] *= 1 + torso*(.07 * bell(y - .745, .065) - .055 * bell(y - .54, .07))
+        out[:, 0] *= 1 + torso*.048 * bell(y - .866, .022)
         out[:, 2] += .006 * bell(y-.863,.025) * bell(x,.040) * (z>.035)
         hair = (y>.927) * np.clip((.44-r)*7,0,1)
         sweep=np.clip((y-.928)/.070,0,1)
@@ -51,7 +56,12 @@ def style(pos, rgb, role, is_cloth, collar):
             if collar:c[:]=[1.,1.,1.]
     else:
         # Lean cheek, lowered lids and close-cropped grey hair, as in the tea-house photographs.
-        out[:, 0]*=1-.085*bell(y-.89,.037)-.035*bell(y-.70,.11)
+        # The upper arms start at x = ±.091 in this rig. Sculpt only the head
+        # and torso so hands meet strings at the positions of their finger bones.
+        width=.09+.07*np.clip((.715-y)/.05,0,1)
+        torso=np.clip((width-ax)/.026,0,1)
+        torso=torso*torso*(3-2*torso)
+        out[:, 0]*=1-torso*(.085*bell(y-.89,.037)+.035*bell(y-.70,.11))
         out[:, 1]-=.006*bell(y-.919,.016)*np.clip((z-.010)/.033,0,1)
         hair=(y>.95)&(r-g<.13)
         crown=np.clip((y-.927)/.063,0,1)
@@ -227,6 +237,27 @@ def clean_mesh(g, mesh):
         begin+=n;offset+=len(v)
 
 
+def remove_wrist_scan(g, primitive):
+    # Three disjoint scan islands (a watch face and two small fittings) have
+    # skin vertex colors. The complete wrist surface is present underneath.
+    p=g.read(primitive['attributes']['POSITION'])
+    faces=g.read(primitive['indices']).reshape(-1,3)
+    window=((p>[-.384,.785,-.044])&(p<[-.352,.809,-.021])).all(1)
+    candidate=window[faces].all(1)
+    ids=np.unique(np.round(p,6),axis=0,return_inverse=True)[1]
+    # Follow connectivity past UV/normal seams; keep every triangle connected
+    # to skin outside the window even if its center lies under the watch.
+    anchored=np.unique(ids[faces[~candidate]])
+    while True:
+        joined=candidate&np.isin(ids[faces],anchored).any(1)
+        if not joined.any():break
+        anchored=np.unique(ids[faces[joined]])
+        candidate[joined]=False
+    if candidate.sum()!=232:raise ValueError('Unexpected wrist scan on the supper regular')
+    original=g.doc['accessors'][primitive['indices']]
+    primitive['indices']=g.add(faces[~candidate].reshape(-1),'SCALAR',original['componentType'])
+
+
 def build(role,donor):
     path=ROOT/'assets'/'street'/(donor+'-styled-v3.glb')
     data=path.read_bytes()
@@ -244,17 +275,27 @@ def build(role,donor):
     for i,original in enumerate(list(g.doc['meshes'])):
         mesh=copy.deepcopy(original);mesh['name']=role+' '+original['name']
         main='tripo_mesh' in original['name']
-        for p in mesh['primitives']:
+        if role=='regular':
+            if main:
+                remove_wrist_scan(g,mesh['primitives'][0])
+                maps[str(i)]=len(g.doc['meshes']);g.doc['meshes'].append(mesh)
+            continue
+        for part,p in enumerate(mesh['primitives']):
             a=p['attributes']
             pos=g.read(a['POSITION'])
             col=g.read(a['COLOR_0']) if 'COLOR_0'in a else np.ones((len(pos),4),np.float32)
             if col.dtype.kind=='u':col=col.astype(float)/np.iinfo(col.dtype).max
             collar=role=='player' and p['material']==3
             out,rgb=style(pos,col[:,:3],role,main,collar)
+            colors=np.column_stack((np.rint(rgb*255),np.full(len(pos),255)))
+            if main and part==0:
+                body=out
+                if role=='player':
+                    rebuild_waist(g,p,out,colors)
+                    continue
             a['POSITION']=g.add(out,'VEC3',5126)
-            a['COLOR_0']=g.add(np.column_stack((np.rint(rgb*255),np.full(len(pos),255))),'VEC4',5121,True)
+            a['COLOR_0']=g.add(colors,'VEC4',5121,True)
         if main:
-            body=g.read(mesh['primitives'][0]['attributes']['POSITION'])
             base=original['primitives'][0]
             trim=jacket_trim(g,base,body) if role=='master' else append_pin(g,base,body,pin)
             mesh['primitives'].append(trim)
@@ -263,28 +304,34 @@ def build(role,donor):
     g.doc['asset'].setdefault('extras',{})['reunionMeshSet']={'role':role,'meshes':maps,'source':source}
     path.write_bytes(g.pack())
     for node in g.doc['nodes']:
-        if 'mesh'in node:node['mesh']=maps[str(node['mesh'])]
+        if 'mesh'in node:node['mesh']=maps.get(str(node['mesh']),node['mesh'])
     (OUT/(role+'-portrait.glb')).write_bytes(g.pack())
 
 
 if __name__=='__main__':
-    for role,donor in [('player','ale'),('master','lin')]:
+    for role,donor in [('player','ale'),('master','lin'),('regular','regular')]:
         if '--master-only' in sys.argv and role!='master':continue
+        if '--player-only' in sys.argv and role!='player':continue
+        if '--regular-only' in sys.argv and role!='regular':continue
         build(role,donor)
     if '--qa' in sys.argv:
         qa_dir=Path.home()/'.codex/skills/blender-asset-qa/scripts';sys.path.insert(0,str(qa_dir))
         import qa_check,review_shots
         for role,name in [('player','Jade jacket lapel pin')]:
-            if '--master-only' in sys.argv:continue
+            if '--master-only' in sys.argv or '--regular-only' in sys.argv:continue
             q=qa_check.run(objects=[name],eps=.00002,tol=.0001)
             (OUT/(role+'-detail-qa.json')).write_text(json.dumps(q,default=str))
             for mode in ['random','wire']:
                 review_shots.run(objects=[name],mode=mode,views=['front','right','three_quarter'],res=180,out=str(OUT/(role+'-'+mode+'.png')))
             print(role,q['pass'],q['errors'],q['warnings'])
-        bpy.ops.wm.read_factory_settings(use_empty=True)
-        bpy.ops.import_scene.gltf(filepath=str(OUT/'master-portrait.glb'),merge_vertices=True)
-        for armature in bpy.data.armatures:armature.pose_position='REST'
-        meshes=[o.name for o in bpy.context.scene.objects if o.type=='MESH' and o.find_armature()]
-        result=qa_check.run(objects=meshes,eps=.00005,tol=.0006)
-        (OUT/'master-whole-check.json').write_text(json.dumps(result,default=str))
-        if result['errors']:raise RuntimeError(result['errors'])
+        for role in ['master','player']:
+            if '--master-only' in sys.argv and role!='master':continue
+            if '--player-only' in sys.argv and role!='player':continue
+            if '--regular-only' in sys.argv:continue
+            bpy.ops.wm.read_factory_settings(use_empty=True)
+            bpy.ops.import_scene.gltf(filepath=str(OUT/(role+'-portrait.glb')),merge_vertices=True)
+            for armature in bpy.data.armatures:armature.pose_position='REST'
+            meshes=[o.name for o in bpy.context.scene.objects if o.type=='MESH' and o.find_armature()]
+            result=qa_check.run(objects=meshes,eps=.00005,tol=.0006)
+            (OUT/(role+'-whole-check.json')).write_text(json.dumps(result,default=str))
+            if result['errors']:raise RuntimeError(result['errors'])
