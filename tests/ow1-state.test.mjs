@@ -164,7 +164,7 @@ for(const [label,patch] of [
  assert.equal(removed.ok,false,'storage throw on reset reported');
 }
 
-// reset 只删 SAVE_KEY：设置与学习记录等其他键保持不动。
+// 重新开始会清除故事进度，保留其他设置和学习记录。
 {
  const storage=createStorage({'yue-kei-weather':'dusk','review-rounds':'[]'});
  assert.equal(saveWorld(storage,freshWorld()).ok,true);
@@ -357,4 +357,4 @@ const has=(s,item)=>s.items.includes(item);
  assert.ok(co&&co.label.includes('推进一个时段'),'coat-cooperate label announces time advance');
 }
 
-console.log('PASS OW1 state: strict save/load validation, honest errors, no overwrite, reset only SAVE_KEY, coat rules');
+console.log('PASS OW1 state: strict save/load validation, honest errors, no overwrite, story reset, coat rules');

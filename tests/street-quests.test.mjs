@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
-import {freshWorld, applyWorldAction, restEvent, parseSave, npcContext} from '../neighborhood-state.js';
-import {ROLE_CLIPS} from '../fp1-clips.js';
+import {freshWorld, applyWorldAction, restEvent, parseSave, optionsFor} from '../neighborhood-state.js';
+import {chapterCompleted} from '../story-chapters.js';
 import {ACTORS, SHOPS, createStreetNav, rackBlocks, rackLayout, marketRoomBlocks, shopBlocks} from '../street-space.js';
 import {streetQuests, questPoint} from '../street-quests.js';
 import {createFp1Travel} from '../fp1-travel.js';
@@ -19,47 +19,34 @@ function takeStep(w,id){
  return result.state;
 }
 
-for(const id of ['coat','record','stall']){
- test('every displayed step is playable through the ending of '+id,()=>{
-  let w=firstPerson();
-  for(let i=0;i<24;i++){
-   const q=streetQuests(w).find(q=>q.id===id);
-   if(q.done)return;
-   assert.ok(questPoint(q,w));
-   w=takeStep(w,id);
-  }
-  assert.fail('quest never completed');
- });
-}
-test('an old save resumes the invitation after the contact or gift ending',()=>{
- for(const outcome of ['contact','gift']){
-  let w=firstPerson();w.recordOutcome=outcome;
-  w=parseSave(JSON.stringify(w));
-  assert.equal(streetQuests(w)[1].action,'record-after');
-  for(let i=0;i<4;i++)w=takeStep(w,'record');
-  assert.equal(streetQuests(w)[1].done,true);
-  assert.equal(w.money,30000);
+test('every displayed coat step is playable up to the ending',()=>{
+ let w=firstPerson();
+ for(let i=0;i<24;i++){
+  const q=streetQuests(w)[0];
+  if(q.done)return;
+  assert.ok(questPoint(q,w));w=takeStep(w,'coat');
+ }
+ assert.fail('quest never completed');
+});
+test('retired tracking migrates while historical possessions and coat progress survive',()=>{
+ for(const trackedQuest of ['record','stall']){
+  const w=parseSave(JSON.stringify({...firstPerson(),trackedQuest,flags:['coat-start','reunion-invite'],items:['contact','ticket']}));
+  assert.equal(w.trackedQuest,'coat');
+  assert.deepEqual(w.items,['contact','ticket']);
+  assert.equal(streetQuests(w)[0].action,'shop-check');
+  assert.deepEqual(streetQuests(w).map(q=>q.id),['coat','table','reunion']);
+  assert.ok(!optionsFor(w,'southRice').some(o=>o.id==='record-accept'));
+  assert.ok(!restEvent(w).flags.includes('reunion-arrived'));
  }
 });
-test('an outstanding invitation keeps its progress and points to the east bakery',()=>{
- const old=firstPerson();
- old.recordOutcome='contact';
- const invitation=applyWorldAction(old,'lam','record-after');
- assert.ok(invitation.ok);
- assert.match(invitation.text,/東街南洋餅家/);
- assert.ok(ROLE_CLIPS['lam|'+invitation.text]);
- for(const previousNote of ['林伯托你去南街米行邀请祥伯。','林伯托你去夜市杂货铺邀请祥伯。']){
-  const state=parseSave(JSON.stringify({...invitation.state,notes:[previousNote]}));
-  const quest=streetQuests(state)[1];
-  assert.deepEqual(state.notes,invitation.state.notes);
-  assert.deepEqual(state.flags,invitation.state.flags);
-  assert.match(quest.text,/东街南洋饼家/);
-  assert.ok(npcContext(state,'lam').knownClues.includes(state.notes[0]));
-  const point=questPoint(quest,state);
-  assert.ok(Math.hypot(point.x-SHOPS.eastBread.x,point.z-SHOPS.eastBread.z)<2);
-  assert.equal(quest.action,'record-accept');
-  assert.ok(applyWorldAction(state,quest.npc,quest.action).ok);
- }
+test('restaurant chapters point to the entrance until complete, including older endings',()=>{
+ const w=firstPerson();
+ const completed={table:chapterCompleted('table',{node:'morning'}),reunion:chapterCompleted('reunion',{node:'join'})};
+ const [,table,reunion]=streetQuests(w,completed);
+ assert.ok(table.done);assert.ok(!questPoint(table,w));
+ assert.equal(reunion.done,false);assert.ok(questPoint(reunion,w));
+ assert.equal(chapterCompleted('reunion',{node:'tidy'}),true);
+ assert.equal(chapterCompleted('table',{node:'door',completed:true}),true);
 });
 for(const route of ['buy','borrow']){
  test('the '+route+' route guides the player through returning the original coat',()=>{
@@ -106,4 +93,28 @@ test('borrowed coat cannot be returned before the interview and old early return
  assert.equal(streetQuests(w)[0].done,true);
  assert.ok(w.flags.includes('loan-returned'));
  assert.equal(applyWorldAction(w,'ling','loan-returned').ok,false);
+});
+
+test('an original recovered on the shopping route resumes at Qing’s current shop or home',()=>{
+ let w=firstPerson();
+ while(streetQuests(w)[0].action!=='coat-route-recover')w=takeStep(w,'coat');
+ for(const [npc,id] of [['fang','coat-route-buy'],['ming','guest-found'],['guest','coat-swap']]){
+  const result=applyWorldAction(w,npc,id);assert.ok(result.ok);w=result.state;
+ }
+ const saved=parseSave(JSON.stringify(w)),atShop=streetQuests(saved)[0];
+ assert.equal(atShop.action,'coat-return');assert.match(atShop.text,/带着外套去找阿晴.*玲记/);
+ assert.ok(saved.items.includes('coat'));assert.ok(!saved.items.includes('wrongCoat'));
+ assert.ok(Math.hypot(questPoint(atShop,saved).x-ACTORS.ling.point.x,questPoint(atShop,saved).z-ACTORS.ling.point.z)<2);
+ assert.ok(!applyWorldAction(saved,'guest','coat-swap').ok);
+ const quoted=applyWorldAction(saved,'ling','coat-quote');assert.ok(quoted.ok);
+ const paid=applyWorldAction(quoted.state,'qing','coat-buy');assert.ok(paid.ok);
+ const emergency=applyWorldAction(paid.state,'qing','coat-emergency');assert.ok(emergency.ok);
+ const away=emergency.state;
+ assert.equal(streetQuests(away)[0].action,'rest');
+ const back=restEvent(away),atHome=streetQuests(back)[0];
+ assert.equal(atHome.action,'coat-return-original');assert.match(atHome.text,/安和楼/);
+ assert.deepEqual(questPoint(atHome,back),ACTORS.qing.point);
+ const handed=applyWorldAction(back,'qing',atHome.action);
+ assert.ok(handed.ok);assert.ok(!handed.state.items.includes('coat'));
+ assert.ok(!applyWorldAction(handed.state,'qing',atHome.action).ok);
 });

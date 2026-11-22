@@ -170,10 +170,11 @@ test('存储读取抛错时给出诚实提示且不抛出', () => {
  assert.equal(loaded.state.streetView,undefined);
 });
 
-test('清除进度只删除世界存档键，设置与学习记录保留', () => {
+test('重新开始清除三个故事的进度并保留设置与学习记录', () => {
  const raw=JSON.stringify(storyWorld());
+ const chapters=['yuekei-story-trial-v1:table','yuekei-story-trial-v1:reunion'];
  const storage=createStorage({
-  [SAVE_KEY]:raw,
+  [SAVE_KEY]:raw, [chapters[0]]:'{}', [chapters[1]]:'{}',
   [SETTINGS_KEY]:'large',
   [LEARNING_KEY]:'{"mode":"beginner","showMeaning":false}',
  });
@@ -182,7 +183,7 @@ test('清除进度只删除世界存档键，设置与学习记录保留', () =>
  assert.equal(storage.raw(SAVE_KEY),null);
  assert.equal(storage.raw(SETTINGS_KEY),'large');
  assert.equal(storage.raw(LEARNING_KEY),'{"mode":"beginner","showMeaning":false}');
- assert.deepEqual(storage.removals,[SAVE_KEY],'不得清空全部键');
+ assert.deepEqual(storage.removals,[...chapters,SAVE_KEY],'只清除这三个故事');
  assert.deepEqual(storage.keys().sort(),[LEARNING_KEY,SETTINGS_KEY].sort());
 
  const loaded=loadWorld(storage);

@@ -494,7 +494,6 @@ neighborhood=createWorldView({
   if(worldSaveLocked||world.trackedQuest===id)return;
   world={...world,trackedQuest:id};worldDirty=true;flushWorldSave();
  },
- onRecordPlay:()=>roomAmbience.recordPhrase(),
  onMove:onWorldMove,
  onView:(streetView,{final=false}={})=>{
   if(worldSaveLocked)return;

@@ -1,7 +1,7 @@
 import {accompanySinger,songHitMask} from './nanyin-practice.js';
-import {reunionSaveKey,isPrint,portraitVersion} from './reunion-wall.js';
+import {isPrint,portraitVersion} from './reunion-wall.js';
 import {reunionIntents} from './story-reunion.js';
-import {chapters, morning, names, voices} from './story-chapters.js';
+import {chapters, chapterSaveKey, chapterCompleted, morning, names, voices} from './story-chapters.js';
 import {createStoryScene} from './story-scene.js';
 import {followSpeech, prepareVoiceRecording} from './voice-clips.js';
 import {createPracticeRecorder} from './practice-recorder.js';
@@ -10,7 +10,7 @@ import {voiceUrl} from './voice-endpoint.js';
 const $ = selector => document.querySelector(selector);
 const chapter = new URLSearchParams(location.search).get('story') === 'table' ? 'table' : 'reunion';
 const book = chapters[chapter];
-const key = chapter==='reunion'?reunionSaveKey:'yuekei-story-trial-v1:table';
+const key = chapterSaveKey(chapter);
 const defaults = () => chapter==='table'
  ? {node:book.start,drink:null,invited:false}
  : {node:book.start,songVersion:2,songHits:0,photos:null,photo:null};
@@ -67,6 +67,7 @@ async function listen(){
  });
 }
 function persist(){
+ if(chapterCompleted(chapter,state))state.completed=true;
  try {localStorage.setItem(key,JSON.stringify(state));} catch {$('#status').textContent='当前浏览器空间不足，本次试玩仍可继续。';}
 }
 function stopAudio(){
@@ -158,7 +159,7 @@ function display(){
  if(playing)sing(...options[0]);
  else for(const [index,[label,dest]] of options.entries())button(label,()=>transition(dest),index===0);
  if(!options.length){
-  button('再玩一次',()=>{state=defaults();display();persist();},true);
+  button('再玩一次',()=>{state={...defaults(),completed:true};display();persist();},true);
   button('试玩另一段',()=>location.assign('?story='+book.other));
  }
  if(options.length && (chapter==='table'||reunionIntents[n]))button('讲粤语',listen).id='record';

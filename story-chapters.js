@@ -17,6 +17,11 @@ export const chapters={
   }
  }
 };
+export const chapterSaveKey=id=>'yuekei-story-trial-v1:'+id;
+export function chapterCompleted(id,save){
+ const node=chapters[id]?.nodes[save?.node];
+ return save?.completed===true||Boolean(node&&node[3].length===0);
+}
 export const voices={master:'lam',friend:'intro',aqing:'qing',regular:'guest',aming:'ming',fang:'fang',ale:'lok',ling:'ling',lin:'lam'};
 export const names={master:'南音师傅',friend:'同行朋友',aqing:'阿晴',regular:'周叔',aming:'阿明',fang:'芳姐',ale:'阿乐',ling:'玲姐',lin:'林伯'};
 export function morning(drink){return drink==='lemon'?['又嚟喇？凍檸茶少冰，仲係窗口位，啱唔啱？','又来了？冻柠茶少冰，还是窗边，对吧？']:['又嚟喇？熱奶茶少甜，仲係窗口位，啱唔啱？','又来了？热奶茶少甜，还是窗边，对吧？'];}

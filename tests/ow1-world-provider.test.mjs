@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {createBailian} from '../server/bailian.mjs';
 import {createServer} from '../server.mjs';
+import {PASSERS,SHOPS} from '../street-space.js';
+import {COUNTER_GUESTS} from '../neighborhood-state.js';
 
 const env={DASHSCOPE_API_KEY:'test-secret',BAILIAN_OPENAI_BASE_URL:'https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'};
 const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
@@ -98,6 +100,10 @@ assert.equal(Object.hasOwn(chatted,'actionId'),false);
 assert.equal(chatted.requestId,'req-world-1');
 assert.equal(chatted.npcId,'qing');
 assert.equal(JSON.stringify(chatRequest),chatJson);
+for(const [npcId,actor] of Object.entries({...PASSERS,...SHOPS,...COUNTER_GUESTS})){
+  const context={...chatRequest.context,npcId,name:actor.name};
+  assert.equal((await api.worldInterpret({...chatRequest,context})).npcId,npcId);
+}
 
 // 请求白名单、严格字段、长度、数量、生命周期和总量限制都在调用上游前执行。
 const protoRequest=JSON.parse(JSON.stringify(validRequest()).replace(/^\{/,'{"__proto__":{"polluted":true},'));

@@ -14,7 +14,7 @@ export const publicFiles=[
  'index.html','style.css','voice.css','landing.css','mobile-tray.css','app.js','learning-guide.js','learning-phrases.js','learning-progress.js','review-store.js','mobile-tray.js','immersive-hud.js','immersive-hud.css','ui-language.js','controller.js','scene.js','scene-viewport.js','scene-motion.js','weather-layers.js','outdoor-weather.js','dining-actions.js','dining-room.js','street-space.js',
  'voice.js','voice-bridge.js','voice-capture.js','voice-endpoint.js','npc-speech.js','voice-clips.js','npc-voice-manifest.js','practice-audio.js','practice-recorder.js','music.js','ambient.js','sound-priority.js','neighborhood.js','neighborhood-map.js','neighborhood-state.js','neighborhood-voice.js','neighborhood.css',
  'teahouse-scene/index.js','teahouse-scene/menu.js','teahouse-scene/session.js',
- 'street-game.js','street-game.css','street-fang.js','street-quests.js','street-fixtures.js','street-gomoku.js','street-render.js','fp1-clips.js','fp1-travel.js','fp1-follow.js',
+ 'street-game.js','street-companions.js','street-game.css','street-fang.js','street-quests.js','street-fixtures.js','street-gomoku.js','street-render.js','fp1-clips.js','fp1-travel.js','fp1-follow.js',
  'assets/vinyl-title.png','assets/street/walk.json','assets/street/district.glb',
  ...['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].map(id=>'assets/street/'+id+'-styled-v3.glb'),
  ...Object.keys(SHOPKEEPER_CAST).filter(id=>id!=='juiceCart').map(id=>'assets/street/shopkeepers/'+id+'.glb'),

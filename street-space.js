@@ -189,12 +189,12 @@ export function shopBlocks(shop,point){
 
 // Clerks stay with their shops. These residents have their own dialogue identity.
 export const PASSERS={
- yan:{name:'散步的欣姨',model:'gardenHomes',tint:0x745581},
- kit:{name:'阿杰',model:'eastPrint',tint:0x46637d},
- mei:{name:'阿美',model:'southCloth',tint:0x578469},
- wing:{name:'荣伯',model:'northTurn',tint:0x55788a},
- ching:{name:'阿静',model:'banyanCloth',tint:0x9c6552},
- wai:{name:'阿威',model:'workshop',tint:0x606e4b},
+ yan:{name:'散步的欣姨',model:'gardenHomes',tint:0x745581,facts:['欣姨喜欢在街市买菜前先走一圈，经过东街的南洋饼家时会闻到菠萝包香。','她喜欢菠萝包刚出炉的脆皮，走完一圈才买，留到回家配茶。']},
+ kit:{name:'阿杰',model:'eastPrint',tint:0x46637d,facts:['阿杰喜欢拍街景，今天出门找手写店招。','他最爱拍旧招牌的笔画，等街上人走过去才拍。']},
+ mei:{name:'阿美',model:'southCloth',tint:0x578469,facts:['阿美在散步时爱看店铺窗里的布，平时会自己缝布袋。','她爱用结实的棉布做袋身，剩下的碎布可以缝成里面的小口袋。']},
+ wing:{name:'荣伯',model:'northTurn',tint:0x55788a,facts:['荣伯每天出来舒展双腿，喜欢在榕树附近听街坊下棋。','他喜欢听棋子落在棋盘上的声音，自己围观时不出声提点。']},
+ ching:{name:'阿静',model:'banyanCloth',tint:0x9c6552,facts:['阿静爱听旧唱片，出来走路时会经过永声唱片。','她喜欢慢歌，听旧唱片时特别留心经唱针传来的轻轻沙沙声。']},
+ wai:{name:'阿威',model:'workshop',tint:0x606e4b,facts:['阿威对旧收音机有兴趣，散步时喜欢到电器铺看看。','他喜欢慢慢转动调频旋钮，直到人声清楚，杂音消下去。']},
 };
 export const streetVoiceIds=['intro','qing','fang','lok','ling','lam','ming','guest','buyer',...Object.keys(SHOPKEEPER_CAST),...Object.keys(PASSERS)];
 export const streetHello=['你好呀，咁啱嘅！','你好呀，真巧！'];

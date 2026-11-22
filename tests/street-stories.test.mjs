@@ -36,34 +36,14 @@ test('第一人称买衣由阿晴付款，应急与和解是两个事件',()=>{
  assert.equal(solved.coatOutcome,'emergency');
 });
 
-test('唱片只传话不扣款，购买与赠送至多执行一次',()=>{
- const contact=play([['lam','record-start'],['lok','sleeve-read'],['lok','record-source'],['lok','record-reply'],['lam','record-contact']]);
- assert.equal(contact.recordOutcome,'contact');
- assert.equal(contact.flags.includes('buyer-consent'),false);
- assert.equal(contact.money,30000);
- const bought=play([['buyer','buyer-consent'],['lok','consent-relay'],['lok','record-buy']],contact);
- assert.equal(bought.money,24000);
- assert.equal(applyWorldAction(bought,'lok','record-buy').ok,false);
- const gift=play([['lam','record-gift']],bought);
- assert.equal(gift.recordOutcome,'gift');
- assert.equal(applyWorldAction(gift,'lam','record-gift').ok,false);
-});
-
-test('三个摆放方案更新同一通行区，分时仅在约定时段收架',()=>{
+test('retired quests leave a clear entrance for all periods and old outcomes',()=>{
  const grid=JSON.parse(readFileSync(new URL('../assets/street/walk.json',import.meta.url),'utf8'));
- const from={x:-12.25,z:7.18},to={x:-13.20,z:7.18};
- const clear=s=>createStreetNav(grid,p=>rackBlocks(rackLayout(s),p)).line(from,to);
- const initial=play([['ming','stall-ming'],['ling','stall-ling'],['ming','stall-observe']]);
- assert.equal(clear(initial),false);
- for(const plan of ['compact','move','hours']){
-  const done=play([['ling','stall-propose-'+plan],['ming','stall-agree'],['ling','stall-finalize']],initial);
-  assert.equal(done.stallOutcome,plan);
-  assert.equal(clear(done),plan!=='hours');
-  if(plan==='hours'){
-   const dinner=restEvent(done);
-   assert.equal(rackStatus(dinner).blocked,false);
-   assert.equal(clear(dinner),true);
-   assert.equal(clear(restEvent(restEvent(dinner))),false);
+ for(const stallOutcome of [null,'move','hours','compact']){
+  for(const period of [0,1,2]){
+   const world={...freshWorld(),period,stallOutcome};
+   assert.equal(rackStatus(world).blocked,false);
+   const nav=createStreetNav(grid,p=>rackBlocks(rackLayout(world),p));
+   assert.ok(nav.line({x:-12.25,z:7.18},{x:-13.20,z:7.18}));
   }
  }
 });

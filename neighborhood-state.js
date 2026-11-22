@@ -1,13 +1,14 @@
+import {chapterSaveKey} from './story-chapters.js';
 // Versioned local world state. Dialogue never writes this state directly.
 export const SAVE_KEY='mgoi-neighborhood-v1';
 export const NPCS={
- qing:{name:'阿晴',role:'住在隔壁，今天准备去面试',sprite:1},
+ qing:{name:'阿晴',role:'住在隔壁的街坊，这次面试对她很重要',sprite:1},
  fang:{name:'芳姐',role:'洗衣店老板娘，做事细致，说话直接',sprite:0},
  lok:{name:'阿乐',role:'唱片店主，热爱音乐，重视答应买家的事',sprite:2},
- ling:{name:'玲姐',role:'衣铺老板，爽快，但担心挪开衣架后没生意',sprite:3},
- lam:{name:'林伯',role:'常来坐坐的老街坊，想联系失联的老朋友',sprite:4},
+ ling:{name:'玲姐',role:'衣铺老板，爽快，擅长帮街坊挑衣服',sprite:3},
+ lam:{name:'林伯',role:'常在榕树下摆棋的老街坊',sprite:4},
  ming:{name:'阿明',role:'茶餐厅侍应，嘴快热心，门口被挡时容易着急',sprite:5},
- guest:{name:'周叔',role:'茶餐厅熟客，刚取了件穿着偏紧的外套',sprite:6},
+ guest:{name:'周叔',role:'常到粤记喝茶，也是芳姐洗衣店的熟客',sprite:6},
  buyer:{name:'小文',role:'已经约好来买唱片的客人',sprite:7}
 };
 export const ITEMS={ticket:'洗衣取件单',wrongCoat:'拿错的外套',coat:'阿晴的外套',loanCoat:'借来的外套',newCoat:'新外套',record:'旧唱片',contact:'旧友联系线索'};
@@ -23,8 +24,6 @@ export const COUNTER_GUESTS={
   question:'你點揀橙㗎？',reply:['我鍾意揀墜手嗰啲，拎返去同屋企人分嚟食。','我喜欢挑拿着沉手的，带回家和家里人分着吃。'],
  },
 };
-const invitationNote='林伯托你去东街南洋饼家，在荣叔柜台前邀请祥伯。';
-export const recordInvitation=['阿祥覆咗喇！佢喺東街南洋餅家，等緊榮叔執菠蘿包。你幫我問吓佢，今晚得唔得閒去榕樹頭捉棋呀？','祥伯回信了！他在东街南洋饼家，等荣叔装菠萝包。你帮我问问他，今晚有没有空到榕树下下棋？'];
 export function freshWorld(){return {version:1,revision:0,position:{x:1110,y:1220},location:'home',day:1,period:1,money:30000,items:[],flags:[],notes:[],met:[],history:{},restaurant:null,dining:null,paidMeals:[],coatOutcome:null,recordOutcome:null,stallOutcome:null};}
 const copy=x=>JSON.parse(JSON.stringify(x));
 const FORBIDDEN_KEYS=new Set(['__proto__','constructor','prototype']);
@@ -62,7 +61,7 @@ function validateWorld(s){
  if(!Number.isInteger(s.day)||s.day<1||s.day>100000)throw Error('存档日期无效');
  if(!Number.isSafeInteger(s.revision)||s.revision<0)throw Error('存档修订号无效');
  if(typeof s.location!=='string'||!LOCATIONS.has(s.location))throw Error('存档地点无效');
- if(s.trackedQuest!==undefined&&!['coat','record','stall'].includes(s.trackedQuest))throw Error('追踪任务无效');
+ if(s.trackedQuest!==undefined&&!['coat','table','reunion','record','stall'].includes(s.trackedQuest))throw Error('追踪任务无效');
  for(const key of ['items','flags','notes','met','paidMeals'])if(!Array.isArray(s[key])||s[key].length>1000||s[key].some(v=>typeof v!=='string'))throw Error('存档内容无效');
  if(s.items.some(i=>!Object.prototype.hasOwnProperty.call(ITEMS,i)))throw Error('存档物品无效');
  if(!isPlainObject(s.position)||!Number.isFinite(s.position.x)||!Number.isFinite(s.position.y))throw Error('存档位置无效');
@@ -81,10 +80,7 @@ export function parseSave(raw){
  const s=JSON.parse(raw);validateWorld(s);
  const out=freshWorld();
  for(const key of WORLD_KEYS)if(s[key]!==undefined)out[key]=s[key];
- if(out.flags.includes('reunion-invite')&&!out.flags.includes('reunion-date')){
-  const oldNotes=['林伯托你去南街米行邀请祥伯。','林伯托你去夜市杂货铺邀请祥伯。'];
-  out.notes=out.notes.map(line=>oldNotes.includes(line)?invitationNote:line);
- }
+ if(['record','stall'].includes(out.trackedQuest))out.trackedQuest=out.flags.includes('coat-epilogue')?'table':'coat';
  out.history=s.history;
  out.position={x:s.position.x,y:s.position.y};
  return out;
@@ -103,9 +99,12 @@ export function saveWorld(storage,state){
  try{storage.setItem(SAVE_KEY,raw);return {ok:true};}
  catch{return {ok:false,error:'进度未保存：浏览器存储不可用，请暂时不要关闭页面。'};}
 }
-// 只清除本游戏的世界存档键；设置与学习记录等其他键保持不动。
+// 街区和从任务菜单进入的两个故事共用一次重新开始。
 export function resetWorld(storage){
- try{storage.removeItem(SAVE_KEY);return {ok:true};}
+ try{
+  for(const key of [chapterSaveKey('table'),chapterSaveKey('reunion'),SAVE_KEY])storage.removeItem(key);
+  return {ok:true};
+ }
  catch{return {ok:false,error:'无法清除本游戏存档：浏览器存储不可用。'};}
 }
 export function optionsFor(s,npc){
@@ -131,7 +130,7 @@ export function optionsFor(s,npc){
        '八十蚊啱啦，我自己畀。唔該晒你陪我嚟試。','八十元可以，我自己付。谢谢你陪我来试衣。',
        d=>{flag(d,'qing-paid-coat');note(d,'阿晴试穿后自己支付了 HK$80，新外套由她自己拿着。原衣仍待找回。');});
      }
-     if(has('coat'))add('coat-return','把找回的外套交给阿晴，让她去面试（推进一个时段）','就係呢件！多謝你，我而家出發喇。','就是这件！谢谢你，我现在出发了。此选择推进一个时段。',d=>{take(d,'coat');coatEnd(d,'returned');});
+     if(has('coat'))add('coat-return','把外套亲手交给阿晴（推进一个时段）','就係呢件！多謝你，我而家出發喇。','就是这件！谢谢你，我现在出发了。',d=>{take(d,'coat');note(d,'阿晴接过你递来的外套，认出了右袖口的补痕。');coatEnd(d,'returned');});
      if(has('loanCoat')||has('newCoat')||firstPerson&&f('qing-paid-coat'))add('coat-emergency',firstPerson&&f('qing-paid-coat')?'阿晴穿新衣去面试（推进一个时段）':'先穿这件去面试，原衣服稍后找（推进一个时段）','啱身呀，咁我先去見工，返嚟再處理。','合身，那我先去面试，回来再处理。原衣服仍可继续找。此选择推进一个时段。',d=>{if(d.items.includes('loanCoat')){take(d,'loanCoat');flag(d,'qing-wore-loan');}else take(d,'newCoat');if(firstPerson)flag(d,'coat-misunderstanding');coatEnd(d,'emergency');});
      if(f('shop-contact')&&has('wrongCoat'))add('coat-cooperate','芳姐会换回衣服，你过去核对后出发（推进一个时段）','好，我同芳姐一齊核對，唔再鬧交喇。','好，我和芳姐一起核对，不再争吵了。此选择推进一个时段。',d=>{take(d,'wrongCoat');coatEnd(d,'cooperate');});
     }else{
@@ -173,64 +172,28 @@ export function optionsFor(s,npc){
     firstPerson?'周叔話件褸有啲窄。佢就喺門口左手邊，行過去問吓佢。':'周叔話件褸有啲窄，佢出去坐陣，你去長櫈嗰邊睇吓。',
     firstPerson?'周叔说外套偏紧。他就在粤记门口另一侧，可以当面问。':'周叔说外套有点紧，出去坐了，你到长椅那边看看。',
     d=>{flag(d,'guest-found');note(d,firstPerson?'阿明说周叔就在粤记门口另一侧。':'阿明说周叔在街边长椅附近。');});
-   if(!f('stall-ming'))add('stall-ming','门口怎么回事？',firstPerson?'玲姐個衫架擋住出入。你得閒，去夜市衫舖問吓佢。':'個衫架擋住出入，捧住熱嘢都唔知點行。',firstPerson?'玲姐的衣架挡住了出入。你有空的话，可以去夜市衣铺听听她怎么说。':'衣架挡住出入，端着热东西都不知道怎么走。',d=>{flag(d,'stall-ming');note(d,'阿明在意通道安全，希望门口留出空间。');});
-   if(!s.stallOutcome)add('stall-observe','观察一下门口通道','衫架佔咗大半條路，捧住熱嘢真係難行。','衣架占了大半条路，端着热食确实难走。',d=>{flag(d,'stall-observed');note(d,'通道被衣架占去大半，端热食经过危险。');});
-   const proposal=f('stall-propose-compact')?'compact':f('stall-propose-move')?'move':f('stall-propose-hours')?'hours':null;
-    if(proposal&&!s.stallOutcome)add('stall-agree','向阿明转达玲姐的方案，请他同意','得，咁樣行得通，通道留返出嚟。','行，这样行得通，通道留出来了。我已向阿明转达方案，他同意了。',d=>{flag(d,'stall-ming-agreed');note(d,'已向阿明转达玲姐的方案，他同意了；还要回玲姐那边落实。');});
-   else if(f('stall-ming')){
-    const waiting=s.stallOutcome==='hours'&&rackStatus(s).blocked;
-    add('ming-after','最近门口好走吗？',
-     waiting?'未到飯點，個架照擺。到食飯嗰陣就會收埋。':s.stallOutcome?'依家行得順好多，唔使再嗌交。':'你都見到，捧住嘢真係難行。',
-     waiting?rackStatus(s).description:s.stallOutcome?'现在好走多了，不必再争吵。':'你也看到了，端着东西确实难走。');
-   }
+   add('ming-chat','今天店里忙吗？','晏晝過咗最忙嗰陣，依家有位坐。','午市最忙的时候过了，现在有位子。');
   }
  if(npc==='guest'){
-  add('guest-chat','你也拿错了外套吗？','件褸有啲窄，但我唔可以隨便交畀陌生人。','外套有点紧，但我不能随便交给陌生人。');
-    if((has('ticket')||f('ticket-filed'))&&f('shop-check')&&f('coat-detail')&&has('wrongCoat')&&!has('coat')&&(!firstPerson||f('guest-found')))add('coat-swap',firstPerson?'说明芳姐的核对记录，看袖口并换衣':'出示取件单和特征，当面交换外套','個名對得上，袖口都係。原來真係攞錯咗。','名字和袖口都对得上，原来真的拿错了。',d=>{take(d,'wrongCoat');give(d,'coat');flag(d,'coat-swapped');note(d,'已与周叔核对并换回阿晴的外套。');});
+  if((has('ticket')||f('ticket-filed'))&&f('shop-check')&&f('coat-detail')&&has('wrongCoat')&&!has('coat')&&(!firstPerson||f('guest-found'))){
+   add('coat-swap',firstPerson?'核对袖口，把拿错的外套递给周叔，接回阿晴那件':'出示取件单和特征，当面交换外套','個名對得上，袖口都係。原來真係攞錯咗。','名字和袖口都对得上，原来真的拿错了。',d=>{take(d,'wrongCoat');give(d,'coat');flag(d,'coat-swapped');note(d,'周叔收回了自己的外套，把阿晴的外套交到你手上。');});
+  }else if(!f('coat-swapped'))add('guest-chat','你也拿错了外套吗？','件褸有啲窄，但我唔可以隨便交畀陌生人。','外套有点紧，但我不能随便交给陌生人。');
  }
  if(npc==='ling'){
-   if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&(!f('loan-returned')||!f('qing-wore-loan'))&&!f('qing-paid-coat')){
+   const canBorrowAgain=!f('loan-returned')||!f('qing-wore-loan')&&!f('coat-swapped');
+   if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&canBorrowAgain&&!f('qing-paid-coat')){
    add('coat-loan','邻居急着面试，可以借件外套吗？','借畀佢應急先，見完工記得帶返嚟。','先借给她应急，面试后记得还。',d=>{d.flags=d.flags.filter(x=>x!=='loan-returned');give(d,'loanCoat');flag(d,'loan-due');note(d,'向玲姐借了外套，答应面试后归还。');});
    if(firstPerson&&f('shop-check')&&f('coat-route-buy')&&!f('coat-quoted')){
     add('coat-quote','替阿晴问这件外套的价格','呢件八十蚊，阿晴你試吓先。','这件八十元。阿晴，你先试一下。',d=>{flag(d,'coat-quoted');note(d,'玲姐报价 HK$80，由阿晴试穿后决定是否自己付款。');});
    }
    if(!firstPerson&&s.money>=8000)add('coat-buy','买一件应急外套 · HK$80','呢件八十蚊，試啱就攞去啦。','这件八十元，合适就拿去。',d=>{d.money-=8000;give(d,'newCoat');});
   }
-    if(has('loanCoat')&&f('qing-returned')&&f('qing-loan-back')&&!f('loan-returned'))add('loan-returned','归还玲姐借出的外套','有借有還，下次有事再搵我。','有借有还，下次有事再找我。',d=>{take(d,'loanCoat');flag(d,'loan-returned');note(d,'已把借用的外套还给玲姐。');});
-  if(!f('stall-ling'))add('stall-ling',firstPerson?'粤记门口的衣架为什么放那儿？':'为什么把衣架放这里？','縮入去冇人睇到，但我都唔想阻住人。','缩进去没人看见，但我也不想挡路。',d=>{flag(d,'stall-ling');note(d,'玲姐担心挪开衣架后没人看见，也愿意讨论办法。');});
-    if(f('stall-ming')&&f('stall-ling')&&f('stall-observed')&&!s.stallOutcome)for(const [id,label,text] of [['compact','缩小陈列，留出通道','我收起外面個架，留條路畀大家。'],['move','把衣架移到店面侧边','咁我移去側邊，招牌留喺前面。'],['hours','约定上午和入夜收起衣架','朝早同入夜食飯最忙，我嗰陣收起個架。']])add('stall-propose-'+id,label,text,'好，就照这个方式调整；还要问过阿明先算数。',d=>{d.flags=d.flags.filter(x=>!x.startsWith('stall-propose-')&&x!=='stall-ming-agreed');flag(d,'stall-propose-'+id);note(d,'已与玲姐商定方案（'+label+'），还需阿明同意并由玩家回玲姐处落实。');});
-   if(f('stall-ming-agreed')&&!s.stallOutcome){const plan=f('stall-propose-compact')?'compact':f('stall-propose-move')?'move':'hours';add('stall-finalize','告诉玲姐：阿明同意了，按方案落实','阿明都同意？咁我依家調整，通道留返出嚟。','阿明也同意？那我现在调整，通道留出来了。',d=>{d.stallOutcome=plan;note(d,'已向玲姐转达阿明的同意，门口通道方案落实。');});}
-   if(s.stallOutcome){
-    const waiting=s.stallOutcome==='hours'&&rackStatus(s).blocked;
-    add('stall-after','门口现在好走吗？',
-     waiting?'未到飯點，我擺多陣先，夠鐘就收。':'依家睇得見舖頭，路又留返出嚟。',
-     waiting?rackStatus(s).description:'现在看得见店面，路也留出来了。');
-   }
+    if(has('loanCoat')&&!f('loan-returned')&&(f('coat-swapped')&&!f('qing-wore-loan')||f('qing-loan-back')))add('loan-returned','归还玲姐借出的外套','有借有還，下次有事再搵我。','有借有还，下次有事再找我。',d=>{take(d,'loanCoat');flag(d,'loan-returned');note(d,'已把借用的外套还给玲姐。');});
+  add('ling-chat','最近店里什么衣服好卖？','呢排朝早有啲涼，薄外套最好賣。','这阵子早上凉，薄外套最好卖。');
  }
- if(npc==='lam'){
-  if(!f('record-start'))add('record-start','在看什么？','阿樂有隻舊唱片，好似係我老朋友嗰隻。好多年冇見佢喇。','阿乐有张旧唱片，好像是我老朋友的，好多年没见了。',d=>{flag(d,'record-start');note(d,'林伯认出旧唱片，想知道是否与失联旧友有关。');});
-   if(has('contact')&&!s.recordOutcome)add('record-contact','把旧友的联系线索告诉林伯','原來佢仲記得我。我會先問聲佢想唔想見面。','原来他还记得我，我会先问他是否愿意见面。',d=>{d.recordOutcome='contact';note(d,'林伯获得了旧友的联系线索，准备先征询重逢意愿。');});
-  if(has('record')&&has('contact')&&s.recordOutcome!=='gift')add('record-gift','把唱片交给林伯','連隻唱片都帶返嚟，多謝你。最緊要係搵得返個朋友。','连唱片都带来了，谢谢你，最重要是能联系到朋友。',d=>{take(d,'record');d.recordOutcome='gift';note(d,'林伯收下唱片，并准备联系旧友。');});
-  if(firstPerson&&s.recordOutcome){
-   if(!f('reunion-invite'))add('record-after','听回信，替林伯约旧友见面',...recordInvitation,d=>{flag(d,'reunion-invite');note(d,invitationNote);});
-   if(f('reunion-arrived')&&!f('record-reunited'))add('record-reunion','一起听他们当年的曲子','阿祥，你仲記得呢段前奏？嗰年收工，我哋就係聽住佢捉棋。嚟，今次到你行先。','阿祥，你还记得这段前奏吗？那年下班我们总听着它下棋。来，这次你先走。',d=>{flag(d,'record-reunited');note(d,'祥伯带来自己的唱片，两人在榕树下听曲，再开一盘棋。');});
-  }else if(s.recordOutcome)add('record-after','后来联系上了吗？','我留咗口訊畀佢，等佢方便先覆。','我给他留了口信，等他方便时回复。');
- }
- if(npc==='southRice'&&firstPerson&&f('reunion-invite')&&!f('reunion-date')){
-  add('record-accept','转达林伯的邀请，约在榕树下见','阿林仲留住副棋！好呀，今晚我帶埋屋企隻碟過去。','阿林还留着那副棋！今晚我带上家里那张唱片去榕树下。',d=>{flag(d,'reunion-date');note(d,'祥伯答应赴约。在榕树下等过一个时段就能见面。');});
- }
- if(npc==='lok'){
-  add('record-chat','有什么唱片推荐？','你鍾意聽邊類？慢慢睇，唔買都可以傾吓。','你喜欢听哪种？慢慢看，不买也可以聊。');
-   if(!f('sleeve-read'))add('sleeve-read','可以看看封套上的留言吗？','可以，呢度寫住畀阿林。貨係朋友託我幫手賣嘅。','可以，这里写着“给阿林”，是朋友托我出售的。',d=>{flag(d,'sleeve-read');note(d,'封套留言“给阿林”；阿乐受朋友委托出售，已答应留给小文。');});
-    if(f('record-start')&&f('sleeve-read')&&!f('record-relayed'))add('record-source','替林伯问问旧友愿不愿意联系','好，我幫你問吓佢；佢同意我再畀聯絡方法你轉交。','好，我帮你问他；他同意后，再把联系线索交你转达。',d=>{flag(d,'record-relayed');note(d,'已请阿乐转达联系请求，等旧友答复。');});
-   if(f('record-relayed')&&!has('contact'))add('record-reply','旧友有回信了吗？','佢話記得阿林，同意畀聯絡方法。你交畀佢，等佢自己聯絡。','他记得阿林，同意给联系方式。你交给林伯，让他自己联系。',d=>{give(d,'contact');flag(d,'record-reply-received');note(d,'旧友已同意联系；线索交给了玩家，等林伯自己联络。');});
-   if(f('buyer-consent')&&!f('consent-relayed'))add('consent-relay','告诉阿乐：小文同意让出唱片',firstPerson?'小文肯讓？隻碟六十蚊，你可以照原價買。':'小文肯讓？咁你照價俾佢，隻碟你攞去。',firstPerson?'小文肯让？唱片六十元，你可以按原价买。':'小文肯让？那你照价给他，唱片你拿走。',d=>{flag(d,'consent-relayed');note(d,'已转告阿乐：小文同意让出唱片。');});
-   if(f('consent-relayed')&&!f('record-purchased')&&!has('record')&&s.recordOutcome!=='gift'&&s.money>=6000)add('record-buy','按约购买旧唱片 · HK$60','小文肯讓，六十蚊，幫我好好保存佢。','小文愿意让，六十元，请好好保存。',d=>{d.money-=6000;give(d,'record');flag(d,'record-purchased');});
- }
- if(npc==='buyer'){
-  add('buyer-chat','你喜欢这张唱片吗？','係呀，我約咗阿樂留畀我。','对，我约了阿乐留给我。');
-   if(f('record-start')&&f('sleeve-read')&&!f('buyer-consent'))add('buyer-consent','解释林伯的故事，商量让出唱片','原來有呢段故事。咁讓畀佢，我再揀另一隻。','原来有这段故事，那让给他，我再挑另一张。',d=>{flag(d,'buyer-consent');note(d,'小文同意让出预订唱片。仍可选择保留原交易，只转达联系。');});
- }
+ if(npc==='lam')add('lam-chat','林伯，平时几时来下棋？','我食完晏就落嚟，呢度有樹蔭，坐得舒服。','我吃过午饭就下来，这儿有树荫，坐得舒服。');
+ if(npc==='lok')add('lok-chat','今天在放哪种音乐？','今日開咗隻粵曲碟，你聽吓段過門。','今天放的是粤曲，你听听这段过门。');
+ if(npc==='buyer')add('buyer-chat','你喜欢这张唱片吗？','係呀，我約咗阿樂留畀我。','对，我约了阿乐留给我。');
  return out;
 }
 export function applyWorldAction(state,npc,id){
@@ -241,7 +204,6 @@ export function advanceTime(s){const n=copy(s);n.period=(n.period+1)%3;if(n.peri
 // 明确的休息/等待事件：推进一个时段，并让赴面试的阿晴返回。纯状态推导，不依赖墙钟或计时器。
 export function restEvent(s){
  const n=advanceTime(s);
- if(n.flags.includes('reunion-date')&&!n.flags.includes('reunion-arrived')){n.flags.push('reunion-arrived');n.notes.push('祥伯带着唱片来到了榕树下。');}
  if(n.coatOutcome&&!n.flags.includes('qing-returned')){
   n.flags.push('qing-returned');
   if(!n.notes.includes('阿晴面试回来了。'))n.notes.push('阿晴面试回来了。');
@@ -261,22 +223,17 @@ export function qingStatus(s){
  if(!s.flags.includes('qing-returned'))return {presence:'interview',wearing};
  return {presence:'returned',wearing};
 }
-// 门口衣架状态：供地图读取的纯数据（placement/blocked/描述），不改动任何绘制或样式。
-const MEAL_PERIODS=[2,0];
-export function rackStatus(s){
- if(!s.stallOutcome)return {placement:'as-is',blocked:true,description:'衣架仍占着通道，端热食经过危险。'};
- if(s.stallOutcome==='compact')return {placement:'compact',blocked:false,description:'陈列已缩小，通道留出来了。'};
- if(s.stallOutcome==='move')return {placement:'move',blocked:false,description:'衣架移到店面侧边，招牌仍在前面。'};
- const meal=MEAL_PERIODS.includes(s.period);
- return {placement:'hours',blocked:!meal,description:meal?'饭点时段，玲姐按约定收起衣架，通道畅通。':'非饭点时段，衣架照常摆出，通道收窄。'};
+// 衣架作为店面陈列，门口留给行人通行。
+export function rackStatus(){
+ return {placement:'compact',blocked:false,description:'衣架收在店边，门口通道畅通。'};
 }
 const NPC_PROFILES={
- qing:{background:'街坊，正准备去面试。'},
- lam:{background:'茶客，认出一张与失联旧友有关的旧唱片。'},
+ qing:{background:'住在安和楼，平时把面试穿的外套送去芳姐的洗衣店。'},
+ lam:{background:'街坊，午饭后爱在榕树下捉棋。'},
  lok:{background:'唱片店主，受托出售朋友的旧唱片。'},
  buyer:{background:'唱片店熟客，阿乐答应把旧唱片留给他。'},
  ming:{background:'茶餐厅伙计，在意门口通道安全。'},
-  ling:{background:'衣铺老板，担心挪开衣架影响生意。'},
+  ling:{background:'衣铺老板，熟悉街坊的穿衣习惯。'},
  guest:{background:'洗衣店客人，常去粤记。'},
  fang:{background:'洗衣店店主，正在核对取件记录。'}
 };
@@ -288,6 +245,11 @@ export function npcContext(s,npc){
  const known=[],relations=[];
  if(npc==='qing'){
   known.push('自己的外套右袖口补过一小块、内袋有自己的名字。');
+  if(!s.coatOutcome&&s.streetView){
+   if(!f('coat-start'))known.push('她明天面试，想请玩家陪她去洗衣店取外套。');
+   else if(!f('shop-check'))relations.push('玩家已答应陪她取面试外套，取件单已交给玩家。');
+   else if(f('coat-inspected'))relations.push('她在柜台看过刚取的外套，认出那件没有自己的右袖补痕，仍等着拿回原衣。');
+  }
   if(s.coatOutcome==='returned')relations.push('玩家找回了原衣，她已穿着去面试。');
   else if(s.coatOutcome==='cooperate')relations.push('她按芳姐联系的方案去核对换衣并赴面试。');
   else if(s.coatOutcome==='emergency'){
@@ -297,36 +259,14 @@ export function npcContext(s,npc){
   }
   if(f('qing-loan-back'))relations.push('借来的外套已还给玩家。');
   if(f('original-returned')&&s.coatOutcome!=='emergency')relations.push('玩家后来把原衣交给了她。');
- }else if(npc==='lam'){
-  if(f('record-start'))known.push('他告诉过玩家：旧唱片可能与失联旧友有关。');
-  if(f('reunion-arrived'))relations.push('祥伯已经带着唱片来到榕树下。');
-  else if(f('reunion-date'))relations.push('祥伯答应今晚带唱片到榕树下捉棋。');
-  else if(f('reunion-invite'))known.push(invitationNote);
-  else if(s.recordOutcome==='contact')relations.push('玩家转交了旧友的联系线索；他准备先问对方是否愿意见面，尚未重逢。');
-  else if(s.recordOutcome==='gift')relations.push('玩家把旧唱片送给了他；他仍要亲自联系对方。');
- }else if(npc==='lok'){
-  known.push('受托出售旧唱片，唱片已答应留给小文。');
-  if(f('sleeve-read'))known.push('封套上写着“给阿林”。');
-  if(f('record-relayed')&&!f('record-reply-received'))relations.push('已替玩家转达联系请求，还在等旧友答复。');
-  if(f('record-reply-received'))relations.push('旧友已同意联系，线索交给了玩家。');
-  if(f('consent-relayed'))relations.push('玩家转告：小文听过林伯的故事后同意让出唱片。');
- }else if(npc==='buyer'){
-  known.push('阿乐答应把一张旧唱片留给他。');
-  if(f('buyer-consent'))relations.push('他听过林伯的故事，同意让出唱片。');
- }else if(npc==='ming'){
-  if(f('stall-ming'))known.push('他向玩家抱怨过门口通道被衣架挡住。');
-  if(f('stall-observed'))relations.push('他和玩家一起看过通道。');
-  if(f('stall-ming-agreed')&&!s.stallOutcome)relations.push('他同意了玩家转达的通道方案，等回玲姐落实。');
-  if(s.stallOutcome)relations.push('通道问题已按双方同意的方案解决。');
+ }else if(npc==='lok'||npc==='buyer'){
+  known.push('阿乐答应把一张唱片留给小文。');
  }else if(npc==='ling'){
-  if(f('stall-ling'))known.push('她担心挪开衣架后没人看见店面。');
   if(f('loan-due')&&!f('loan-returned'))relations.push('她借出了外套，约定面试后归还。');
   if(f('loan-returned'))relations.push('借出的外套已收回。');
-  if((f('stall-propose-compact')||f('stall-propose-move')||f('stall-propose-hours'))&&!s.stallOutcome)relations.push('她与玩家商定了通道方案，还没落实。');
-  if(s.stallOutcome)relations.push('通道方案已落实。');
  }else if(npc==='guest'){
-  known.push('他觉得外套有点紧，怀疑拿错了。');
-  if(f('coat-swapped'))relations.push('他与玩家核对单据和特征，确认并换回了各自的外套。');
+  if(f('coat-swapped'))relations.push('他与玩家核对过内袋的名字和右袖口补痕，已换回自己的衣服，并亲手把阿晴的原外套交给玩家。');
+  else known.push('从芳姐的洗衣店取回的外套穿着有点紧，他怀疑拿错了。');
  }else if(npc==='fang'){
   if(f('shop-check'))known.push('她核对过取件单：周先生刚拿走一件相似外套。');
   if(f('shop-contact'))relations.push('她已联系周叔共同核对。');

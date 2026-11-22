@@ -299,7 +299,7 @@ export function createOccupations(scene,actors,kit){
     continue;
    }
    const coatOnCounter=kit.coatShown&&(id==='fang'||id==='aqing'&&Math.hypot(model.position.x-15.54,model.position.z-1.19)<2.4);
-   const working=!coatOnCounter&&(id==='aqing'||engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
+   const working=!coatOnCounter&&(id==='aqing'?kit.qingHasCoat:engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
    if(!working&&!j.weight)continue;
    if(working&&['fang','ale','aming','ling','regular'].includes(id)){
     const delta=j.actor.spec.rotationY-model.rotation.y;
@@ -372,7 +372,7 @@ export function createOccupations(scene,actors,kit){
    }else j.right.position.copy(reach(j,'Right',model.localToWorld(r),j.weight));
    j.left.visible=j.right.visible=j.weight>.045;
    if(id==='aqing'){
-    if(coatOnCounter)j.left.visible=false;
+    if(coatOnCounter||!kit.qingHasCoat||kit.passingToQing)j.left.visible=false;
     j.right.visible=false;
     placeFingertip(j,'Left','Thumb',j.left.localToWorld(v().set(.018,-.015,.014)));
    }

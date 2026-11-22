@@ -151,6 +151,7 @@ export async function loadStreet(canvas) {
    camera.updateProjectionMatrix();renderer.setSize(width,height,false);
   }
   camera.position.set(x,y,z);camera.rotation.set(pitch,-heading,0,'YXZ');
+  poseHeldCoat();
   renderer.render(scene,camera);
  }
  await Promise.all(layout.characters.map(async spec=>{
@@ -421,7 +422,7 @@ export async function loadStreet(canvas) {
   }
   changed=shopVisits(point,engaged,now)||changed;
   if(strolling)refreshShadows();
-  return changed||bodiesChanged||strolling;
+  return changed||bodiesChanged||strolling||Boolean(handoff);
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
  const laundryMaterial=new Map();
@@ -457,7 +458,38 @@ export async function loadStreet(canvas) {
  const coat=new T.Group(),laidCoat=fittings.heldCoat.clone(true);
  laidCoat.rotation.x=-Math.PI/2;coat.add(laidCoat);
  coat.position.set(15.28,1.103,1.19);coat.rotation.y=Math.PI/2;coat.visible=false;scene.add(coat);
- function showCoat(visible){coat.visible=visible;fittings.coatShown=visible;fittings.pressing.visible=!visible;}
+ const carried=fittings.heldCoat.clone(true);
+ carried.visible=false;scene.add(carried);
+ const grip=new T.Vector3(),otherGrip=new T.Vector3();
+ let handoff=null,holdingCoat=false;
+ function showCoat(onCounter,inBag,withQing){
+  coat.visible=onCounter;fittings.coatShown=onCounter;fittings.pressing.visible=!onCounter;
+  holdingCoat=inBag;fittings.qingHasCoat=withQing;
+ }
+ function transferCoat(actorId,receiving){
+  const model=actors.get(actorId).model;
+  let gripBone;
+  model.traverse(b=>{if(b.isBone&&/LeftHandMiddle1$/i.test(b.name))gripBone=b;});
+  handoff={model,bone:gripBone,receiving,start:performance.now()};
+  fittings.passingToQing=!receiving;
+ }
+ function poseHeldCoat(){
+  carried.visible=holdingCoat||Boolean(handoff);
+  if(!carried.visible)return;
+  camera.localToWorld(grip.set(Math.min(.36,.20*camera.aspect),-.09,-.70));
+  carried.position.copy(grip);
+  carried.quaternion.copy(camera.quaternion);
+  carried.rotateX(.48);carried.rotateZ(-.14);
+  if(!handoff)return;
+  const {model,bone,receiving,start}=handoff;
+  if(bone)bone.getWorldPosition(otherGrip);
+  else model.localToWorld(otherGrip.set(.14,.60,.25));
+  const elapsed=T.MathUtils.smoothstep(performance.now()-start,0,850);
+  carried.position.lerp(otherGrip,receiving?1-elapsed:elapsed);
+  if(elapsed>=1||!model.visible){
+   handoff=null;fittings.passingToQing=false;carried.visible=holdingCoat;
+  }
+ }
  illuminate(false);
  function face(id,point,dt){
   const actor=character(id);
@@ -484,7 +516,7 @@ export async function loadStreet(canvas) {
   else{elder.position.copy(guestPosition);elder.rotation.y=guestYaw;}
   refreshShadows();
  }
- return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
+ return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,transferCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
 }
 
 function storeSign(text,w,h){
