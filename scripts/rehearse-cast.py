@@ -158,14 +158,13 @@ def bake_role(role):
  rest=(0,MOUTH_SHAPES['X'])
  for frame,(energy,pose) in enumerate([rest]*3+seq+[rest]*5,1):
   jaw,rounded,wide,upper,press,tuck,tongue=pose
-  effort=(.60+.40*energy) if energy else 0
+  effort=energy*(2-energy)
   weights={'jawOpen':jaw,'mouthPucker':rounded,'mouthStretch':wide,'upperLipRaise':upper*.75,
-           'mouthPress':press,'lowerLipTuck':tuck,'tongueUp':tongue,'mouthSmileLeft':wide*.20,'mouthSmileRight':wide*.17}
+           'mouthPress':press,'lowerLipTuck':tuck,'tongueUp':tongue}
   for o in faces:
    keys=o.data.shape_keys.key_blocks
    for name,value in weights.items():
     keys[name].value=effort*value;keys[name].keyframe_insert(data_path='value',frame=frame)
-   keys['browInnerUp'].value=energy*jaw*.22;keys['browInnerUp'].keyframe_insert(data_path='value',frame=frame)
  allbones={b.name.split(':')[-1]:b for b in arm.pose.bones} if arm else {}
  qt0={k:b.matrix.to_quaternion().copy() for k,b in allbones.items()}
  def turn(b,q):

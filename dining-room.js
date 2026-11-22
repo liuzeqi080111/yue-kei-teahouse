@@ -214,7 +214,7 @@ export function mouthPose(model){
   const pose=Array.isArray(shape)?shape:mouthShapes[shape]??mouthShapes.C;
   const [jaw,round,wide,upper,press=0,tuck=0,tongue=0]=pose;
   const energy=T.MathUtils.clamp(level,0,1);
-  const effort=energy > 0 ? .60+.40*energy : 0;
+  const effort=energy*(2-energy);
   for(const {keys,weights} of bindings){
    weights[keys.jawOpen]=effort*jaw;
    weights[keys.mouthPucker]=effort*round;
@@ -223,9 +223,6 @@ export function mouthPose(model){
    weights[keys.mouthPress]=effort*press;
    weights[keys.lowerLipTuck]=effort*tuck;
    weights[keys.tongueUp]=effort*tongue;
-   weights[keys.browInnerUp]=energy*jaw*.22;
-   weights[keys.mouthSmileLeft]=effort*wide*.20;
-   weights[keys.mouthSmileRight]=effort*wide*.17;
   }
  };
 }
