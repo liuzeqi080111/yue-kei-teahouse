@@ -25,7 +25,10 @@ with sync_playwright() as playwright:
     <script type="module">
     import * as T from 'three';
     import {loadStreet} from './street-render.js';
+    import {createStreetNav,SHOPS,marketRoomBlocks,shopBlocks} from './street-space.js';
     window.street=await loadStreet(document.querySelector('canvas'));
+    const shops=Object.values(SHOPS);
+    window.walkNav=createStreetNav(street.layout,p=>marketRoomBlocks(p)||shops.some(s=>shopBlocks(s,p)));
     window.auditTime=0;
     window.drawAudit=({id,time,side=0,near=false})=>{
       const model=street.actors.get(id).model;
@@ -47,7 +50,7 @@ with sync_playwright() as playwright:
     };
     </script>"""
     page.route("**/audit.html",lambda route:route.fulfill(content_type="text/html",body=markup))
-    page.goto(os.environ.get('STREET_URL','http://127.0.0.1:4256')+'/audit.html')
+    page.goto(os.environ.get('STREET_URL','http://127.0.0.1:4290')+'/audit.html')
     page.wait_for_function("typeof window.drawAudit === 'function'",timeout=90000)
     for index,name in enumerate(("aqing","aming","fang","regular")):
         for side in (-.5,0,.5):
@@ -67,12 +70,24 @@ with sync_playwright() as playwright:
         if(!mesh)throw Error(id+' has no walking mesh');
         return [id,mesh];
       }));
-      const metrics=Object.fromEntries(ids.map(id=>[id,{distance:0,maxTurnRate:0,maxSpeed:0,steps:0}]));
-      for(let frame=1;frame<=1200;frame++){
+      const metrics=Object.fromEntries(ids.map(id=>[id,{distance:0,maxTurnRate:0,maxSpeed:0,streets:[],steps:0}]));
+      const streetName=({x,z})=>{
+        if(Math.abs(x)<6){
+          if(z<-13)return '北街';
+          if(z>13)return '南街';
+          if(Math.abs(z)<1.6)return '中巷';
+        }
+        if(Math.abs(z)>2&&Math.abs(z)<12)return x>0?'东街':'西街';
+      };
+      // Six simulated minutes cover a full circuit even on the longest walk.
+      for(let frame=1;frame<=7200;frame++){
         const previous=Object.fromEntries(ids.map(id=>{const a=street.actors.get(id).model;return [id,{x:a.position.x,z:a.position.z,yaw:a.rotation.y}]}));
-        street.animateWork({x:0,z:0},null,15000+frame*50);
+        street.animateWork({x:13,z:6},null,15000+frame*50);
         for(const id of ids){
           const model=street.actors.get(id).model,p=previous[id],m=metrics[id];
+          if(!walkNav.walkable(model.position.x,model.position.z))throw Error(id+' left the walkable street');
+          const area=streetName(model.position);
+          if(area&&area!==m.streets.at(-1))m.streets.push(area);
           const dx=model.position.x-p.x,dz=model.position.z-p.z,d=Math.hypot(dx,dz);
           const turn=Math.atan2(Math.sin(model.rotation.y-p.yaw),Math.cos(model.rotation.y-p.yaw));
           m.distance+=d;m.maxSpeed=Math.max(m.maxSpeed,d/.05);m.maxTurnRate=Math.max(m.maxTurnRate,Math.abs(turn)/.05);
@@ -86,14 +101,39 @@ with sync_playwright() as playwright:
         }
       }
       const paused=street.actors.get('kit').model.position.clone();
-      for(let frame=1;frame<=60;frame++)street.animateWork({x:0,z:0},'kit',75000+frame*50);
+      for(let frame=1;frame<=60;frame++)street.animateWork({x:13,z:6},'kit',375000+frame*50);
       if(paused.distanceTo(street.actors.get('kit').model.position)>1e-6)throw Error('Neighbour moved during dialogue');
       return metrics;
     }""")
     for name,metrics in locomotion.items():
-        assert metrics['distance']>4,(name,metrics)
+        assert metrics['distance']>195,(name,metrics)
+        assert len(set(metrics['streets']))>=4,(name,metrics)
         assert metrics['maxTurnRate']<=1.901,(name,metrics)
         assert metrics['maxSpeed']<=.781,(name,metrics)
     (out/'locomotion.json').write_text(json.dumps(locomotion,indent=2))
-    print('PASS 60-second walk/turn/stop sweep and dialogue pause')
+    print('PASS six-minute multi-street walk/turn/stop sweep and dialogue pause')
+    for x,z,engaged in [(-5.75,-1.12,None),(3.6,1.17,None),(.8,.42,'wai')]:
+        page.reload()
+        page.wait_for_function("typeof window.drawAudit === 'function'",timeout=90000)
+        result=page.evaluate("""({x,z,engaged})=>{
+          const tracked=['yan','kit','mei','wing','ching','wai'].map(id=>{
+            const p=street.actors.get(id).model.position;
+            return {id,p,last:p.clone(),distance:0,idle:0,maxIdle:0};
+          });
+          for(let tick=0;tick<=12000;tick++){
+            street.animateWork({x,z},engaged,tick*50);
+            for(const w of tracked){
+              const d=Math.hypot(w.p.x-w.last.x,w.p.z-w.last.z);
+              w.distance+=d;w.idle=d>.001?0:w.idle+.05;
+              w.maxIdle=Math.max(w.maxIdle,w.idle);w.last.copy(w.p);
+            }
+          }
+          return tracked.map(({id,distance,maxIdle})=>({id,distance,maxIdle}));
+        }""",{'x':x,'z':z,'engaged':engaged})
+        for walker in result:
+            if walker['id']==engaged:
+                assert walker['distance']==0,walker
+            else:
+                assert walker['maxIdle']<15 and walker['distance']>320,(x,z,walker)
+    print('PASS ten minutes at each blocked crossing and during a sustained conversation')
     browser.close()

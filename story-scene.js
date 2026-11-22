@@ -1,5 +1,6 @@
 import {createReunionWall,savedPrint,portraitVersion} from './reunion-wall.js';
 import {createReunionScene} from './reunion-scene.js';
+import {clearFormerGrocer} from './street-fixtures.js';
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {plantedStance,mouthPose,clearBoothCups} from './dining-room.js';
@@ -180,6 +181,7 @@ export async function createStoryScene(canvas,chapter){
   serviceTake={rig,mixer,actions,saucer,vessel,mouth:mouthPose(rig,'aming'),duration:Math.max(...take.animations.map(c=>c.duration))};
   rig.visible=false;
   clearBoothCups(district);
+  clearFormerGrocer(district);
   district.position.set(8.8,0,15.72);district.rotation.y=-Math.PI/2;scene.add(district);
   // These two upholstered benches and their plinths share meshes with other
   // fittings. Adjust only the vertices belonging to the window booth.

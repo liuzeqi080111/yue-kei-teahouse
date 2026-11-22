@@ -25,7 +25,8 @@ export const ACTORS = Object.freeze({
  guest: { model:'regular', point:{x:-13.33,z:10.38}, zone:[-14.05,-12.50,9.60,11.78] },
  lam: { model:'lin', point:{x:14.14,z:-12.88}, zone:[13.38,15.56,-14.78,-11.42] },
  lok: { model:'ale', point:{x:-13.68,z:-6.38}, zone:[-14.61,-12.83,-7.48,-5.78] },
- southRice: {model:'southRice',point:{x:-19.06,z:-7.46}},
+ southRice: {model:'southRice',point:{x:6.65,z:-6.42}},
+ marketBack: {model:'marketBack',point:{x:-12.42,z:15.78}},
  buyer: { model:'buyer', point:{x:-12.70,z:-5.03}, zone:[-13.60,-11.38,-5.76,-3.62] },
  ling: { model:'ling', point:{x:-14.02,z:-10.46}, zone:[-14.84,-13.07,-11.98,-9.19] },
 });
@@ -47,10 +48,15 @@ export function createStreetNav(layout, blocked=()=>false) {
    pixels.fill(runs[k+2],first,first+runs[k+1]);
   }
  });
- // The old outdoor displays occupied the alley. The two new shop walls
- // leave a level passage to the grocer at the back of the market.
+ // Clear the former stalls from the alley and the vacated ground floor.
+ // The bounds stop inside the three remaining walls of the building.
+ for(let j=Math.max(0,Math.ceil((-13.59-z0)/step));j<h&&z0+j*step<=-1.61;j++){
+  const left=Math.max(0,Math.ceil((-24.96-x0)/step));
+  const right=Math.min(w,Math.floor((-20.10-x0)/step)+1);
+  if(right>left)pixels.fill(33,j*w+left,j*w+right);
+ }
  for(let j=Math.max(0,Math.ceil((-8.32-z0)/step));j<h&&z0+j*step<=-7.04;j++){
-  const left=Math.max(0,Math.ceil((-19.50-x0)/step));
+  const left=Math.max(0,Math.ceil((-20.10-x0)/step));
   const right=Math.min(w,Math.floor((-14.65-x0)/step)+1);
   if(right>left)pixels.fill(22,j*w+left,j*w+right);
  }
@@ -134,8 +140,12 @@ export const SHOPKEEPER_CAST = Object.fromEntries([
 ].map(([id,name,kind,x,z,degrees,cast,line,meaning,question,reply,translation,stall=false]) => [id,{name,kind,x,z,yaw:degrees*Math.PI/180,cast,line,meaning,question,reply,translation,stall}]));
 
 // Keep the portrait and voice catalogue independent from the playable shops.
-const openShops=['westBread','eastBread','radio','herbs','arcade','marketBack','juiceCart','westCorner'];
-export const SHOPS=Object.fromEntries(openShops.map(id=>[id,SHOPKEEPER_CAST[id]]));
+// Each customer uses a different scan, assigned to just this counter.
+export const SHOP_CUSTOMERS=Object.freeze({
+ westBread:'eastTurn',eastBread:'southRice',radio:'southPrint',herbs:'riceCorner',
+ arcade:'lanePrint',juiceCart:'eastRice',westCorner:'marketBack',
+});
+export const SHOPS=Object.fromEntries(Object.keys(SHOP_CUSTOMERS).map(id=>[id,SHOPKEEPER_CAST[id]]));
 
 function shopOffset(shop,point){
  const dx=point.x-shop.x,dz=point.z-shop.z;
@@ -187,27 +197,38 @@ export const PASSERS={
  wai:{name:'阿威',model:'workshop',tint:0x606e4b},
 };
 export const streetVoiceIds=['intro','qing','fang','lok','ling','lam','ming','guest','buyer',...Object.keys(SHOPKEEPER_CAST),...Object.keys(PASSERS)];
-const sidewalks=[
- {rect:[8,11.5,-14,15],people:['yan','kit','mei']},
- {rect:[-11.5,-8,-15,15],people:['wing','ching','wai']},
-];
 export const streetHello=['你好呀，咁啱嘅！','你好呀，真巧！'];
 export const streetReply=['幾好呀，多謝你。你都出嚟行吓呀？','挺好的，谢谢你。你也出来散步呀？'];
 
+// Each first point is a spawn on a straight section. The middle lane has
+// offset entrances; opposite directions use separate tracks past the posts.
+// The other crossings use the open north and south streets.
+const neighbourhoodWalks={
+ yan:[[11.5,4.16],[11.5,16.4],[-10.6,16.4],[-10.6,-16.6],[11.5,-16.6]],
+ kit:[[1,-15.4],[-9.1,-15.4],[-9.1,-1.12],[-4.4,-1.12],[3.6,.33],[9.2,.33],[9.2,-15.4]],
+ mei:[[8.2,-6],[8.2,-14.5],[-11.8,-14.5],[-11.8,-1.1],[-4.4,-1.1],[3.6,.33],[10.5,.33],
+      [10.5,18],[-9.8,18],[-9.8,-1.1],[-4.4,-1.1],[3.6,.33],[8.2,.33]],
+ wing:[[-8.2,7],[-8.2,15.3],[9.4,15.3],[9.4,1.17],[3.6,1.17],[-4.4,1.17],[-8.2,1.17]],
+ ching:[[-3,17.2],[10.2,17.2],[10.2,-17.4],[-11.4,-17.4],[-11.4,17.2]],
+ wai:[[.8,1.17],[-8.4,1.17],[-8.4,-16],[10,-16],[10,1.17]],
+};
+
 export function pedestrianRoutes(){
- const routes=[];
- for(const {rect:[left,right,back,front],people} of sidewalks){
-  const r=.52;
-  const points=[[left+r,back],[right-r,back],[right,back+r],[right,front-r],
-   [right-r,front],[left+r,front],[left,front-r],[left,back+r]].map(([x,z])=>({x,z}));
-  const lengths=points.map((p,i)=>distance(p,points[(i+1)%points.length]));
-  const perimeter=lengths.reduce((a,b)=>a+b,0);
-  people.forEach((id,i)=>{
-   let offset=perimeter*((i+.98)/people.length),leg=0;
-   while(leg<lengths.length-1&&offset>=lengths[leg])offset-=lengths[leg++];
-   const from=points[leg],next=(leg+1)%points.length,to=points[next],t=offset/lengths[leg];
-   routes.push({id,points,next,start:{x:from.x+(to.x-from.x)*t,z:from.z+(to.z-from.z)*t}});
-  });
- }
- return routes;
+ return Object.entries(neighbourhoodWalks).map(([id,stops])=>{
+  const corners=stops.map(([x,z])=>({x,z}));
+  const start=corners[0],points=[start];
+  for(let i=1;i<corners.length;i++){
+   const prev=corners[i-1],at=corners[i],next=corners[(i+1)%corners.length];
+   const incoming=distance(prev,at),outgoing=distance(at,next);
+   const radius=Math.min(1.15,incoming*.35,outgoing*.35);
+   const entry={x:at.x+(prev.x-at.x)*radius/incoming,z:at.z+(prev.z-at.z)*radius/incoming};
+   const exit={x:at.x+(next.x-at.x)*radius/outgoing,z:at.z+(next.z-at.z)*radius/outgoing};
+   // A short quadratic arc keeps the body moving through the intersection.
+   for(let j=0;j<=6;j++){
+    const t=j/6,u=1-t;
+    points.push({x:u*u*entry.x+2*u*t*at.x+t*t*exit.x,z:u*u*entry.z+2*u*t*at.z+t*t*exit.z});
+   }
+  }
+  return {id,start,points,next:1};
+ });
 }

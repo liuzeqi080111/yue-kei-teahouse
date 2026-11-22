@@ -3,7 +3,7 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 import {furnishKitchen,mouthPose,plantedStance} from './dining-room.js';
-import {SHOPS,ACTORS,createStreetNav,shopBlocks,marketRoomBlocks,pedestrianRoutes,PASSERS} from './street-space.js';
+import {SHOPS,SHOP_CUSTOMERS,ACTORS,createStreetNav,shopBlocks,marketRoomBlocks,pedestrianRoutes,PASSERS} from './street-space.js';
 
 // The stall portraits have no leg bones. Add a stride to their existing body
 // geometry in bind space. Both skin and shadows then see the same moving feet.
@@ -195,15 +195,15 @@ export async function loadStreet(canvas) {
  const palette=new Map();
  env.model.traverse(o=>{if(o.isMesh&&o.material?.name)palette.set(o.material.name,o.material);});
  const working=[];
- const templates=new Map();
+ const portraits=new Map();
  const heights={eastBread:1.66,radio:1.81,herbs:1.52,westBread:1.70,arcade:1.61,marketBack:1.63,riceCorner:1.75,banyanCloth:1.58,lanePrint:1.68,southPrint:1.72,southRice:1.59,southCloth:1.74,eastPrint:1.70,eastRice:1.68,westCorner:1.51,workshop:1.80,gardenHomes:1.58,northTurn:1.82,eastTurn:1.67};
- const needed=new Set([...Object.keys(SHOPS),...Object.values(PASSERS).map(p=>p.model),'southRice']);
+ const needed=new Set([...Object.keys(SHOPS),...Object.values(SHOP_CUSTOMERS),...Object.values(PASSERS).map(p=>p.model)]);
  needed.delete('juiceCart');
  await Promise.all([...needed].map(async id=>{
   const {model}=await load('shopkeepers/'+id+'.glb');
   const bounds=new T.Box3().setFromObject(model,true);
   model.scale.setScalar(heights[id]/(bounds.max.y-bounds.min.y));
-  templates.set(id,model);
+  portraits.set(id,model);
  }));
  for(const [index,[id,shop]] of Object.entries(SHOPS).entries()){
   if(id==='juiceCart'){
@@ -214,7 +214,7 @@ export async function loadStreet(canvas) {
    actor.model.position.set(shop.x-1.28,.174,shop.z+.18);continue;
   }
   furnishShop(scene,shop,palette);
-  const model=templates.get(id).clone(true);
+  const model=portraits.get(id);
   const depth=shop.stall?-1.30:-1.32,side=shop.stall?.29:.34;
   model.position.set(shop.x+depth*shop.sin+side*shop.cos,shop.stall?.174:.225,shop.z+depth*shop.cos-side*shop.sin);
   model.rotation.y=shop.yaw;scene.add(model);actors.set(id,{model,spec:{rotationY:shop.yaw}});
@@ -223,14 +223,12 @@ export async function loadStreet(canvas) {
  }
  const shops=Object.values(SHOPS);
  const pedestrianNav=createStreetNav(layout,p=>marketRoomBlocks(p)||shops.some(shop=>shopBlocks(shop,p)));
- // The scans are unskinned. Instances share textures, but each has its own
- // morph weights and wardrobe material. Colour only the clothes below the neck.
- function resident(source,tint,height){
-  const model=templates.get(source).clone(true);
-  // A neutral template keeps pitch and roll out of turns and dialogue facing.
+ for(const [id,p] of Object.entries(PASSERS)){
+  const model=portraits.get(p.model);
   model.rotation.set(0,0,0,'YXZ');
-  model.scale.multiplyScalar(height);
-  const color=new T.Color(tint);
+  model.scale.multiplyScalar(.985);
+  // Tint only the clothes. Facial geometry retains the scan's own material.
+  const color=new T.Color(p.tint);
   model.traverse(mesh=>{
    if(!mesh.isMesh || mesh.morphTargetDictionary?.workLeft===undefined || mesh.morphTargetDictionary.jawOpen!==undefined)return;
    const material=mesh.material=mesh.material.clone();
@@ -242,10 +240,7 @@ export async function loadStreet(canvas) {
      diffuseColor.rgb=mix(diffuseColor.rgb,(.12+dot(diffuseColor.rgb,vec3(.30,.59,.11)))*coatTint,torso*.83);`);
    };
   });
-  scene.add(model);return model;
- }
- for(const [id,p] of Object.entries(PASSERS)){
-  const model=resident(p.model,p.tint,.985);
+  scene.add(model);
   actors.set(id,{model,spec:{rotationY:0}});
  }
  const crowd=pedestrianRoutes().map((route,index)=>{
@@ -254,44 +249,81 @@ export async function loadStreet(canvas) {
   const {start,points,next}=route,target=points[next];
   model.position.set(start.x,(pedestrianNav.cell(start.x,start.z)-11)/100,start.z);
   model.rotation.y=Math.atan2(target.x-start.x,target.z-start.z);
-  return {...route,actor,cruise:.68+.025*(index%5),speed:.48,last:null,detour:null};
+  return {...route,actor,cruise:.68+.025*(index%5),speed:.48,last:null,detour:[],
+   direction:1,checkpoint:start,checkAt:0};
  });
  function stepResident(walk,player,engaged,now){
   const {actor,id,points}=walk,model=actor.model,p=model.position;
   const dt=walk.last===null?0:T.MathUtils.clamp((now-walk.last)/1000,0,.12);walk.last=now;
   if(engaged===id){
-   walk.speed=0;return actor.step(0,dt);
+   walk.speed=0;walk.checkAt=0;return actor.step(0,dt);
   }
-  let target=walk.detour||points[walk.next],dx=target.x-p.x,dz=target.z-p.z,len=Math.hypot(dx,dz);
-  if(len<.045){
-   if(walk.detour)walk.detour=null;else walk.next=(walk.next+1)%points.length;
-   return false;
+  const advance=(i,direction)=>(i+direction+points.length)%points.length;
+  if(now>=walk.checkAt){
+   // A player can stay in a one-person passage indefinitely. If the local
+   // sidestep cannot clear it, go back around the block in the other direction.
+   if(walk.checkAt&&Math.hypot(p.x-walk.checkpoint.x,p.z-walk.checkpoint.z)<.22){
+    walk.direction*=-1;walk.next=advance(walk.next,walk.direction);
+    walk.detour=pedestrianNav.path(p,points[walk.next]);
+   }
+   walk.checkpoint={x:p.x,z:p.z};walk.checkAt=now+3800;
   }
+  let target=walk.detour[0]||points[walk.next];
+  if(Math.hypot(target.x-p.x,target.z-p.z)<.045){
+   if(walk.detour.length)walk.detour.shift();else walk.next=advance(walk.next,walk.direction);
+   target=walk.detour[0]||points[walk.next];
+  }
+  const dx=target.x-p.x,dz=target.z-p.z,len=Math.hypot(dx,dz);
+  if(len<.001)return false;
   const ux=dx/len,uz=dz/len;
   // Pass a stopped player or neighbour on the clear side of the pavement.
   const blocker=q=>{
    const x=q.x-p.x,z=q.z-p.z,along=x*ux+z*uz;
    return along>.02 && along<1.22 && Math.abs(x*uz-z*ux)<.62;
   };
-  const obstacle=blocker(player)?player:crowd.find(other=>other!==walk&&blocker(other.actor.model.position))?.actor.model.position;
-  if(obstacle && !walk.detour){
+  const playerAhead=blocker(player);
+  const neighbour=playerAhead?null:crowd.find(other=>other!==walk&&blocker(other.actor.model.position));
+  let pace=walk.cruise;
+  let obstacle=playerAhead?player:neighbour?.actor.model.position;
+  if(neighbour&&engaged!==neighbour.id){
+   const leader=neighbour.actor.model;
+   if(ux*Math.sin(leader.rotation.y)+uz*Math.cos(leader.rotation.y)>.65){
+    // Queue behind a neighbour travelling the same way through a narrow lane.
+    const gap=Math.hypot(leader.position.x-p.x,leader.position.z-p.z);
+    pace=Math.min(pace,Math.max(0,(gap-.70)*2));
+    obstacle=null;
+   }
+  }
+  if(obstacle && !walk.detour.length){
+   if(neighbour&&engaged!==neighbour.id&&walk.id>neighbour.id){
+    walk.speed=0;return actor.step(0,dt);
+   }
    const side=((obstacle.x-p.x)*uz-(obstacle.z-p.z)*ux)>0?-1:1;
    for(const sign of [side,-side]){
-    const pass={x:obstacle.x+uz*.86*sign+ux*.18,z:obstacle.z-ux*.86*sign+uz*.18};
-    if(pedestrianNav.line(p,pass)&&pedestrianNav.line(pass,target)){
-     walk.detour=pass;return true;
+    const aside={x:p.x+uz*sign*.92,z:p.z-ux*sign*.92};
+    const beyond={x:obstacle.x+uz*sign*.92+ux,z:obstacle.z-ux*sign*.92+uz};
+    // Rejoin beyond the encounter instead of doubling back to a corner sample.
+    let next=walk.next;
+    for(let n=0;n<points.length&&Math.hypot(points[next].x-p.x,points[next].z-p.z)<2.5;n++)next=advance(next,walk.direction);
+    if(pedestrianNav.line(p,aside)&&pedestrianNav.line(aside,beyond)&&pedestrianNav.line(beyond,points[next])){
+     walk.detour=[aside,beyond];walk.next=next;return true;
     }
    }
   }
   const heading=Math.atan2(dx,dz);
   const turn=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
-  model.rotation.y+=T.MathUtils.clamp(turn,-1.9*dt,1.9*dt);
-  if(Math.abs(turn)>.025){walk.speed=0;actor.step(.23*dt,dt);return true;}
-  walk.speed=Math.min(walk.cruise,walk.speed+1.4*dt);
-  const step=Math.min(len,walk.speed*dt),x=p.x+ux*step,z=p.z+uz*step;
+  const yawStep=T.MathUtils.clamp(turn,-1.9*dt,1.9*dt);
+  model.rotation.y+=yawStep;
+  const angle=Math.abs(turn-yawStep);
+  if(angle>.58){walk.speed=0;actor.step(.23*dt,dt);return true;}
+  // Shorter strides on bends keep the feet aligned with the visible body.
+  const turningSpeed=angle>.02?len*1.55/angle:walk.cruise;
+  walk.speed=Math.min(pace,turningSpeed,walk.speed+1.4*dt);
+  const step=Math.min(len,walk.speed*dt),x=p.x+Math.sin(model.rotation.y)*step,z=p.z+Math.cos(model.rotation.y)*step;
+  if(!pedestrianNav.walkable(x,z)){walk.speed=0;walk.detour=[];return actor.step(0,dt);}
   if([player,...crowd.filter(c=>c!==walk).map(c=>c.actor.model.position)].some(q=>
    Math.hypot(q.x-x,q.z-z)<.51 && Math.hypot(q.x-x,q.z-z)<Math.hypot(q.x-p.x,q.z-p.z))){
-   walk.detour=null;walk.speed=0;return actor.step(0,dt);
+   walk.detour=[];walk.speed=0;return actor.step(0,dt);
   }
   p.set(x,(pedestrianNav.cell(x,z)-11)/100,z);actor.step(step,dt);return true;
  }
@@ -306,19 +338,19 @@ export async function loadStreet(canvas) {
   model.position.set(x,.11,z);model.rotation.y=Math.atan2(clerk.position.x-x,clerk.position.z-z);
   actors.get(id).spec.rotationY=model.rotation.y;
  }
- const visits=[],donors=Object.values(PASSERS).map(p=>p.model);
+ const visits=[];
  const shopsInOrder=Object.entries(SHOPS);
  for(const [index,[id,shop]] of shopsInOrder.entries()){
-  const isElder=id==='marketBack';
-  const guest=isElder?templates.get('southRice'):resident(donors[index%donors.length],[0x856540,0x585478,0x456c72,0x7a5150][index%4],.95+.024*(index%4));
-  if(isElder){scene.add(guest);actors.set('southRice',{model:guest,spec:{rotationY:shop.yaw+Math.PI}});}
+  const guestId=SHOP_CUSTOMERS[id],guest=portraits.get(guestId);
+  scene.add(guest);
   const owner=actors.get(id).model,side=-.52,depth=.06;
   const x=shop.x+depth*shop.sin+side*shop.cos,z=shop.z+depth*shop.cos-side*shop.sin;
   guest.position.set(x,shop.stall?.174:.110,z);
   guest.rotation.y=Math.atan2(owner.position.x-x,owner.position.z-z);
+  actors.set(guestId,{model:guest,spec:{rotationY:guest.rotation.y}});
   const weights=[];
   guest.traverse(m=>{if(m.morphTargetDictionary?.workLeft!==undefined)weights.push(m.morphTargetInfluences);});
-  visits.push({id,guestId:isElder?'southRice':null,shop,guest,owner,weights,guestMouth:mouthPose(guest),ownerMouth:mouthPose(owner),phase:index*3.97,near:false});
+  visits.push({id,guestId,shop,guest,owner,weights,guestMouth:mouthPose(guest),ownerMouth:mouthPose(owner),phase:index*3.97,near:false});
  }
  const conversations=[...visits];
  for(const [guestId,id] of counterCustomers){
@@ -361,7 +393,7 @@ export async function loadStreet(canvas) {
    if((ask||reply)&&!engaged&&dist<best){
     const dx=point.x-shop.x,dz=point.z-shop.z;
     if(dx*shop.sin+dz*shop.cos>=-.25 && ((guest.position.x-point.x)*Math.sin(point.heading)-(guest.position.z-point.z)*Math.cos(point.heading))>0){
-     best=dist;overheard={name:ask?(v.guestId==='regular'?'周叔':v.guestId==='buyer'?'小文':v.guestId==='southRice'?'祥伯':'顾客'):shop.name,text:ask?shop.customerLine:shop.reply};
+     best=dist;overheard={name:ask?({regular:'周叔',buyer:'小文',southRice:'祥伯',marketBack:'芳嫂'}[v.guestId]||'顾客'):shop.name,text:ask?shop.customerLine:shop.reply};
     }
    }
    v.near=near;changed=true;

@@ -1,6 +1,28 @@
 import * as T from 'three';
 import {MARKET_ROOMS} from './street-space.js';
 
+// The grocer's original signage, windows and displays share a GLB node.
+// Preserve the residential shell and floor behind the two market entrances.
+export function clearFormerGrocer(district){
+ const ground=district.getObjectByName('market-back_|_market-back');
+ const shell=new Set(['pink','terrazzo']);
+ ground.traverse(mesh=>{
+  if(!mesh.isMesh)return;
+  if(mesh.material.name!=='cream'){
+   mesh.visible=shell.has(mesh.material.name);
+   return;
+  }
+  // The slab between the ground and first floors shares the display trim.
+  const geometry=mesh.geometry,index=geometry.index,positions=geometry.attributes.position;
+  const slab=[];
+  for(let i=0;i<index.count;i+=3){
+   const a=index.getX(i),b=index.getX(i+1),c=index.getX(i+2);
+   if(Math.min(positions.getY(a),positions.getY(b),positions.getY(c))>3.3)slab.push(a,b,c);
+  }
+  geometry.setIndex(slab);
+ });
+}
+
 // Measurements are in the district's world space. Fixtures in this file stay
 // behind existing counters and leave the navigation raster clear.
 export function dressStoryShops(scene,env){
@@ -17,7 +39,8 @@ export function dressStoryShops(scene,env){
   const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshStandardMaterial({map,side:T.DoubleSide}));p.add(m);m.position.set(x,y,z);m.rotation.y=angle;return m;
  }
  // Keep the vintage merchandise, rails and counters inside two shop rooms.
- // The passage between the two entrances leads to the grocer behind them.
+ // The passage between the two entrances opens onto the empty rear bay.
+ clearFormerGrocer(env);
  for(const room of MARKET_ROOMS){
   const display=env.getObjectByName(room.id+'_|_'+room.id);
   display.position.z=room.z;display.scale.x=room.width/4.85;

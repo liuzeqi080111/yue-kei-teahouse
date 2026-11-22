@@ -1,4 +1,5 @@
 import {createReunionWall,savedPrint} from './reunion-wall.js';
+import {clearFormerGrocer} from './street-fixtures.js';
 import * as T from 'three';
 import {mouthShapes} from './voice-clips.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -270,6 +271,7 @@ export async function createDiningRoom(canvas) {
  district.scene.rotation.y=-Math.PI/2;
  district.scene.position.set(8.8,0,15.72);
  clearBoothCups(district.scene);
+ clearFormerGrocer(district.scene);
  scene.add(district.scene);
  createReunionWall(scene)(savedPrint());
  const openCurtain=furnishKitchen(scene,district.scene);

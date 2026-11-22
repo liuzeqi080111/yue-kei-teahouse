@@ -1,12 +1,12 @@
 import {streetQuests,questPoint} from './street-quests.js';
-import { atShopCounter, shopBlocks, marketRoomBlocks, PASSERS, streetHello, streetReply, SHOPS, ACTORS, HOME, COUNTER, LAUNDRY_DOOR, REST, RESTAURANT, createStreetNav, distance, within, rackLayout, rackBlocks } from './street-space.js';
+import { atShopCounter, shopBlocks, marketRoomBlocks, PASSERS, streetHello, streetReply, SHOPS, SHOP_CUSTOMERS, ACTORS, HOME, COUNTER, LAUNDRY_DOOR, REST, RESTAURANT, createStreetNav, distance, within, rackLayout, rackBlocks } from './street-space.js';
 import { atFangCounter, createFangCounter } from './street-fang.js';
 import { createFp1Travel } from './fp1-travel.js';
 import { createNeighborhoodVoice } from './neighborhood-voice.js';
 import { FP1_CLIPS, ROLE_CLIPS } from './fp1-clips.js';
 import { prepareVoiceRecording,followSpeech } from './voice-clips.js';
 import { entryPosition } from './neighborhood-map.js';
-import { ITEMS, NPCS, npcContext, optionsFor, qingStatus, rackStatus } from './neighborhood-state.js';
+import { ITEMS, NPCS, COUNTER_GUESTS, recordInvitation, npcContext, optionsFor, qingStatus, rackStatus } from './neighborhood-state.js';
 
 const MEETING='我聽日見工，件褸仲喺洗衣舖。陪我行一轉，好唔好？';
 const WELCOME='走吧，陪你下楼转转。';
@@ -22,6 +22,7 @@ const GREETINGS={
 };
 const LABELS=['上午','午后','入夜'];
 const POINTS=['北','东北','东','东南','南','西南','西','西北'];
+const guestCounters=Object.fromEntries(Object.entries(SHOP_CUSTOMERS).map(([shop,id])=>[id,SHOPS[shop]]));
 const pointOf=model=>({x:model.position.x,z:model.position.z});
 const angle=(from,to)=>Math.atan2(to.x-from.x,from.z-to.z);
 const deltaAngle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
@@ -94,12 +95,20 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function activeQuest(){const all=tasks();return all.find(q=>q.id===tracked&&!q.done)||all.find(q=>!q.done)||all[0];}
  function drawMap(quest){
   if(!scene)return;
-  const map=$('#street-map'),ctx=map.getContext('2d'),{w,h,step,x0,z0,rows}=scene.layout;
+  const map=$('#street-map'),ctx=map.getContext('2d'),{w,h,step,x0,z0}=scene.layout;
   const px=x=>(x-x0)/step/w*map.width,pz=z=>(z-z0)/step/h*map.height;
   if(!mapBase){
    mapBase=document.createElement('canvas');mapBase.width=w;mapBase.height=h;
    const bg=mapBase.getContext('2d');bg.fillStyle='#372e27';bg.fillRect(0,0,w,h);bg.fillStyle='#94836b';
-   rows.forEach((row,y)=>{for(let i=0;i<row.length;i+=3)bg.fillRect(row[i],y,row[i+1],1);});
+   for(let y=0;y<h;y++){
+    const z=z0+y*step;
+    let start=0;
+    for(let x=0;x<=w;x++){
+     if(x<w&&nav.cell(x0+x*step,z))continue;
+     if(x>start)bg.fillRect(start,y,x-start,1);
+     start=x+1;
+    }
+   }
   }
   const target=questPoint(quest,getState()),key=[Math.round(px(current.x)),Math.round(pz(current.z)),Math.round(current.heading*35),quest.npc].join('/');
   if(key===mapKey)return;mapKey=key;ctx.drawImage(mapBase,0,0,map.width,map.height);
@@ -110,12 +119,13 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  }
  const currentPhase=()=>getState().period;
  const body=id=>scene?.character(ACTORS[id]?.model||id)?.model;
- const shopName=id=>id==='southRice'?'祥伯':SHOPS[id]?.name;
+ const shopName=id=>COUNTER_GUESTS[id]?.name||SHOPS[id]?.name;
  const qingCounterPoint=()=>current.x>16?{x:15.25,z:-.47}:{x:14.59,z:-.21};
  const qingAtCounter=()=>distance(pointOf(body('qing')),qingCounterPoint())<.28;
  function actionList(npc){
   if(npc==='intro')return [{id:'go-out',label:'出门'}];
   if(PASSERS[npc])return [{id:'greet-neighbour',label:'你好呀，最近點呀？'}];
+  if(COUNTER_GUESTS[npc])return [...optionsFor(getState(),npc),{id:'ask-customer',label:COUNTER_GUESTS[npc].question}];
   if(SHOPS[npc])return [...optionsFor(getState(),npc),{id:'ask-shop',label:SHOPS[npc].question}];
   if(npc==='fang'&&worldFlag('coat-pickup-visit')&&worldFlag('shop-check')&&!worldFlag('coat-inspected'))return [{id:'show-coat',label:'把刚取的外套交给身旁的阿晴'}];
   const legal=optionsFor(getState(),npc);
@@ -143,7 +153,8 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   getContext:()=>{
    if(talking==='intro')return {npcId:'intro',name:'老朋友',role:'陪你熟悉街区的老朋友',facts:[WELCOME],allowedActions:actionList(talking)};
    if(PASSERS[talking])return {npcId:talking,name:PASSERS[talking].name,role:'正在街上散步的街坊',facts:[streetReply[1]],allowedActions:actionList(talking)};
-   if(talking==='southRice')return {npcId:talking,name:'祥伯',role:'林伯的旧友',facts:['正在夜市杂货铺买东西。'],allowedActions:actionList(talking)};
+   const guest=COUNTER_GUESTS[talking];
+   if(guest)return {npcId:talking,name:guest.name,role:guest.role,facts:[guest.greeting[1],guest.reply[1]],allowedActions:actionList(talking)};
    const shop=SHOPS[talking];
    if(shop)return {npcId:talking,name:shopName(talking),role:'街坊店主',facts:[shop.meaning,shop.translation],allowedActions:actionList(talking)};
    if(!NPCS[talking])return null;
@@ -153,9 +164,11 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
     allowedActions:actionList(talking).filter(o=>o.effect||o.id==='enter-restaurant'||(o.id==='show-coat'&&qingAtCounter())).map(({id,label})=>({id,label}))};
   },
   matchFixedChoice:(context,text)=>{
-   if(context.npcId==='southRice'){
+   if(COUNTER_GUESTS[context.npcId]){
     if(/邀[请請]|[约約].*[见見]|榕[树樹]|[捉下]棋/.test(text)&&context.allowedActions.some(a=>a.id==='record-accept'))return {actionId:'record-accept'};
-    return {text:'你識阿林？我同佢以前晚晚收工都捉棋㗎。',meaning:'你认识阿林？我们以前收铺后天天下棋。'};
+    if(/[買买揀拣橙食]/.test(text))return {actionId:'ask-customer'};
+    const [reply,meaning]=greeting(context.npcId);
+    return {text:reply,meaning};
    }
    if(PASSERS[context.npcId])return {actionId:'greet-neighbour'};
    const shop=SHOPS[context.npcId];
@@ -349,6 +362,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   }
   if(npc==='lam'&&worldFlag('record-reunited'))return ['阿祥話下個禮拜再嚟捉棋。','阿祥约了我，下个星期再来下棋。'];
   if(npc==='lam'&&worldFlag('reunion-arrived'))return ['阿祥，呢邊！位都幫你留咗。','阿祥，这边！你的位子给你留着呢。'];
+  if(npc==='lam'&&worldFlag('reunion-invite')&&!worldFlag('reunion-date'))return recordInvitation;
   if(npc==='lam'&&world.recordOutcome==='gift')return ['隻碟我收好咗。唔該晒你。','唱片我收好了。谢谢你。'];
   if(npc==='lam'&&world.recordOutcome==='contact')return ['我已經留咗口訊畀老朋友。','我已经给老朋友留了口信。'];
   if(npc==='lam'&&worldFlag('record-start'))return ['阿樂嗰邊，有冇我老友嘅消息呀？','阿乐那边，有我老朋友的消息吗？'];
@@ -358,6 +372,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
     ['你睇，而家條路闊咗。',rack.description];
   }
   if(PASSERS[npc])return streetHello;
+  if(COUNTER_GUESTS[npc])return COUNTER_GUESTS[npc].greeting;
   if(SHOPS[npc])return [SHOPS[npc].line,SHOPS[npc].meaning];
   return GREETINGS[npc];
  }
@@ -399,6 +414,11 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    const [text,meaning]=streetReply;if(!fromVoice)setLine(text,meaning,true);return {ok:true,text,meaning};
   }
   if(SHOPS[npc]&&id==='ask-shop'){const {reply:text,translation:meaning}=SHOPS[npc];if(!fromVoice)setLine(text,meaning,true);return {ok:true,text,meaning};}
+  if(COUNTER_GUESTS[npc]&&id==='ask-customer'){
+   const [text,meaning]=COUNTER_GUESTS[npc].reply;
+   if(!fromVoice)setLine(text,meaning,true);
+   return {ok:true,text,meaning};
+  }
   if(id==='sit-chess'&&npc==='lam'){
    if(chessBusy)return {ok:false};
    chessBusy=true;
@@ -465,7 +485,14 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(!worldFlag('shop-check'))startRoute(COUNTER);
  }
  function canTalk(id,position){
-  if(id==='southRice')return worldFlag('reunion-invite')&&!worldFlag('reunion-date')&&atShopCounter(SHOPS.marketBack,position);
+  if(COUNTER_GUESTS[id]){
+   const shop=guestCounters[id];
+   if(!atShopCounter(shop,position)||(id==='southRice'&&worldFlag('reunion-arrived')))return false;
+   // At a shared counter, approach the customer's side to address them.
+   const side=(position.x-shop.x)*shop.cos-(position.z-shop.z)*shop.sin;
+   const inviting=id==='southRice'&&worldFlag('reunion-invite')&&!worldFlag('reunion-date');
+   return side<(inviting?.12:-.15);
+  }
   if(PASSERS[id]){const model=body(id);return model?.visible&&distance(position,model.position)<=2.15&&nav.line(position,model.position);}
   if(SHOPS[id])return atShopCounter(SHOPS[id],position);
   if(!id||!ACTORS[id])return false;

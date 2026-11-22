@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
-import {freshWorld, applyWorldAction, restEvent, parseSave} from '../neighborhood-state.js';
+import {freshWorld, applyWorldAction, restEvent, parseSave, npcContext} from '../neighborhood-state.js';
+import {ROLE_CLIPS} from '../fp1-clips.js';
 import {ACTORS, SHOPS, createStreetNav, rackBlocks, rackLayout, marketRoomBlocks, shopBlocks} from '../street-space.js';
 import {streetQuests, questPoint} from '../street-quests.js';
 import {createFp1Travel} from '../fp1-travel.js';
@@ -38,6 +39,26 @@ test('an old save resumes the invitation after the contact or gift ending',()=>{
   for(let i=0;i<4;i++)w=takeStep(w,'record');
   assert.equal(streetQuests(w)[1].done,true);
   assert.equal(w.money,30000);
+ }
+});
+test('an outstanding invitation keeps its progress and points to the east bakery',()=>{
+ const old=firstPerson();
+ old.recordOutcome='contact';
+ const invitation=applyWorldAction(old,'lam','record-after');
+ assert.ok(invitation.ok);
+ assert.match(invitation.text,/東街南洋餅家/);
+ assert.ok(ROLE_CLIPS['lam|'+invitation.text]);
+ for(const previousNote of ['林伯托你去南街米行邀请祥伯。','林伯托你去夜市杂货铺邀请祥伯。']){
+  const state=parseSave(JSON.stringify({...invitation.state,notes:[previousNote]}));
+  const quest=streetQuests(state)[1];
+  assert.deepEqual(state.notes,invitation.state.notes);
+  assert.deepEqual(state.flags,invitation.state.flags);
+  assert.match(quest.text,/东街南洋饼家/);
+  assert.ok(npcContext(state,'lam').knownClues.includes(state.notes[0]));
+  const point=questPoint(quest,state);
+  assert.ok(Math.hypot(point.x-SHOPS.eastBread.x,point.z-SHOPS.eastBread.z)<2);
+  assert.equal(quest.action,'record-accept');
+  assert.ok(applyWorldAction(state,quest.npc,quest.action).ok);
  }
 });
 for(const route of ['buy','borrow']){

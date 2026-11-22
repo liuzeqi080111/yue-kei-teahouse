@@ -11,6 +11,20 @@ export const NPCS={
  buyer:{name:'小文',role:'已经约好来买唱片的客人',sprite:7}
 };
 export const ITEMS={ticket:'洗衣取件单',wrongCoat:'拿错的外套',coat:'阿晴的外套',loanCoat:'借来的外套',newCoat:'新外套',record:'旧唱片',contact:'旧友联系线索'};
+export const COUNTER_GUESTS={
+ southRice:{
+  name:'祥伯',role:'林伯的旧友，正在东街南洋饼家买菠萝包',
+  greeting:['啱啱出爐喎！我等緊榮叔幫我執兩個菠蘿包。','刚出炉呢！我在等荣叔帮我装两个菠萝包。'],
+  question:'買畀邊個食呀？',reply:['一個留畀自己，一個留畀我個孫。','一个留给自己，一个留给孙子。'],
+ },
+ marketBack:{
+  name:'芳嫂',role:'正在西街街角生果店挑橙的街坊',
+  greeting:['我嚟揀幾個橙。你都嚟買生果呀？','我来挑几个橙子。你也来买水果吗？'],
+  question:'你點揀橙㗎？',reply:['我鍾意揀墜手嗰啲，拎返去同屋企人分嚟食。','我喜欢挑拿着沉手的，带回家和家里人分着吃。'],
+ },
+};
+const invitationNote='林伯托你去东街南洋饼家，在荣叔柜台前邀请祥伯。';
+export const recordInvitation=['阿祥覆咗喇！佢喺東街南洋餅家，等緊榮叔執菠蘿包。你幫我問吓佢，今晚得唔得閒去榕樹頭捉棋呀？','祥伯回信了！他在东街南洋饼家，等荣叔装菠萝包。你帮我问问他，今晚有没有空到榕树下下棋？'];
 export function freshWorld(){return {version:1,revision:0,position:{x:1110,y:1220},location:'home',day:1,period:1,money:30000,items:[],flags:[],notes:[],met:[],history:{},restaurant:null,dining:null,paidMeals:[],coatOutcome:null,recordOutcome:null,stallOutcome:null};}
 const copy=x=>JSON.parse(JSON.stringify(x));
 const FORBIDDEN_KEYS=new Set(['__proto__','constructor','prototype']);
@@ -68,7 +82,8 @@ export function parseSave(raw){
  const out=freshWorld();
  for(const key of WORLD_KEYS)if(s[key]!==undefined)out[key]=s[key];
  if(out.flags.includes('reunion-invite')&&!out.flags.includes('reunion-date')){
-  out.notes=out.notes.map(line=>line==='林伯托你去南街米行邀请祥伯。'?'林伯托你去夜市杂货铺邀请祥伯。':line);
+  const oldNotes=['林伯托你去南街米行邀请祥伯。','林伯托你去夜市杂货铺邀请祥伯。'];
+  out.notes=out.notes.map(line=>oldNotes.includes(line)?invitationNote:line);
  }
  out.history=s.history;
  out.position={x:s.position.x,y:s.position.y};
@@ -197,7 +212,7 @@ export function optionsFor(s,npc){
    if(has('contact')&&!s.recordOutcome)add('record-contact','把旧友的联系线索告诉林伯','原來佢仲記得我。我會先問聲佢想唔想見面。','原来他还记得我，我会先问他是否愿意见面。',d=>{d.recordOutcome='contact';note(d,'林伯获得了旧友的联系线索，准备先征询重逢意愿。');});
   if(has('record')&&has('contact')&&s.recordOutcome!=='gift')add('record-gift','把唱片交给林伯','連隻唱片都帶返嚟，多謝你。最緊要係搵得返個朋友。','连唱片都带来了，谢谢你，最重要是能联系到朋友。',d=>{take(d,'record');d.recordOutcome='gift';note(d,'林伯收下唱片，并准备联系旧友。');});
   if(firstPerson&&s.recordOutcome){
-   if(!f('reunion-invite'))add('record-after','听回信，替林伯约旧友见面','佢覆咗喇！係阿祥呀！佢去咗夜市雜貨舖買嘢。你幫我問聲，今晚榕樹頭見，好唔好？','他回信了，是祥伯！他去夜市杂货铺买东西了。能替我约他今晚在榕树下碰面吗？',d=>{flag(d,'reunion-invite');note(d,'林伯托你去夜市杂货铺邀请祥伯。');});
+   if(!f('reunion-invite'))add('record-after','听回信，替林伯约旧友见面',...recordInvitation,d=>{flag(d,'reunion-invite');note(d,invitationNote);});
    if(f('reunion-arrived')&&!f('record-reunited'))add('record-reunion','一起听他们当年的曲子','阿祥，你仲記得呢段前奏？嗰年收工，我哋就係聽住佢捉棋。嚟，今次到你行先。','阿祥，你还记得这段前奏吗？那年下班我们总听着它下棋。来，这次你先走。',d=>{flag(d,'record-reunited');note(d,'祥伯带来自己的唱片，两人在榕树下听曲，再开一盘棋。');});
   }else if(s.recordOutcome)add('record-after','后来联系上了吗？','我留咗口訊畀佢，等佢方便先覆。','我给他留了口信，等他方便时回复。');
  }
@@ -284,8 +299,11 @@ export function npcContext(s,npc){
   if(f('original-returned')&&s.coatOutcome!=='emergency')relations.push('玩家后来把原衣交给了她。');
  }else if(npc==='lam'){
   if(f('record-start'))known.push('他告诉过玩家：旧唱片可能与失联旧友有关。');
-  if(s.recordOutcome==='contact')relations.push('玩家转交了旧友的联系线索；他准备先问对方是否愿意见面，尚未重逢。');
-  if(s.recordOutcome==='gift')relations.push('玩家把旧唱片送给了他；他仍要亲自联系对方。');
+  if(f('reunion-arrived'))relations.push('祥伯已经带着唱片来到榕树下。');
+  else if(f('reunion-date'))relations.push('祥伯答应今晚带唱片到榕树下捉棋。');
+  else if(f('reunion-invite'))known.push(invitationNote);
+  else if(s.recordOutcome==='contact')relations.push('玩家转交了旧友的联系线索；他准备先问对方是否愿意见面，尚未重逢。');
+  else if(s.recordOutcome==='gift')relations.push('玩家把旧唱片送给了他；他仍要亲自联系对方。');
  }else if(npc==='lok'){
   known.push('受托出售旧唱片，唱片已答应留给小文。');
   if(f('sleeve-read'))known.push('封套上写着“给阿林”。');

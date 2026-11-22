@@ -76,7 +76,7 @@ test('其它朝向以各自局部前方为准', () => {
 
 test('全部商铺前方一米可交谈，背后与横向两米不可', () => {
  const ids=Object.keys(SHOPS);
- assert.deepEqual(ids.sort(),['arcade','eastBread','herbs','juiceCart','marketBack','radio','westBread','westCorner']);
+ assert.deepEqual(ids.sort(),['arcade','eastBread','herbs','juiceCart','radio','westBread','westCorner']);
  for(const id of ids){
   const shop=SHOPS[id];
   for(const depth of [1,1.5])assert.equal(atShopCounter(shop,counterPoint(shop,depth)),true,id+' 前方 '+depth);

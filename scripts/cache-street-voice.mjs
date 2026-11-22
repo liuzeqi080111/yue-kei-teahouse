@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {createBailian} from '../server/bailian.mjs';
 import {characterVoice} from '../voice-clips.js';
 import {SHOPS,PASSERS,streetHello,streetReply} from '../street-space.js';
-import {optionsFor,freshWorld,NPCS,applyWorldAction,restEvent} from '../neighborhood-state.js';
+import {optionsFor,freshWorld,NPCS,COUNTER_GUESTS,applyWorldAction,restEvent} from '../neighborhood-state.js';
 import {STREET_CLIPS,ROLE_CLIPS} from '../fp1-clips.js';
 
 const lines=new Map();
@@ -24,6 +24,9 @@ for(const [id,shop] of Object.entries(SHOPS)){
  add(id,shop.line);add(id,shop.reply);
 }
 for(const id of Object.keys(PASSERS)){add(id,streetHello[0]);add(id,streetReply[0]);}
+for(const [id,guest] of Object.entries(COUNTER_GUESTS)){
+ add(id,guest.greeting[0]);add(id,guest.reply[0]);
+}
 const base={...freshWorld(),streetView:{x:12.22,z:8.94,heading:1.56,pitch:0}};
 const pickup='coat-start shop-check coat-inspect coat-route-';
 const enquiries='guest-found coat-swap';
