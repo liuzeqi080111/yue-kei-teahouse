@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {applyChopstickGrip,applyCupGrip,positionChopsticks} from './reunion-hand-poses.js';
+import {applyChopstickGrip,positionChopsticks} from './reunion-hand-poses.js';
 
 const v=(x=0,y=0,z=0)=>new T.Vector3(x,y,z);
 const ease=T.MathUtils.smootherstep;
@@ -40,21 +40,20 @@ function firstPersonSleeve(player){
  };
 }
 
-export function createPlayerMeal({player,actor,placeHand,shot,sticks,bite,shared,cup,table}){
+export function createPlayerMeal({player,actor,placeHand,shot,sticks,bite,shared,table}){
  const showSleeve=firstPersonSleeve(player);
  const bones=player.bones,tip=v();
  const armJoints=['Spine','RightArm','RightForeArm','RightHand'];
  const reachPalm=v(-.65,-.75,-.08).normalize(),reachFingers=v(-.40,-.16,-.90).normalize();
- let action,cupHold;
+ let action;
  function stage(id){
-  const active=['chicken','fish','passFish','toast'].includes(id);
+  const active=['chicken','fish','passFish'].includes(id);
   showSleeve(false);
   if(!active)return;
   actor('player',2.08,.19,-1.025,Math.PI,true);
   showSleeve(true);
   shot([2.035,1.59,-1.105],[2.07,.995,-1.70],72);
-  if(id==='toast')cupHold=fitCup();
-  else action=servingPoses(id);
+  action=servingPoses(id);
  }
  function lean(amount){
   const spine=bones.Spine;
@@ -144,54 +143,8 @@ export function createPlayerMeal({player,actor,placeHand,shot,sticks,bite,shared
   if(lifted)bite.quaternion.copy(sticks.quaternion);
   if(mode==='passFish')shared.visible=time>=2.78;
  }
- const palm=v(-1,-.4,-.25).normalize(),fingers=v(-.25,.05,-1).normalize();
- function fitCup(){
-  lean(.08);
-  cup.position.set(.10,0,.393);cup.rotation.set(0,0,0);
-  const centre=cup.getWorldPosition(v());
-  applyArm(centre.clone().add(v(.08,.065,.07)),palm,fingers);
-  const hand=bones.RightHand,wrist=hand.getWorldPosition(v()),orientation=hand.getWorldQuaternion(new T.Quaternion());
-  const joints=['Thumb','Index','Middle','Ring','Pinky'].flatMap(f=>[1,2,3].map(i=>bones['RightHand'+f+i]));
-  function fit(diameter){
-   applyCupGrip(bones,'Right',cup,1,diameter);
-   return joints.map(j=>j.quaternion.clone());
-  }
-  const open=fit(.132),held=fit(.085);
-  const offset=hand.worldToLocal(centre.clone());
-  const handAxis=bones.RightHandMiddle1.getWorldPosition(v()).sub(wrist).normalize();
-  return {wrist,orientation,offset,handAxis,joints,open,held};
- }
- function toast(time){
-  const approach=ease(time,0,.73),grasp=ease(time,.72,.99);
-  const lift=ease(time,1.02,1.89)*(1-ease(time,2.42,3.33));
-  const release=ease(time,3.36,3.69),away=ease(time,3.71,4.39);
-  const open=1-grasp*(1-release),distance=1-approach+away;
-  lean(.08);
-  const hand=bones.RightHand;
-  const target=cupHold.wrist.clone().add(v(-.16*lift,.18*lift+.100*distance,-.34*lift-.08*Math.sin(Math.PI*lift)));
-  applyArm(target,palm,fingers);
-  const tilt=new T.Quaternion().setFromAxisAngle(forward,.035*lift);
-  const orientation=tilt.clone().multiply(cupHold.orientation);
-  // Lift through the shoulder and elbow. Rotating the elbow pole about the
-  // shoulder-to-wrist line preserves the grasp without extending the wrist.
-  const arm=bones.RightArm,elbow=bones.RightForeArm;
-  const shoulder=arm.getWorldPosition(v()),forearm=elbow.getWorldPosition(v()),wrist=hand.getWorldPosition(v());
-  const axis=wrist.clone().sub(shoulder).normalize();
-  const pole=forearm.clone().sub(shoulder);pole.addScaledVector(axis,-pole.dot(axis)).normalize();
-  const wanted=wrist.clone().addScaledVector(cupHold.handAxis.clone().applyQuaternion(tilt),-wrist.distanceTo(forearm)).sub(shoulder);
-  wanted.addScaledVector(axis,-wanted.dot(axis)).normalize();
-  const swing=Math.atan2(axis.dot(pole.clone().cross(wanted)),pole.dot(wanted));
-  arm.rotateOnAxis(axis.applyQuaternion(arm.getWorldQuaternion(new T.Quaternion()).invert()),T.MathUtils.clamp(swing,-1.15,1.15)*ease(lift,0,.6));
-  hand.quaternion.copy(hand.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(orientation));
-  cupHold.joints.forEach((j,i)=>j.quaternion.slerpQuaternions(cupHold.held[i],cupHold.open[i],open));
-  if(lift>0){
-   const centre=hand.localToWorld(cupHold.offset.clone());
-   cup.position.copy(cup.parent.worldToLocal(centre));cup.quaternion.copy(tilt);
-  }else{cup.position.set(.10,0,.393);cup.rotation.set(0,0,0);}
- }
  function tick(mode,seconds){
-  if(mode==='toast')toast(seconds);
-  else if(['chicken','fish','passFish'].includes(mode))serve(mode,seconds);
+  if(['chicken','fish','passFish'].includes(mode))serve(mode,seconds);
  }
  return {stage,tick};
 }

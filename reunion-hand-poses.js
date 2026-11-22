@@ -42,13 +42,6 @@ export function registerSkinPads(actor){
   pads.set(bone,[...points]);
  }
 }
-function skinDistance(bone,measure){
- const points=pads.get(bone);if(!points)return null;
- bone.updateWorldMatrix(true,false);
- const p=vec();let min=Infinity;
- for(const local of points)min=Math.min(min,measure(p.copy(local).applyMatrix4(bone.matrixWorld)));
- return min;
-}
 export function stringContact(bones,side,digit,goal,f,height){
  const target=goal.clone(),bone=bones[side+'Hand'+digit+'3'];
  for(let i=0;i<3;i++){
@@ -195,33 +188,4 @@ export function applyChopstickGrip(bones,side,pair,opening){
  openSticks(pair,opening);
  const a=cache.shapes.get(lo),b=cache.shapes.get(hi);
  cache.joints.forEach((joint,i)=>joint.quaternion.slerpQuaternions(a[i],b[i],u-lo));
-}
-
-export function applyCupGrip(bones,side,cup,amount,diameter=cup.userData.diameter??.079){
- const f=handFrame(bones,side),centre=cup.getWorldPosition(vec()),up=new T.Vector3(0,1,0);
- const near=f.wrist.clone().sub(centre);near.y=0;near.normalize();
- const around=up.clone().cross(near);
- if(around.dot(f.radial)<0)around.negate();
- // The thumb opposes the index and middle. The other two fingers support
- // the sloped lower wall; their pads stay above the tabletop.
- for(const [digit,angle,h] of [['Thumb',1.03,.33],['Index',-1.80,.42],['Middle',-1.48,.29],['Ring',-1.15,.18],['Pinky',-.79,.13]]){
-  const normal=near.clone().multiplyScalar(Math.cos(angle)).addScaledVector(around,Math.sin(angle));
-  const radius=(.28+.215*T.MathUtils.smoothstep(h,.02,.42))*diameter+.005;
-  const target=centre.clone().addScaledVector(normal,radius).addScaledVector(up,h*diameter);
-  const bone=bones[side+'Hand'+digit+'3'];
-  for(let i=0;i<3;i++){
-   fingerContact(bones,side,digit,target,f,amount);
-   if(amount<=0)break;
-   const gap=skinDistance(bone,p=>{
-    const dy=(p.y-centre.y)/diameter;
-    if(dy<.02||dy>.44)return Infinity;
-    const r=dy<.19?.27+(dy-.02)*.07/.17:dy<.35?.34+(dy-.19)*.14/.16:.48+.02*T.MathUtils.smoothstep(dy,.35,.43);
-    return Math.hypot(p.x-centre.x,p.z-centre.z)-r*diameter;
-   });
-   if(gap===null||!Number.isFinite(gap))break;
-   const error=.001-gap;
-   if(Math.abs(error)<.0006||(amount<.99&&error<0))break;
-   target.addScaledVector(normal,T.MathUtils.clamp(error,-.008,.012));
-  }
- }
 }

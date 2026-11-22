@@ -1,9 +1,17 @@
 import * as T from 'three';
 
 export const reunionSaveKey='yuekei-story-trial-v1:reunion';
+export const portraitVersion=5;
 export const isPrint=value=>typeof value==='string'&&value.startsWith('data:image/jpeg;base64,');
+const wallPrints={tidy:'assets/reunion-portrait-tidy.jpg',laugh:'assets/reunion-portrait-laugh.jpg'};
 export function savedPrint(){
- try{return JSON.parse(localStorage.getItem(reunionSaveKey))?.photo;}catch{return null;}
+ try{
+  const saved=JSON.parse(localStorage.getItem(reunionSaveKey));
+  if(!isPrint(saved?.photo))return null;
+  // Other dining rooms can show the updated pose before the player reopens the chapter.
+  if(saved.portraitVersion!==portraitVersion&&Object.hasOwn(wallPrints,saved.node))return wallPrints[saved.node];
+  return saved.photo;
+ }catch{return null;}
 }
 
 // All three dining-room views share these wall coordinates and the same print.
@@ -28,7 +36,7 @@ export function createReunionWall(scene){
  return function show(url){
   if(current===url)return;
   current=url;frame.visible=false;
-  if(!isPrint(url))return;
+  if(!isPrint(url)&&!Object.values(wallPrints).includes(url))return;
   new T.TextureLoader().load(url,tex=>{
    if(current!==url){tex.dispose();return;}
    tex.colorSpace=T.SRGBColorSpace;face.material.map?.dispose();face.material.map=tex;

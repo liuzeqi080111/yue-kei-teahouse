@@ -1,5 +1,5 @@
 import {accompanySinger,songHitMask} from './nanyin-practice.js';
-import {reunionSaveKey,isPrint} from './reunion-wall.js';
+import {reunionSaveKey,isPrint,portraitVersion} from './reunion-wall.js';
 import {reunionIntents} from './story-reunion.js';
 import {chapters, morning, names, voices} from './story-chapters.js';
 import {createStoryScene} from './story-scene.js';
@@ -10,7 +10,6 @@ import {voiceUrl} from './voice-endpoint.js';
 const $ = selector => document.querySelector(selector);
 const chapter = new URLSearchParams(location.search).get('story') === 'table' ? 'table' : 'reunion';
 const book = chapters[chapter];
-const portraitVersion=4;
 const key = chapter==='reunion'?reunionSaveKey:'yuekei-story-trial-v1:table';
 const defaults = () => chapter==='table'
  ? {node:book.start,drink:null,invited:false}
@@ -18,6 +17,8 @@ const defaults = () => chapter==='table'
 let state = defaults();
 try {
  const saved = JSON.parse(localStorage.getItem(key));
+ const resumeAfterMeal=chapter==='reunion'&&saved?.node==='toast';
+ if(resumeAfterMeal)saved.node='wait';
  if(chapter==='reunion'&&saved&&saved.songVersion!==2){
   if(saved.node==='riddle')saved.node='guess';
   if(saved.node==='gather')saved.node='wait';
@@ -30,6 +31,7 @@ try {
   delete state.beats;
   if(state.node==='proof' && !(Array.isArray(state.photos)&&state.photos.length===2&&state.photos.every(isPrint)))state.node='ready';
   if(['tidy','laugh'].includes(state.node)&&!isPrint(state.photo))state.node='ready';
+  if(resumeAfterMeal)persist();
  }
 } catch {}
 let song,scene, generation=0, playback, stopTracking, audioUrl;

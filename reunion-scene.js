@@ -2,7 +2,7 @@ import {createPlayerMeal} from './reunion-player-meal.js';
 import {createReunionBoards} from './reunion-boards.js';
 import {createReunionWall} from './reunion-wall.js';
 import * as T from 'three';
-import {handFrame,positionChopsticks,applyChopstickGrip,applyCupGrip,fingerContact,registerSkinPads,stringContact} from './reunion-hand-poses.js';
+import {handFrame,positionChopsticks,applyChopstickGrip,fingerContact,registerSkinPads,stringContact} from './reunion-hand-poses.js';
 
 export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,print,texture,actor,placeHand,shot,portraitLean,portraitArm}){
  for(const id of ['regular','aming','master','player'])registerSkinPads(cast[id]);
@@ -47,7 +47,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   return dish;
  }
  function bowl(parent,x,z,size,filling){
-  const crock=group(parent);crock.position.set(x,0,z);crock.userData.diameter=size;
+  const crock=group(parent);crock.position.set(x,0,z);
   const profile=[[0,.02],[.27,.02],[.34,.19],[.48,.35],[.5,.43],[.47,.44],[.43,.38],[.31,.23],[0,.23]];
   part(crock,new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),28),0xf1e6d1,0,0,0,size,size,size);
   const rim=new T.LatheGeometry([new T.Vector2(.490,.385),new T.Vector2(.497,.409)],28);
@@ -130,9 +130,8 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    grain.rotation.y=a;
   }
  }
- const teaCup=bowl(feast,.10,.393,.085,tea);
- const toastGuests=[['regular',-.178,-.353],['aming',.204,.175]]
-  .map(([id,x,z])=>({id,x,z,cup:bowl(feast,x,z,.079,tea)}));
+ bowl(feast,.10,.393,.085,tea);
+ for(const [x,z] of [[-.178,-.353],[.204,.175]])bowl(feast,x,z,.079,tea);
  function sticks(parent){
   const pair=group(parent);
   for(const side of [-1,1]){
@@ -150,7 +149,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
  const eatingSticks=sticks(feast);
  const morsel=part(feast,sphere,0xf4dfb9,0,0,0,.016,.030,.023);
  const shared=part(elderBowl,sphere,0xe7d5b4,0,.052,0,.045,.024,.029);
- const playerMeal=createPlayerMeal({player:cast.player,actor,placeHand,shot,sticks:eatingSticks,bite:morsel,shared,cup:teaCup,table});
+ const playerMeal=createPlayerMeal({player:cast.player,actor,placeHand,shot,sticks:eatingSticks,bite:morsel,shared,table});
  const diners=[
   {id:'regular',bowl:elderBowl,delay:1.7},
   {id:'master',bowl:riceBowls[3],delay:4.0},
@@ -195,7 +194,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   box(zheng,0x493327,x,.071,-.11+i*.014,.007,.015,.008);
  }
  for(const z of [-.23,.23])box(zheng,0x402e25,0,-.009,z,.15,.033,.028);
- const eating=['supper','fish','chicken','passFish','toast'];
+ const eating=['supper','fish','chicken','passFish'];
  // Heights fit the underside of each seated character's relaxed hand to the
  // 0.9425 m terrazzo top. The finger length and natural curl differ by rig.
  const restingHeight={fang:{Left:.996,Right:1.008},regular:{Left:1.001,Right:1.010},
@@ -218,11 +217,11 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   }
   placeHand(bones,side,wrist,front,across,3.1,palm,fingers);
  }
- function settleDiners(id,concert,dining){
+ function settleDiners(concert,dining){
   for(const role of ['fang','regular','master',...(dining?['aming']:[])]){
    if(concert&&role==='master')continue;
    restHand(role,'Left');
-   if(role==='fang'||!dining||id==='toast'&&role==='master')restHand(role,'Right');
+   if(role==='fang'||!dining)restHand(role,'Right');
   }
  }
  function groupPose(candid,includePlayer=true){
@@ -251,12 +250,10 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
   table.visible=concert||(!wall&&!afterDinner&&id!=='join');
   afterMeal.visible=concert;plate.visible=!concert;
   feast.visible=eating.includes(id);
-  for(const diner of diners)diner.pair.visible=feast.visible&&id!=='toast'&&!(id==='passFish'&&diner.id==='regular');
+  for(const diner of diners)diner.pair.visible=feast.visible&&!(id==='passFish'&&diner.id==='regular');
   plate.position.set(0,0,feast.visible?.356:0);plate.scale.setScalar(feast.visible?.75:1);
   eatingSticks.visible=['chicken','fish','passFish'].includes(id);
-  shared.visible=id==='toast';morsel.visible=eatingSticks.visible;
-  teaCup.position.set(.10,0,.393);teaCup.rotation.set(0,0,0);
-  for(const {cup,x,z} of toastGuests)cup.position.set(x,0,z);
+  shared.visible=false;morsel.visible=eatingSticks.visible;
   lid.visible=['guess','goose','right','dish'].includes(id);lid.position.set(0,0,0);
   if(wall){
    shot([1.50,1.78,-1.62],[3.56,1.76,-1.66],42);
@@ -283,7 +280,7 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    if(id==='dish')shot([2.12,1.52,-1.01],[2.09,.98,-1.54],44);
    if(feast.visible)shot([2.10,1.68,-.65],[2.09,1.02,-1.62],57);
   }
-  if(concert||!wall&&!afterDinner)settleDiners(id,concert,feast.visible);
+  if(concert||!wall&&!afterDinner)settleDiners(concert,feast.visible);
   playerMeal.stage(id);
  }
  function tick(now,entered,mode,singing){
@@ -381,26 +378,6 @@ export function createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,
    restHand('regular','Right',thanks);
   }
   playerMeal.tick(mode,(now-entered)/1000);
-  if(mode==='toast'){
-   for(const {id,cup,x,z} of toastGuests){
-    const seconds=(now-entered)/1000,ease=T.MathUtils.smootherstep;
-    const reach=ease(seconds,0,.70)*(1-ease(seconds,3.65,4.42));
-    const grip=ease(seconds,.66,.91)*(1-ease(seconds,3.38,3.65));
-    const lift=ease(seconds,.94,1.83)*(1-ease(seconds,2.38,3.34));
-    const dir=id==='regular'?1:-1,front=new T.Vector3(dir,0,0),across=new T.Vector3(0,0,-dir);
-    cup.position.set(x+dir*.046*lift,.16*lift,z);
-    const centre=cup.getWorldPosition(new T.Vector3());
-    const palm=across.clone().multiplyScalar(.95);palm.y=-.28;
-    const wrist=centre.clone().addScaledVector(front,-.111).addScaledVector(across,-.086);
-    wrist.y+=.056;
-    const home=new T.Vector3(id==='regular'?1.74:2.50,1.036,id==='regular'?-1.655:-1.395);
-    // Approach the rim from above. On release the fingers clear the table
-    // before the forearm withdraws toward the diner's side of the booth.
-    home.lerp(wrist,reach);home.y+=.038*Math.sin(Math.PI*reach)+.056*(1-grip);
-    placeHand(cast[id].bones,'Right',home,front,across,3.3,palm,front.clone().addScaledVector(across,.22));
-    applyCupGrip(cast[id].bones,'Right',cup,grip);
-   }
-  }
   tickBoards(now);
   if(mode==='dish'){
    const t=T.MathUtils.smootherstep((now-entered)/850,0,1);lid.position.set(-.26*t,.18*t,0);lid.rotation.z=t*.6;lid.visible=t<.99;

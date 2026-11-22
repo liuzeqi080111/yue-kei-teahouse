@@ -20,7 +20,7 @@ for(const name of [...storyFiles,'street-game.js','street-game.css','street-spac
  'assets/street/three/examples/jsm/loaders/GLTFLoader.js','assets/street/three/examples/jsm/utils/BufferGeometryUtils.js',
  ...['ale','aming','aqing','buyer','fang','friend','lin','ling','regular','vendor'].map(id=>'assets/street/'+id+'-styled-v3.glb'),
 ])allowed.add(name);
-const mime={'.mp4':'video/mp4','.glb':'model/gltf-binary','.json':'application/json','.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
+const mime={'.mp4':'video/mp4','.glb':'model/gltf-binary','.json':'application/json','.wav':'audio/wav','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml'};
 for (const name of ['fp1-demo.html','fp1-demo.css','fp1-demo.js','fp1-follow.js','fp1-render.js',
   'fp1-scene.js','fp1-story.js','fp1-travel.js','fp1-voice.js','fp1-dictation.js','fp1-clips.js']) allowed.add(name);
 const MAX_BODY=3*1024*1024,MAX_CONCURRENCY=2,RATE_PER_MINUTE=30;

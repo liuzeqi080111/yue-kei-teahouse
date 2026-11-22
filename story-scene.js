@@ -1,4 +1,4 @@
-import {createReunionWall,savedPrint} from './reunion-wall.js';
+import {createReunionWall,savedPrint,portraitVersion} from './reunion-wall.js';
 import {createReunionScene} from './reunion-scene.js';
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -43,7 +43,8 @@ export async function createStoryScene(canvas,chapter){
     for(const [base,index] of Object.entries(variant.meshes))Object.assign(meshes[base],meshes[index]);
    }
   })):loader;
-  const {scene:model,animations}=await actorLoader.loadAsync('assets/street/'+(library||id)+'-styled-v3.glb');
+  const file='assets/street/'+(library||id)+'-styled-v3.glb';
+  const {scene:model,animations}=await actorLoader.loadAsync(library?file+'?portrait='+portraitVersion:file);
   model.name=id;
   const mixer=new T.AnimationMixer(model);if(animations.length){mixer.clipAction(plantedStance(animations[0])).play();mixer.setTime(0);}
   const bones={},rest={};

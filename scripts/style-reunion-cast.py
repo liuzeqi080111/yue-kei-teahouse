@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from face_glb import Glb
 from reunion_player_waist import rebuild_waist
+from reunion_master_shirt import cotton_shirt, cut_donor_coat
 
 OUT = ROOT / 'output' / 'ba-review'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -69,21 +70,10 @@ def style(pos, rgb, role, is_cloth, collar):
         out[:, 1]-=.004*crown
         clipped=np.array([.54,.49,.43])*(.58+.82*r[:,None])
         c=mix(c,clipped,hair)
-        azimuth=np.arctan2(x+.004,z+.026)
-        neckline=.837+.024*(1-np.cos(azimuth))/2
-        neck_cloth=(ax<.15)&(y>.755)&(y<neckline+.0005)
-        exposed=(ax<.065)&(y>=neckline)&(y<.878)&(b>r*.77)
-        c=mix(c,np.array([.72,.47,.34])*(.80+.31*r[:,None]),exposed)
         if is_cloth:
             shade=np.mean(c,axis=1)
             skin=(r-g>.15)&(r-b>.19)
-            jacket=(y>.48)&(y<.846)&(ax<.388)&(~skin|((ax<.14)&(y<.806)))
-            c=mix(c,np.array([.22,.285,.38])*(.67+.47*shade[:,None]),jacket)
-            hem=(ax>.35)&(ax<.388)&(y>.70)
-            c=mix(c,np.array([.31,.34,.39]),jacket&hem)
             c=mix(c,np.array([.20,.22,.215])*(.56+shade[:,None]),(y>.055)&(y<.48)&~skin)
-        # The scanned neck is split across the face morph and body primitives.
-        c=mix(c,np.array([.206,.261,.337]),neck_cloth)
     return out,np.clip(c,0,1)**2.2
 
 
@@ -116,71 +106,6 @@ def append_pin(g, prim, styled_body, pin):
     mat={'name':pin.name,'pbrMetallicRoughness':{'baseColorFactor':list(pin.data.materials[0].diffuse_color),'metallicFactor':.50,'roughnessFactor':.42}}
     g.doc['materials'].append(mat)
     return {'attributes':{'POSITION':g.add(points,'VEC3',5126),'NORMAL':g.add(norms,'VEC3',5126),'JOINTS_0':g.add(joints,'VEC4',g.doc['accessors'][a['JOINTS_0']]['componentType']),'WEIGHTS_0':g.add(weights,'VEC4',g.doc['accessors'][a['WEIGHTS_0']]['componentType'],g.doc['accessors'][a['WEIGHTS_0']].get('normalized',False))},'indices':g.add(triangles.reshape(-1),'SCALAR',5123),'material':len(g.doc['materials'])-1}
-
-
-def jacket_trim(g, prim, body):
-    """Fit a split stand collar and four cloth frog closures to the rigged coat."""
-    from mathutils.bvhtree import BVHTree
-    from mathutils.kdtree import KDTree
-    faces=g.read(prim['indices']).reshape(-1,3)
-    surface=BVHTree.FromPolygons(body.tolist(),faces.tolist(),all_triangles=True)
-    nearest=KDTree(len(body))
-    for i,p in enumerate(body):nearest.insert(p,i)
-    nearest.balance()
-    points=[];triangles=[]
-    def rings(rows):
-        start=len(points);width=len(rows[0]);points.extend(v for row in rows for v in row)
-        for k in range(len(rows)-1):
-            for j in range(width):
-                a=start+k*width+j;b=start+k*width+(j+1)%width
-                triangles.extend([(a,b,b+width),(a,b+width,a+width)])
-        for j in range(1,width-1):
-            triangles.extend([(start,start+j+1,start+j),(start+(len(rows)-1)*width,start+(len(rows)-1)*width+j,start+(len(rows)-1)*width+j+1)])
-    # A drafted collar narrows towards the jaw. Its concentric elliptical
-    # sections stay clear of the shoulder ridges of the original suit.
-    profile=[(-.015,-.001),(-.016,.0004),(-.015,.0015),(-.003,.0018),(0,.0012),(.0004,0),(-.001,-.001)]
-    rows=[]
-    for angle in np.linspace(.065,np.pi*2-.065,93):
-        radial=np.array([np.sin(angle),0,np.cos(angle)])
-        row=[]
-        for depth,offset in profile:
-            centre=np.array([-.004,.837+.024*(1-np.cos(angle))/2+depth,-.021])
-            width=.039-.48*depth
-            radius=1/np.sqrt((radial[0]/width)**2+(radial[2]/(.047-.32*depth))**2)
-            point=surface.ray_cast(centre+.095*radial,-radial,.080)[0]
-            reach=radius if point is None else np.clip(np.dot(np.array(point)-centre,radial),radius*.76,radius*1.12)
-            row.append(centre+radial*(reach+offset))
-        rows.append(row)
-    # Ease the sampled outline into a sewn band across the scan's seams.
-    band=np.array(rows)
-    for i in range(1,len(band)-1):
-        band[i]=(np.array(rows[i-1])+2*np.array(rows[i])+np.array(rows[i+1]))/4
-    rings(band)
-    def front(x,y):
-        hit=surface.ray_cast((x,y,.20),(0,0,-1),.32)[0]
-        return np.array(hit)
-    # Rounded oblong fabric knots, anchored into the coat at both ends.
-    for h in [.778,.716,.650,.585]:
-        for x0,x1,bulge in [(-.019,.003,.0028),(.001,.017,.0034)]:
-            rows=[]
-            for u in np.linspace(0,1,13):
-                x=x0+(x1-x0)*u
-                centre=front(x,h+.0018*np.sin(u*np.pi))
-                centre[2]+=.0015*np.sin(u*np.pi)
-                radius=.00065+bulge*np.sin(u*np.pi)**.7
-                rows.append([centre+np.array([0,radius*np.cos(a),radius*np.sin(a)]) for a in np.arange(10)*np.pi/5])
-            rings(rows)
-    mesh=bpy.data.meshes.new('Indigo collar and cotton frogs')
-    mesh.from_pydata(points,[],triangles);mesh.update()
-    import bmesh
-    bm=bmesh.new();bm.from_mesh(mesh);bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces));bm.to_mesh(mesh);bm.free()
-    attr=prim['attributes'];ids=[nearest.find(v.co)[1] for v in mesh.vertices]
-    new={'POSITION':g.add([v.co[:] for v in mesh.vertices],'VEC3',5126),'NORMAL':g.add([v.normal[:] for v in mesh.vertices],'VEC3',5126)}
-    for key in ['JOINTS_0','WEIGHTS_0']:
-        acc=g.doc['accessors'][attr[key]]
-        new[key]=g.add(g.read(attr[key])[ids],'VEC4',acc['componentType'],acc.get('normalized',False))
-    g.doc['materials'].append({'name':'Indigo binding and knotted cotton','pbrMetallicRoughness':{'baseColorFactor':[.049,.071,.100,1],'roughnessFactor':.94,'metallicFactor':0}})
-    return {'attributes':new,'indices':g.add([v for poly in mesh.polygons for v in poly.vertices],'SCALAR',5123),'material':len(g.doc['materials'])-1}
 
 
 def clean_mesh(g, mesh):
@@ -288,6 +213,8 @@ def build(role,donor):
             collar=role=='player' and p['material']==3
             out,rgb=style(pos,col[:,:3],role,main,collar)
             colors=np.column_stack((np.rint(rgb*255),np.full(len(pos),255)))
+            if role=='master' and (main or 'facial rig' in original['name']):
+                cut_donor_coat(g,p,out,col[:,:3]**(1/2.2))
             if main and part==0:
                 body=out
                 if role=='player':
@@ -297,7 +224,7 @@ def build(role,donor):
             a['COLOR_0']=g.add(colors,'VEC4',5121,True)
         if main:
             base=original['primitives'][0]
-            trim=jacket_trim(g,base,body) if role=='master' else append_pin(g,base,body,pin)
+            trim=cotton_shirt(g,base,g.read(base['attributes']['POSITION'])) if role=='master' else append_pin(g,base,body,pin)
             mesh['primitives'].append(trim)
         clean_mesh(g,mesh)
         maps[str(i)]=len(g.doc['meshes']);g.doc['meshes'].append(mesh)
