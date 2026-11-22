@@ -141,12 +141,13 @@ function referenceMode(video){
 }
 function openReference(){lesson?.interrupt();listening.showModal();referenceMode(false);}
 $('#switch-reference').onclick=()=>referenceMode($('#video-title').hidden);
-$('#close-listen').onclick=()=>listening.close();
-listening.addEventListener('close',()=>{
+function closeReference(){
  resetRecordingPractice();
  recordingExample.pause();recordingExample.removeAttribute('src');recordingExample.load();
- $('#nanyin-player').replaceChildren();
-});
+ $('#nanyin-player').replaceChildren();listening.close();
+}
+$('#close-listen').onclick=closeReference;
+listening.addEventListener('cancel',event=>{event.preventDefault();closeReference();});
 function boardControls(label,dest){
  const beatButton=button('',()=>{},true),nextButton=button(label,()=>transition(dest));
  button('听真人唱 · 跟原声敲',openReference);
@@ -180,14 +181,14 @@ function display(){
 }
 $('h1').textContent=book.title;document.title=book.title+' · 街坊故事';
 $('#other').href='?story='+book.other;$('#other').textContent=chapters[book.other].title;
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&listening.open)listening.close();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&listening.open)closeReference();});
 const canvas=$('#stage');
 canvas.addEventListener('click',event=>{
  const target=scene?.hit(event.clientX,event.clientY);
  if(target==='beat')$('#choices button')?.click();
  if(target==='lid')transition('dish');
 });
-window.addEventListener('pagehide',()=>{lesson?.interrupt();if(listening.open)listening.close();stopAudio();recorder.cancel();transcription?.abort();});
+window.addEventListener('pagehide',()=>{lesson?.interrupt();if(listening.open)closeReference();stopAudio();recorder.cancel();transcription?.abort();});
 try{
  scene=await createStoryScene(canvas,chapter);$('#loading').hidden=true;$('#dialogue').hidden=false;display();
  let last=0;function frame(t){if(!document.hidden&&t-last>40){scene.tick(t,lesson?.elapsed()??-1);scene.render();last=t;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
