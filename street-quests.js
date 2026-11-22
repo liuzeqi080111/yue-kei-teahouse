@@ -11,8 +11,8 @@ export function streetQuests(w){
   if(has('coat')&&!w.coatOutcome)return ['qing','已和周叔换衣。回安和楼，把原衣交给阿晴。','coat-return'];
   if(!w.coatOutcome){
    if(f('qing-paid-coat')||has('newCoat')||has('loanCoat'))return ['qing','把面试用衣交给阿晴，送她去面试。','coat-emergency'];
-   if(f('coat-route-borrow'))return ['ling','到夜市衣摊，向玲姐借一件面试外套。','coat-loan'];
-   if(f('coat-route-buy'))return f('coat-quoted')?['qing','在衣摊旁找阿晴确认价格，由她付款。','coat-buy']:['ling','陪阿晴到夜市，请玲姐报价。','coat-quote'];
+   if(f('coat-route-borrow'))return ['ling','到夜市衣铺，向玲姐借一件面试外套。','coat-loan'];
+   if(f('coat-route-buy'))return f('coat-quoted')?['qing','在衣铺旁找阿晴确认价格，由她付款。','coat-buy']:['ling','陪阿晴到夜市，请玲姐报价。','coat-quote'];
   }
   if(!w.coatOutcome||f('coat-misunderstanding')&&!f('original-returned')){
    if(!f('guest-found'))return ['ming','先到粤记门口问阿明，哪位客人拿错了衣服。','guest-found'];
@@ -34,16 +34,16 @@ export function streetQuests(w){
   if(w.recordOutcome)return ['lam','回棋桌问林伯旧友的回音，约他们见一面。','record-after'];
   if(has('contact'))return ['lam','回棋桌把旧友的消息告诉林伯。','record-contact'];
   if(!f('record-start'))return ['lam','在榕树下陪林伯下两手棋，问起他和旧友的唱片。','record-start'];
-  if(!f('sleeve-read'))return ['lok','到夜市唱片摊，请阿乐给你看封套留言。','sleeve-read'];
+  if(!f('sleeve-read'))return ['lok','到夜市唱片店，请阿乐给你看封套留言。','sleeve-read'];
   return f('record-relayed')?['lok','向阿乐取回旧友的答复。','record-reply']:['lok','请阿乐问一声，旧友是否愿意联系。','record-source'];
  }
  function stall(){
-  if(w.stallOutcome)return [null,'玲姐和阿明商定了摆摊方式，门口通道已调整。'];
+  if(w.stallOutcome)return [null,'玲姐和阿明商定了衣架的摆放位置和时间，门口通道已调整。'];
   if(!f('stall-ming'))return ['ming','到粤记门外，听阿明说说衣架挡路的事。','stall-ming'];
   if(!f('stall-observed'))return ['ming','跟阿明看看送餐通道被哪里挡住了。','stall-observe'];
-  if(f('stall-ming-agreed'))return ['ling','到衣摊告诉玲姐，阿明同意了，请她落实。','stall-finalize'];
+  if(f('stall-ming-agreed'))return ['ling','到衣铺告诉玲姐，阿明同意了，请她落实。','stall-finalize'];
   if(w.flags.some(k=>k.startsWith('stall-propose-')))return ['ming','回粤记，问阿明是否同意调整。','stall-agree'];
-  return ['ling',f('stall-ling')?'与玲姐选定衣架的摆放方案。':'到夜市衣摊听玲姐说说她的难处。',f('stall-ling')?'stall-propose-compact':'stall-ling'];
+  return ['ling',f('stall-ling')?'与玲姐选定衣架的摆放方案。':'到夜市衣铺听玲姐说说她的难处。',f('stall-ling')?'stall-propose-compact':'stall-ling'];
  }
  return [['coat','阿晴的面试外套',coat()],['record','林伯的旧唱片',record()],['stall','粤记门口的衣架',stall()]].map(([id,name,[npc,text,action]])=>({id,name,npc,text,action,done:!npc}));
 }

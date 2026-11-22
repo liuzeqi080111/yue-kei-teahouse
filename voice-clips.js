@@ -1,3 +1,4 @@
+import {PASSERS} from './street-space.js';
 import {NPC_VOICE_CLIPS,NPC_SPEECH_CUES} from './npc-voice-manifest.js';
 import {voiceUrl} from './voice-endpoint.js';
 
@@ -18,6 +19,7 @@ const cast={
  northTurn:['Rocky',.96,1.04], eastTurn:['Kiki',.93,.96],
 };
 export function characterVoice(id){
+ if(Object.hasOwn(PASSERS,id))id=PASSERS[id].model;
  if(!Object.hasOwn(cast,id))return null;
  const [voice,register,tempo]=cast[id];
  return {voice,register,tempo};

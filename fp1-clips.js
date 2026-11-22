@@ -169,5 +169,20 @@ export const ROLE_CLIPS={
  "ming|未到飯點，衫架照擺出嚟。": "assets/street-line-4f2b23d1281a69.wav",
  "ming|你睇，而家條路闊咗。": "assets/street-line-f3c7b37eec242f.wav",
  "ling|未到飯點，衫架照擺出嚟。": "assets/street-line-13a882da515e67.wav",
- "ling|你睇，而家條路闊咗。": "assets/street-line-c42119963830f7.wav"
+ "ling|你睇，而家條路闊咗。": "assets/street-line-c42119963830f7.wav",
+ "yan|你好呀，咁啱嘅！": "assets/street-line-abb5b7c833799c.wav",
+ "yan|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-473cc1f632c367.wav",
+ "kit|你好呀，咁啱嘅！": "assets/street-line-c3d74c6e6c96e8.wav",
+ "kit|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-9278b1b68d6835.wav",
+ "mei|你好呀，咁啱嘅！": "assets/street-line-abb5b7c833799c.wav",
+ "mei|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-473cc1f632c367.wav",
+ "wing|你好呀，咁啱嘅！": "assets/street-line-c3d74c6e6c96e8.wav",
+ "wing|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-9278b1b68d6835.wav",
+ "ching|你好呀，咁啱嘅！": "assets/street-line-abb5b7c833799c.wav",
+ "ching|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-473cc1f632c367.wav",
+ "wai|你好呀，咁啱嘅！": "assets/street-line-c3d74c6e6c96e8.wav",
+ "wai|幾好呀，多謝你。你都出嚟行吓呀？": "assets/street-line-9278b1b68d6835.wav",
+ "ming|玲姐個衫架擋住出入。你得閒，去夜市衫舖問吓佢。": "assets/street-line-ea5733bf819e6a.wav",
+ "fang|可以去衫舖問玲姐借件褸，記住要還。": "assets/street-line-fa17d2e55d7195.wav",
+ "ling|依家睇得見舖頭，路又留返出嚟。": "assets/street-line-251fa37885dc82.wav"
 };

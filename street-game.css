@@ -91,3 +91,5 @@
 .street-tray .quest-row{display:block;width:100%;text-align:left;margin-bottom:5px}
 .street-tray .quest-row[aria-pressed=true]{border-color:#e6a474;color:#ffda9b}
 @media(max-width:650px){.street-game #street-map{width:104px}.street-navigation .street-menu{max-width:43vw;padding:2px}.street-navigation .street-menu button{font-size:12px;padding:3px 5px}}
+
+.street-overheard{position:absolute;bottom:26%;left:50%;transform:translateX(-50%);width:max-content;max-width:80%;padding:.32em .7em;font-size:clamp(15px,1.5vw,19px);line-height:1.45;color:#fff7df;background:#28251fce;border-radius:.3em;text-align:center;pointer-events:none}

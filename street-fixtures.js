@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {MARKET_ROOMS} from './street-space.js';
 
 // Measurements are in the district's world space. Fixtures in this file stay
 // behind existing counters and leave the navigation raster clear.
@@ -14,6 +15,33 @@ export function dressStoryShops(scene,env){
   const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');g.fillStyle=color;g.fillRect(0,0,512,160);g.strokeStyle='#dbca9d';g.strokeRect(9,9,494,142);g.textAlign='center';g.textBaseline='middle';g.fillStyle='#f6e9ce';g.font='bold 65px serif';g.fillText(words,256,84,475);
   const map=new T.CanvasTexture(c);map.colorSpace=T.SRGBColorSpace;
   const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshStandardMaterial({map,side:T.DoubleSide}));p.add(m);m.position.set(x,y,z);m.rotation.y=angle;return m;
+ }
+ // Keep the vintage merchandise, rails and counters inside two shop rooms.
+ // The passage between the two entrances leads to the grocer behind them.
+ for(const room of MARKET_ROOMS){
+  const display=env.getObjectByName(room.id+'_|_'+room.id);
+  display.position.z=room.z;display.scale.x=room.width/4.85;
+  display.traverse(m=>{
+   if(!m.isMesh)return;
+   const g=m.geometry,idx=g.index,pos=g.attributes.position,keep=[];
+   for(let i=0;i<idx.count;i+=3){
+    const a=idx.getX(i),b=idx.getX(i+1),c=idx.getX(i+2);
+    const floor=Math.min(pos.getY(a),pos.getY(b),pos.getY(c));
+    if(floor>=2.24 || (['blue','linen','red'].includes(m.material.name)&&floor>2.07))continue;
+    if(m.material.name==='rail')continue;
+    keep.push(a,b,c);
+   }
+   g.setIndex(keep);
+  });
+  const trim=room.id==='records'?0x6e4034:0x355951;
+  const w=room.width,z=room.z;
+  for(const side of [-1,1]){
+   box(scene,0xd6c6a8,-17.55,1.42,z+side*w/2,5.2,2.62,.10);
+   box(scene,trim,-14.96,1.38,z+side*w/2,.13,2.53,.14);
+  }
+  box(scene,0xd6c6a8,-17.55,2.78,z,5.30,.17,w+.12);
+  box(scene,trim,-14.94,2.57,z,.16,.46,w+.14);
+  sign(scene,room.sign,-14.85,2.57,z,w-.19,.39,Math.PI/2,room.id==='records'?'#713d32':'#35574e');
  }
  const laundry=env.getObjectByName('laundry_|_laundry');
  // Tint the diffuse artwork locally so the plaster grain and tile seams survive.
@@ -94,22 +122,24 @@ export function dressStoryShops(scene,env){
   cyl(p,0xab4c3d,x-.048,y+.067,z,.078,.006,.078);box(p,brass,x+.127,y+.084,z-.006,.018,.018,.19).rotation.y=-.32;
   return disc;
  }
- player(scene,-15.67,1.04,-6.52);
+ box(scene,wood,-15.96,.56,-6.35,.58,.88,.71);
+ player(scene,-15.96,1.04,-6.35);
  for(let k=0;k<3;k++){
-  const z=-6.77+k*.52;box(scene,wood,-16.45,.99,z,.53,.36,.48);
+  const z=-6.48+k*.52;box(scene,wood,-16.45,.99,z,.53,.36,.48);
   for(let j=0;j<6;j++){
    const sleeve=box(scene,[wine,iron,cream,0xa47d49][(k+j)%4],-16.60+j*.055,1.19,z,.027,.34,.36);sleeve.rotation.z=-.16;
    box(scene,cream,sleeve.position.x+.02,1.32,z,.01,.036,.24);
   }
  }
- sign(scene,'二手黑膠',-16.05,1.58,-6.97,.46,.17,Math.PI/2);
+ sign(scene,'二手黑膠',-16.54,1.58,-6.48,.46,.17,Math.PI/2);
  // Tailor's machine with flywheel, needle, spool pins and sample card.
- box(scene,wood,-16.11,1.01,-11.61,.53,.065,.78);
- box(scene,iron,-16.13,1.09,-11.65,.27,.08,.48);box(scene,iron,-16.13,1.23,-11.83,.14,.3,.15);
- box(scene,iron,-16.13,1.36,-11.66,.14,.105,.42);box(scene,brass,-16.13,1.24,-11.48,.026,.20,.019);
- cyl(scene,iron,-16.13,1.34,-11.91,.19,.042,.19).rotation.x=Math.PI/2;
- for(let i=0;i<4;i++)cyl(scene,[wine,cream,brass,iron][i],-16.33,1.12,-11.86+i*.13,.066,.13,.066);
- sign(scene,'改衣 · 車邊',-16.14,1.78,-11.78,.60,.17,Math.PI/2, '#655245');
+ box(scene,wood,-16.11,.55,-11.34,.53,.86,.75);
+ box(scene,wood,-16.11,1.01,-11.34,.53,.065,.78);
+ box(scene,iron,-16.13,1.09,-11.38,.27,.08,.48);box(scene,iron,-16.13,1.23,-11.56,.14,.3,.15);
+ box(scene,iron,-16.13,1.36,-11.39,.14,.105,.42);box(scene,brass,-16.13,1.24,-11.21,.026,.20,.019);
+ cyl(scene,iron,-16.13,1.34,-11.64,.19,.042,.19).rotation.x=Math.PI/2;
+ for(let i=0;i<4;i++)cyl(scene,[wine,cream,brass,iron][i],-16.33,1.12,-11.59+i*.13,.066,.13,.066);
+ sign(scene,'改衣 · 車邊',-16.14,1.78,-11.37,.60,.17,Math.PI/2, '#655245');
  const reunion=new T.Group();scene.add(reunion);reunion.visible=false;
  box(reunion,wood,16.17,.95,-12.20,.59,.06,.39);
  for(const x of [15.94,16.4])for(const z of [-12.34,-12.06])box(reunion,wood,x,.55,z,.045,.76,.045);

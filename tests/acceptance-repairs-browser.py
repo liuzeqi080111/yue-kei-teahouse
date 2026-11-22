@@ -1,5 +1,6 @@
 """Exercise the reported street regressions through normal player controls."""
 import json
+import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -37,7 +38,7 @@ with sync_playwright() as playwright:
         )
         route.fulfill(body=source,content_type='text/javascript')
     page.route('**/street-fixtures.js',observe_props)
-    page.goto("http://127.0.0.1:4236/?street=3d")
+    page.goto(os.environ.get('STREET_URL','http://127.0.0.1:4256')+'/?street=3d')
     page.locator(".vinyl-new").click()
     page.locator('[data-learning-mode="experienced"]').click()
     page.locator('[data-street-action="go-out"]').click(timeout=90000)
@@ -65,14 +66,14 @@ with sync_playwright() as playwright:
         page.wait_for_timeout(250)
         view=page.evaluate("reviewView()")
         after=page.evaluate("reviewActors()")
-        moved.update(name for name in ('buyer','regular','ale','ling') if sum(abs(x-y) for x,y in zip(before[name],after[name]))>.05)
+        moved.update(name for name in ('yan','kit','mei','wing','ching','wai') if sum(abs(x-y) for x,y in zip(before[name],after[name]))>.05)
         samples.append(view)
         if view['mode']!='following':break
         assert abs(view['heading']-start['heading'])<.001,view
         assert abs(view['pitch']-start['pitch'])<.001,view
         assert abs(view['y']-start['y'])<.001,view
     assert samples[-1]['mode']=='arrived',samples[-1]
-    assert len(moved)==4,sorted(moved)
+    assert len(moved)==6,sorted(moved)
     page.screenshot(path=str(out / "follow-final.jpg"))
     page.locator('#street-interact').click()
     page.locator('[data-street-action="shop-check"]').click(timeout=15000)
@@ -88,4 +89,4 @@ with sync_playwright() as playwright:
         encoding="utf-8",
     )
     browser.close()
-print("PASS stable free-look during following and four moving neighbours")
+print("PASS stable free-look during following and six moving neighbours")
