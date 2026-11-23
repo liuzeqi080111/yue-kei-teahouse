@@ -77,7 +77,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  let lastView=0,showedIntroduction=false,clip=null,lastSpeech=null,styleKey='',dirty=true,restoreId=0,noticeTimer=0,voiceRecording=false;
  let chess=null,chessFinished=null,chessBusy=false,chessTurns=0,playTurn;
  let pendingVoiceFollow=false,companions,guide=null,people=[];
- let clipRequest=null,clipUrl=null,stopLip=null,lastTargetUpdate=0;
+ let clipRequest=null,clipUrl=null,stopLip=null,clipWatchdog=null,lastTargetUpdate=0;
  function speechLevel(id,level,shape){
   scene?.speak(id==='intro'?'friend':ACTORS[id]?.model||id,level,shape);dirty=true;
  }
@@ -215,27 +215,52 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   onSpeechLevel:speechLevel,autoSpeak:false,
  });
  function stopSpeech(){
+  clearTimeout(clipWatchdog);clipWatchdog=null;
   stopLip?.();stopLip=null;clipRequest?.abort();clipRequest=null;
-  if(clip){clip.pause();clip=null;}
+  if(clip){clip.onended=null;clip.onerror=null;clip.pause();clip=null;}
   if(clipUrl){URL.revokeObjectURL(clipUrl);clipUrl=null;}
  }
  async function playFile(file,speaker,rate=1){
   stopSpeech();
   const request=new AbortController();clipRequest=request;
+  let position=0;
+  function failed(message){
+   if(clipRequest!==request)return;
+   stopSpeech();
+   if(talking)setText('#street-voice-state',shopTurn?'本句配音未能播完。':message);
+  }
+  // An interrupted blob fetch or a media device that never fires "ended"
+  // must release the story. A clip making progress always gets more time.
+  function watch(){
+   if(!['intro','quote','request','question','decision'].includes(shopTurn))return;
+   clearTimeout(clipWatchdog);
+   clipWatchdog=setTimeout(()=>{
+    if(clipRequest!==request)return;
+    if(clip&&clip.currentTime>position){
+     position=clip.currentTime;watch();return;
+    }
+    failed('配音中断，请点「听这句」重试。');
+   },10000);
+  }
+  watch();
   try{
    const res=await fetch(file,{signal:request.signal});
    if(!res.ok)throw Error('clip');
-   const recording=await prepareVoiceRecording(await res.blob(),speaker);
+   const blob=await res.blob();
+   if(request.signal.aborted)return;
+   watch();
+   const recording=await prepareVoiceRecording(blob,speaker);
    if(request.signal.aborted)return;
    clipUrl=URL.createObjectURL(recording.blob);clip=new Audio(clipUrl);
    clip.preservesPitch=true;clip.playbackRate=rate*recording.rate;
    clip.onended=()=>{if(clipRequest===request)stopSpeech();};
+   clip.onerror=()=>failed('配音未能播放，请点「听这句」重试。');
+   watch();
    await clip.play();
    if(!request.signal.aborted)stopLip=followSpeech(clip,recording.blob,(level,shape)=>speechLevel(speaker,level,shape),file);
   }catch(error){
    if(request.signal.aborted)return;
-   stopSpeech();
-   if(talking)setText('#street-voice-state',error.name==='NotAllowedError'?'点「听这句」即可播放。':'配音未能播放，请点「听这句」重试。');
+   failed(error.name==='NotAllowedError'?'点「听这句」即可播放。':'配音未能播放，请点「听这句」重试。');
   }
  }
  function friendLine(text,instruction=''){
@@ -411,6 +436,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  function shopLine(turn,line,speaker){
   shopTurn=turn;shopSince=performance.now();host.dataset.shopping=turn;
   talking=speaker;
+  setText('#street-voice-state','');
   setText('.street-speaker',NPCS[speaker].name);
   setLine(...SHOPPING_LINES[line],true,speaker);
   showChoices();drawHud();dirty=true;
