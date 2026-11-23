@@ -1,7 +1,7 @@
-import { distance } from './street-space.js';
+import { distance, PERSON_CLEARANCE } from './street-space.js';
 
 // Centre-to-centre clearance for the two character rigs and the first-person camera.
-const CLEARANCE=.78;
+const CLEARANCE=PERSON_CLEARANCE;
 const position=actor=>actor.model.position;
 const point=(p,dx,dz)=>({x:p.x+dx,z:p.z+dz});
 const angles=[0,.45,-.45,.88,-.88,1.35,-1.35];

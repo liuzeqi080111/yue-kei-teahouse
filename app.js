@@ -1,3 +1,5 @@
+import {applyChapterDay} from './campaign.js';
+import {chapterCompleted,readChapter,chapterSaveKey} from './story-chapters.js';
 const STATIC_PREVIEW = document.documentElement.dataset.preview === 'true';
 import {MENU,PHASES as P} from './teahouse-scene/index.js';
 import {createGame} from './controller.js';
@@ -423,6 +425,9 @@ function leaveRestaurantToStreet(){
  neighborhood?.showStreet('restaurant');
 }
 function startNeighborhoodFromTitle(){
+ if(!worldSaveLocked&&chapterCompleted('reunion',readChapter(worldStorage,'reunion'))){
+  location.assign('./story-preview.html?story=reunion&ending=1');return;
+ }
  restaurantFromWorld=false;setRestaurantReturnBar(false);
  if(worldSaveLocked){syncWorldTitle();return;}
  const validated=validateWorldCandidate(world);
@@ -523,6 +528,15 @@ $('[data-world-restart-confirm]').addEventListener('click',()=>{
 });
 window.addEventListener('pagehide',()=>{neighborhood?.flush();flushWorldSave();});
 worldStorage=(()=>{try{return globalThis.localStorage||null;}catch{return null;}})();
+function refreshChapterDay(){
+ try{
+  const day=applyChapterDay(worldStorage);
+  if(world&&day&&world.day<day)world={...world,day,period:0,flags:[...world.flags,'table-next-day-'+day],trackedQuest:'reunion',revision:world.revision+1};
+ }catch(e){worldSaveStatus=e.message;}
+}
+refreshChapterDay();
+window.addEventListener('pageshow',refreshChapterDay);
+window.addEventListener('storage',event=>{if(event.key===chapterSaveKey('table'))refreshChapterDay();});
 const loadedWorld=loadWorld(worldStorage);
 world=loadedWorld.state;worldSaveExists=loadedWorld.exists;worldStorageError=loadedWorld.error;
 worldSaveLocked=Boolean(loadedWorld.error);worldSaveStatus=loadedWorld.error;

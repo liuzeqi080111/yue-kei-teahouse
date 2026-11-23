@@ -14,6 +14,12 @@ export function streetQuests(w,completed={}){
   if(!f('coat-start'))return ['qing','到安和楼梯口，问阿晴为什么着急。','coat-start'];
   if(!f('shop-check'))return ['fang','陪阿晴去洗衣店，把取件单交给芳姐。','shop-check'];
   if(f('coat-pickup-visit')&&!f('coat-inspected'))return ['fang','在芳姐柜前把外套递给阿晴，让她看右袖口。','show-coat'];
+  if(!w.coatOutcome&&f('coat-route-borrow')&&has('loanCoat'))return ['qing','带着借来的外套去找阿晴。她在'+qingLocation(w).name+'等你。','coat-emergency'];
+  if(f('qing-wore-loan')&&!f('loan-returned')){
+   if(!f('qing-returned'))return ['rest','阿晴穿着借来的外套去面试了。到榕树下等她回来。','rest'];
+   if(!f('qing-loan-back'))return ['qing','阿晴面试回来了。到安和楼梯口，亲手接过她借穿的外套。','coat-collect-loan'];
+   if(has('loanCoat'))return ['ling','把借来的外套还给玲姐。她在玲记衣铺柜台前。','loan-returned'];
+  }
   if(has('coat')&&(!w.coatOutcome||f('qing-returned')))return ['qing','带着外套去找阿晴。她在'+qingLocation(w).name+'等你，把外套亲手交给她。',w.coatOutcome?'coat-return-original':'coat-return'];
   if(has('coat'))return ['rest','带着外套去找阿晴。她还在面试，先到榕树下等她回来。','rest'];
   if(!w.coatOutcome&&!w.flags.some(k=>k.startsWith('coat-route-')))return ['fang','问芳姐怎么办，选定找回、借用或买衣。','coat-route-recover'];
@@ -35,11 +41,14 @@ export function streetQuests(w,completed={}){
   return [null,'阿晴穿上面试外套，已向你道谢。'];
  }
  const [npc,text,action]=coat();
- const result=[{id:'coat',name:'阿晴的面试外套',npc,text,action,done:!npc}];
- for(const id of ['table','reunion']){
+ const result=[{id:'coat',name:'阿晴的面试外套',chapter:'主线一',npc,text,action,done:!npc,
+  status:!npc?'已完成':f('coat-start')?'进行中':'可进入'}];
+ for(const [id,chapter] of [['table','主线二'],['reunion','主线三']]){
   const name=chapters[id].title,done=completed[id]===true;
-  result.push({id,name,done,href:'./story-preview.html?story='+id,npc:done?null:'restaurant',
-   text:done?'已完成《'+name+'》。':'去粤记门口，或在任务菜单进入《'+name+'》。'});
+  const locked=id==='reunion'&&!done&&completed.table!==true;
+  result.push({id,name,chapter,done,locked,status:done?'已完成':locked?'待开启':completed[id]==='started'?'进行中':'可进入',
+   href:'./story-preview.html?story='+id,npc:done||locked?null:'restaurant',
+   text:locked?'完成《今晚搭张台》，过一天赴团年饭。':done?'已完成《'+name+'》。':'去粤记门口，或在这里进入《'+name+'》。'});
  }
  return result;
 }

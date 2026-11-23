@@ -89,7 +89,15 @@
 .street-game .street-menu button,.street-game .quest-row{background:#45382d;border-color:#a68f72}
 .street-navigation .street-tray{top:calc(100% + 4px);right:0;width:min(340px,90vw);box-sizing:border-box}
 .street-tray .quest-row{display:block;width:100%;text-align:left;margin-bottom:5px}
-.street-tray .quest-row[aria-pressed=true]{border-color:#e6a474;color:#ffda9b}
 @media(max-width:650px){.street-game #street-map{width:104px}.street-navigation .street-menu{max-width:43vw;padding:2px}.street-navigation .street-menu button{font-size:12px;padding:3px 5px}}
 
 .street-overheard{position:absolute;bottom:26%;left:50%;transform:translateX(-50%);width:max-content;max-width:80%;padding:.32em .7em;font-size:clamp(15px,1.5vw,19px);line-height:1.45;color:#fff7df;background:#28251fce;border-radius:.3em;text-align:center;pointer-events:none}
+
+.street-navigation .street-tray[data-kind=tasks]{width:min(390px,92vw);padding:12px}
+.street-game .street-tray button.quest-row{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;border:1px solid #806e57;border-radius:7px;padding:10px 12px;min-height:44px;font:inherit;color:#fff1d9;background:#40362c}
+.quest-chapter,.quest-state{font-size:13px;color:#e1cfb5}.quest-name{font-weight:600;font-size:15px}
+.street-game .street-tray button.quest-row:disabled{cursor:default;opacity:1;background:#342d27;color:#cbbda8}.street-game .quest-row:disabled .quest-state{color:#cab99e}
+.street-tray[data-kind=tasks] p{margin:.65em 0;line-height:1.45}
+
+.street-game .street-tray button.quest-row[aria-pressed=true]{background:#554134;border-color:#e6ad6f}
+.street-game .street-tray button:focus-visible{outline:2px solid #ffe4a5;outline-offset:2px}

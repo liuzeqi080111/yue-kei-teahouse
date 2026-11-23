@@ -39,6 +39,58 @@ export function distance(a,b) {
  return Math.hypot(a.x-b.x,a.z-b.z);
 }
 
+// Torso, shoulder and camera clearance, measured centre to centre in metres.
+export const PERSON_CLEARANCE=.83;
+
+export function crossesPerson(from,to,person){
+ const dx=to.x-from.x,dz=to.z-from.z,lengthSq=dx*dx+dz*dz;
+ if(!lengthSq)return false;
+ const x=person.x-from.x,z=person.z-from.z;
+ const t=Math.max(0,Math.min(1,(x*dx+z*dz)/lengthSq));
+ // A legacy save can start inside a body. Allow steps that leave the overlap.
+ return t>0&&(x-t*dx)**2+(z-t*dz)**2<PERSON_CLEARANCE**2;
+}
+
+// A quest marker is an interaction area. If its preferred spot is occupied,
+// approach another reachable spot in that same area.
+export function guidedStreetPath(nav,from,target,legal,people){
+ let departure=from;
+ if(people.some(({position})=>distance(position,from)<PERSON_CLEARANCE)){
+  const forward=Math.atan2(target.x-from.x,target.z-from.z);
+  for(let r=.18;r<2&&departure===from;r+=.18){
+   for(let i=0;i<24;i++){
+    const a=forward+Math.ceil(i/2)*(i%2?1:-1)*Math.PI/12;
+    const p={x:from.x+r*Math.sin(a),z:from.z+r*Math.cos(a)};
+    if(nav.line(from,p)&&people.every(({position})=>distance(position,p)>PERSON_CLEARANCE+.05&&!crossesPerson(from,p,position))){
+     departure=p;break;
+    }
+   }
+  }
+ }
+ const bodies=people.map(({position,moving})=>({...position,moving,
+  radius:Math.max(0,Math.min(PERSON_CLEARANCE+.13,distance(position,departure)-.001))}));
+ function blocked(list){
+  return p=>list.some(b=>Math.abs(b.x-p.x)<b.radius&&(b.x-p.x)**2+(b.z-p.z)**2<b.radius*b.radius);
+ }
+ const occupied=blocked(bodies),fixed=blocked(bodies.filter(b=>!b.moving));
+ const spots=[];
+ for(const radius of [0,.3,.6,.9,1.2,1.5]){
+  for(let i=0;i<(radius?12:1);i++){
+   const a=i*Math.PI/6,p={x:target.x+radius*Math.sin(a),z:target.z+radius*Math.cos(a)};
+   if(nav.walkable(p.x,p.z)&&legal(p)&&bodies.every(b=>distance(p,b)>=PERSON_CLEARANCE+.04))spots.push(p);
+  }
+ }
+ // If a moving neighbour closes a single-file passage, keep a route around
+ // permanent fixtures. Each actual step still waits for the neighbour.
+ for(const obstacle of [occupied,fixed]){
+  if(!spots.length)break;
+  let path=nav.path(departure,spots[0],obstacle);
+  if(!path.length)path=nav.path(departure,spots.slice(1),obstacle);
+  if(path.length)return departure===from?path:[departure,...path];
+ }
+ return [];
+}
+
 export function createStreetNav(layout, blocked=()=>false) {
  const {x0,z0,step,w,h,rows}=layout;
  const pixels=new Uint8Array(w*h);
@@ -66,39 +118,45 @@ export function createStreetNav(layout, blocked=()=>false) {
  };
  const point=i=>({x:x0+(i%w)*step,z:z0+Math.floor(i/w)*step});
  const cell=(x,z)=>pixels[index(x,z)]||0;
- const walkable=(x,z)=>cell(x,z)>0&&!blocked({x,z});
- function line(from,to){
+ const walkable=(x,z,occupied)=>cell(x,z)>0&&!blocked({x,z})&&!occupied?.({x,z});
+ function line(from,to,occupied){
   const steps=Math.max(1,Math.ceil(distance(from,to)/.033));
   for(let i=1;i<=steps;i++){
    const u=i/steps;
-   if(!walkable(from.x+(to.x-from.x)*u,from.z+(to.z-from.z)*u))return false;
+   if(!walkable(from.x+(to.x-from.x)*u,from.z+(to.z-from.z)*u,occupied))return false;
   }
   return true;
  }
  // Leave clearance on both sides of shortcuts. A path that just grazes a
  // blocked cell can otherwise sample differently at walking-frame intervals.
- function shortcut(from,to){
+ function shortcut(from,to,occupied){
   const length=distance(from,to);
-  if(!length)return walkable(to.x,to.z);
+  if(!length)return walkable(to.x,to.z,occupied);
   const dx=(to.z-from.z)*.055/length,dz=(from.x-to.x)*.055/length;
-  return line(from,to)&&line({x:from.x+dx,z:from.z+dz},{x:to.x+dx,z:to.z+dz})
-   &&line({x:from.x-dx,z:from.z-dz},{x:to.x-dx,z:to.z-dz});
+  return line(from,to,occupied)&&line({x:from.x+dx,z:from.z+dz},{x:to.x+dx,z:to.z+dz},occupied)
+   &&line({x:from.x-dx,z:from.z-dz},{x:to.x-dx,z:to.z-dz},occupied);
  }
- function path(from,to){
-  if(!walkable(from.x,from.z)||!walkable(to.x,to.z))return [];
-  if(shortcut(from,to))return [to];
-  const start=index(from.x,from.z),end=index(to.x,to.z);
+ function path(from,goal,occupied){
+  const targets=(Array.isArray(goal)?goal:[goal]).filter(p=>walkable(p.x,p.z,occupied));
+  if(!targets.length||!walkable(from.x,from.z,occupied))return [];
+  let to=targets[0];
+  if(shortcut(from,to,occupied))return [to];
+  const start=index(from.x,from.z),ends=new Map(targets.map(p=>[index(p.x,p.z),p]));
+  let end=ends.has(start)?start:-1;
   const prev=new Int32Array(w*h).fill(-1),queue=new Int32Array(w*h);
   let head=0,tail=1;
   queue[0]=start;prev[start]=start;
-  while(head<tail&&prev[end]===-1){
+  while(head<tail&&end===-1){
    const i=queue[head++],col=i%w;
    for(const j of [col>0?i-1:-1,col<w-1?i+1:-1,i-w,i+w]){
-    if(j<0||j>=pixels.length||!pixels[j]||prev[j]!==-1||blocked(point(j)))continue;
+    if(j<0||j>=pixels.length||!pixels[j]||prev[j]!==-1)continue;
+    const p=point(j);if(blocked(p)||occupied?.(p))continue;
     prev[j]=i;queue[tail++]=j;
+    if(ends.has(j)){end=j;break;}
    }
   }
-  if(prev[end]===-1)return [];
+  if(end===-1)return [];
+  to=ends.get(end);
   const reverse=[to];
   for(let i=end;i!==start;i=prev[i])reverse.push(point(i));
   reverse.push(point(start));
@@ -106,8 +164,11 @@ export function createStreetNav(layout, blocked=()=>false) {
   let current=from;
   for(let i=0;i<route.length;){
    let far=i;
-   if(!line(current,route[far]))return [];
-   while(far+1<route.length&&shortcut(current,route[far+1]))far++;
+   // The rounded start cell can sit a few centimetres inside a person's disc
+   // even when the player's exact starting point is clear.
+   if(i===0&&occupied&&!line(current,route[0],occupied)&&route.length>1)far++;
+   if(!line(current,route[far],occupied))return [];
+   while(far+1<route.length&&shortcut(current,route[far+1],occupied))far++;
    current=route[far];result.push(current);i=far+1;
   }
   return result;

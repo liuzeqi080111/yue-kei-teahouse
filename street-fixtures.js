@@ -185,8 +185,7 @@ export function createOccupations(scene,actors,kit){
   if(id==='fang'){
    piece(right,ball,0x636c70,0,-.039,.022,.087,.033,.18);box(right,0x994c3c,0,-.016,.007,.072,.045,.109);box(right,0x42372c,0,.017,0,.024,.021,.08);
   }else if(id==='aqing'){
-   const jacket=kit.heldCoat.clone(true);
-   jacket.position.set(-.13,-.005,-.020);left.add(jacket);
+   kit.purchaseCoat.position.set(-.13,-.005,-.020);left.add(kit.purchaseCoat);
   }else if(id==='ale'){
    const lp=cyl(left,0x282324,.085,.018,.028,.27,.013,.27);cyl(lp,0xc46946,0,.66,0,.31,.12,.31);
    box(right,0xddc7a4,0,-.008,0,.077,.016,.066);
@@ -212,7 +211,7 @@ export function createOccupations(scene,actors,kit){
   else if(id==='ling'||id==='regular'){
    box(left,id==='ling'?0xa6624e:0x556775,.053,.037,.04,.17,.036,.22);
    if(id==='ling')box(right,0xe7cf98,0,0,.02,.016,.008,.14);
-  }else if(id!=='friend'){
+  }else if(id!=='friend'&&id!=='aqing'){
    const cover=id==='buyer';box(left,cover?0xa96845:0xdbccac,.057,.020,.04,cover?.22:.13,.012,cover?.21:.10);
    for(let i=0;i<3;i++)box(left,cover?0x795747:0xa38e76,.057,.027,i*.017-.003,.074,.002,.004);
   }
@@ -285,6 +284,18 @@ export function createOccupations(scene,actors,kit){
    }
   }
  }
+ kit.coatGrip=(id,side,target,grip)=>{
+  const job=jobs.find(j=>j.id===id);
+  const offset=new T.Vector3(0,-.006,.013).applyQuaternion(job.model.quaternion);
+  const palm=reach(job,side,target.clone().sub(offset),1);
+  const contact=palm.add(offset);
+  if(grip>.01){
+   for(const [digit,x,z] of [['Thumb',.003,.010],['Index',0,-.008],['Middle',-.012,-.007]]){
+    placeFingertip(job,side,digit,contact.clone().add(new T.Vector3(x*(side==='Left'?1:-1),-.006,z).applyQuaternion(job.model.quaternion)));
+   }
+  }
+  return contact;
+ };
  return (point,engaged,now)=>{
   let changed=false;
   for(const j of jobs){
@@ -299,9 +310,11 @@ export function createOccupations(scene,actors,kit){
     continue;
    }
    const coatOnCounter=kit.coatShown&&(id==='fang'||id==='aqing'&&Math.hypot(model.position.x-15.54,model.position.z-1.19)<2.4);
-   const working=!coatOnCounter&&(id==='aqing'?kit.qingHasCoat:engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
+   const giving=kit.coatHandOccupied(id,'Left')||kit.coatHandOccupied(id,'Right');
+   const tryingPurchase=id==='aqing'&&kit.tryingPurchase&&!giving;
+   const working=!coatOnCounter&&(giving||tryingPurchase||id!=='aqing'&&engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
    if(!working&&!j.weight)continue;
-   if(working&&['fang','ale','aming','ling','regular'].includes(id)){
+   if(working&&engaged!==id&&['fang','ale','aming','ling','regular'].includes(id)){
     const delta=j.actor.spec.rotationY-model.rotation.y;
     model.rotation.y+=T.MathUtils.clamp(Math.atan2(Math.sin(delta),Math.cos(delta)),-.85*dt,.85*dt);
    }
@@ -310,7 +323,7 @@ export function createOccupations(scene,actors,kit){
    const t=now*.001+j.index*.86,swing=Math.sin(t*1.6),lift=(1-Math.cos(t*1.6))*.5;
    let l=v().set(.07,.59,.18),r=v().set(-.042+.035*swing,.62,.18);
    switch(id){
-    case 'aqing':l.set(.17,.65+.003*Math.sin(t),.27);r.set(-.18,.40,.12);break;
+    case 'aqing':l.set(.17,tryingPurchase?.65:.425,tryingPurchase?.27:.085);r.set(-.17,.425,.085);break;
     case 'fang': l.set(.12,.55,.22);r.set(-.073+.102*swing,.55+.032*Math.max(0,-Math.cos(t*1.6)),.24);break;
     case 'ale':l.set(.115,.56,.22);r.set(-.038+.056*Math.cos(t*2.5),.624,.26+.026*Math.sin(t*2.5));break;
     case 'ling':r.set(-.05+.08*lift,.625,.225+.035*lift);break;
@@ -372,9 +385,7 @@ export function createOccupations(scene,actors,kit){
    }else j.right.position.copy(reach(j,'Right',model.localToWorld(r),j.weight));
    j.left.visible=j.right.visible=j.weight>.045;
    if(id==='aqing'){
-    if(coatOnCounter||!kit.qingHasCoat||kit.passingToQing)j.left.visible=false;
-    j.right.visible=false;
-    placeFingertip(j,'Left','Thumb',j.left.localToWorld(v().set(.018,-.015,.014)));
+    j.left.visible=tryingPurchase;j.right.visible=false;
    }
    if(id==='fang'&&working){
     for(const [index,digit] of ['Index','Middle','Ring','Pinky'].entries()){
@@ -384,6 +395,7 @@ export function createOccupations(scene,actors,kit){
    }
    if(id==='aming'&&!working)j.left.visible=j.right.visible=false;
    if(id==='fang'&&!working){j.right.position.set(15.97,1.116,1.60);j.right.visible=true;}
+   if(giving){j.left.visible=j.right.visible=false;}
    changed=true;
   }
   return changed;

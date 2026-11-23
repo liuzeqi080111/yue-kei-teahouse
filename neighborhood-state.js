@@ -11,7 +11,20 @@ export const NPCS={
  guest:{name:'周叔',role:'常到粤记喝茶，也是芳姐洗衣店的熟客',sprite:6},
  buyer:{name:'小文',role:'已经约好来买唱片的客人',sprite:7}
 };
-export const ITEMS={ticket:'洗衣取件单',wrongCoat:'拿错的外套',coat:'阿晴的外套',loanCoat:'借来的外套',newCoat:'新外套',record:'旧唱片',contact:'旧友联系线索'};
+export const ITEMS={ticket:'洗衣取件单',wrongCoat:'拿错的外套',coat:'阿晴的外套',loanCoat:'玲姐借出的外套',newCoat:'新外套',record:'旧唱片',contact:'旧友联系线索'};
+
+// Original and loaned garments can be in different hands, or both in the bag.
+export function coatOwners(s){
+ const f=id=>s.flags.includes(id),has=id=>s.items.includes(id);
+ let original=null,loan=null;
+ if(has('coat'))original='player';
+ else if(['returned','cooperate'].includes(s.coatOutcome)||f('original-returned'))original='aqing';
+ else if(f('guest-found')&&!f('coat-swapped'))original='regular';
+ if(has('loanCoat'))loan='player';
+ else if(f('qing-wore-loan')&&!f('qing-loan-back')&&!f('loan-returned'))loan='aqing';
+ else if(f('coat-route-borrow')||f('loan-returned'))loan='ling';
+ return {original,loan};
+}
 export const COUNTER_GUESTS={
  southRice:{
   name:'祥伯',role:'林伯的旧友，正在东街南洋饼家买菠萝包',
@@ -254,8 +267,8 @@ export function npcContext(s,npc){
   else if(s.coatOutcome==='cooperate')relations.push('她按芳姐联系的方案去核对换衣并赴面试。');
   else if(s.coatOutcome==='emergency'){
    if(s.flags.includes('original-returned'))relations.push('她穿着应急安排的外套去面试；玩家后来把原衣交给了她。');
-   else if(s.flags.includes('qing-wore-loan'))relations.push(s.flags.includes('qing-loan-back')?'她曾借穿玲姐的外套去面试，借衣已还给玩家，原衣仍未找回。':'她穿着向玲姐借的外套去面试，原衣仍未找回。');
-   else relations.push('她穿着新买的外套去面试，原衣仍未找回。');
+   else if(f('qing-wore-loan'))relations.push(f('qing-loan-back')?'她曾借穿玲姐的外套去面试，已经把借衣交回玩家手中，还没收到自己的原衣。':'她穿着玲姐借出的外套去面试，还没收到自己的原衣。');
+   else relations.push('她穿着新买的外套去面试，还没收到自己的原衣。');
   }
   if(f('qing-loan-back'))relations.push('借来的外套已还给玩家。');
   if(f('original-returned')&&s.coatOutcome!=='emergency')relations.push('玩家后来把原衣交给了她。');

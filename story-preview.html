@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh-Hans"><head><link rel="icon" href="data:,"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#30251f"><title>街坊故事 · 唔該，開局！</title><link rel="stylesheet" href="story-preview.css"><script type="importmap">{"imports":{"three":"./assets/street/three/build/three.module.min.js","three/addons/":"./assets/street/three/examples/jsm/"}}</script></head><body>
 <main><canvas id="stage" aria-label="街坊故事三维场景"></canvas>
-<header><div><span id="place"></span><h1></h1></div><nav><a id="other"></a><a href="./">回街区封面</a></nav></header>
+<header><div><span id="place"></span><h1></h1></div><nav><a href="./">回街区封面</a></nav></header>
 <div id="loading" role="status">正在打开街区…</div>
 <section id="photo-view" aria-label="待选的街坊合照" hidden></section>
 <section id="dialogue" hidden><span id="speaker"></span><p id="line" lang="yue"></p><p id="meaning"></p><div id="song-panel" hidden>
@@ -11,4 +11,8 @@
  <small>白线碰到金色板位时，敲一下。</small>
  <audio id="master-recording" preload="none"></audio>
 </div><div id="choices"></div><small id="status" role="status"></small></section>
+<section id="chapter-result" hidden aria-labelledby="result-title" tabindex="-1">
+<div class="result-card"><img id="result-photo" alt="你和街坊选定的团年合照" hidden><div class="result-copy">
+<p id="result-place"></p><h2 id="result-title"></h2><p id="result-description"></p><a id="result-action"></a>
+</div></div></section>
 </main><script type="module" src="story-preview.js"></script></body></html>

@@ -1,7 +1,8 @@
+import {applyChapterDay} from '../campaign.js';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
-import {freshWorld, applyWorldAction, restEvent, parseSave, optionsFor} from '../neighborhood-state.js';
+import {freshWorld, applyWorldAction, restEvent, parseSave, optionsFor, coatOwners} from '../neighborhood-state.js';
 import {chapterCompleted} from '../story-chapters.js';
 import {ACTORS, SHOPS, createStreetNav, rackBlocks, rackLayout, marketRoomBlocks, shopBlocks} from '../street-space.js';
 import {streetQuests, questPoint} from '../street-quests.js';
@@ -95,6 +96,32 @@ test('borrowed coat cannot be returned before the interview and old early return
  assert.equal(applyWorldAction(w,'ling','loan-returned').ok,false);
 });
 
+test('both physical coats retain their holders across borrowing, collection and reloads',()=>{
+ let w=firstPerson();
+ const use=(npc,id)=>{
+  const result=applyWorldAction(w,npc,id);
+  assert.ok(result.ok,npc+'/'+id);
+  w=parseSave(JSON.stringify(result.state));
+ };
+ while(streetQuests(w)[0].action!=='coat-route-recover')w=takeStep(w,'coat');
+ use('fang','coat-route-borrow');use('ling','coat-loan');
+ assert.match(streetQuests(w)[0].text,/带着借来的外套去找阿晴/);
+ use('ming','guest-found');use('guest','coat-swap');
+ assert.deepEqual(coatOwners(w),{loan:'player',original:'player'});
+ assert.equal(streetQuests(w)[0].action,'coat-emergency');
+ use('qing','coat-emergency');
+ assert.deepEqual(coatOwners(w),{loan:'aqing',original:'player'});
+ assert.equal(streetQuests(w)[0].action,'rest');
+ w=restEvent(w);
+ assert.equal(streetQuests(w)[0].action,'coat-collect-loan');
+ use('qing','coat-collect-loan');
+ assert.deepEqual(coatOwners(w),{loan:'player',original:'player'});
+ assert.equal(streetQuests(w)[0].action,'loan-returned');
+ use('ling','loan-returned');use('qing','coat-return-original');
+ assert.deepEqual(coatOwners(w),{loan:'ling',original:'aqing'});
+ assert.ok(!w.items.includes('coat')&&!w.items.includes('loanCoat'));
+});
+
 test('an original recovered on the shopping route resumes at Qing’s current shop or home',()=>{
  let w=firstPerson();
  while(streetQuests(w)[0].action!=='coat-route-recover')w=takeStep(w,'coat');
@@ -117,4 +144,20 @@ test('an original recovered on the shopping route resumes at Qing’s current sh
  const handed=applyWorldAction(back,'qing',atHome.action);
  assert.ok(handed.ok);assert.ok(!handed.state.items.includes('coat'));
  assert.ok(!applyWorldAction(handed.state,'qing',atHome.action).ok);
+});
+
+test('table completion advances from the current day exactly once across a partial save and reload',()=>{
+ const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+ const worldKey='mgoi-neighborhood-v1',tableKey='yuekei-story-trial-v1:table';
+ values.set(worldKey,JSON.stringify({...firstPerson(),day:7}));
+ assert.equal(applyChapterDay(storage),null);
+ assert.equal(streetQuests(firstPerson())[2].locked,true);
+ values.set(tableKey,JSON.stringify({node:'morning'}));
+ assert.equal(applyChapterDay(storage),8);assert.equal(JSON.parse(values.get(worldKey)).day,8);
+ values.set(worldKey,JSON.stringify({...firstPerson(),day:7}));
+ assert.equal(applyChapterDay(storage),8);assert.equal(applyChapterDay(storage),8);
+ values.set(tableKey,JSON.stringify({node:'morning'}));
+ assert.equal(applyChapterDay(storage),8);
+ assert.equal(JSON.parse(values.get(worldKey)).trackedQuest,'reunion');
+ assert.equal(streetQuests(firstPerson(),{table:true})[2].locked,false);
 });

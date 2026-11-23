@@ -1,9 +1,10 @@
 import {dressStoryShops,createOccupations} from './street-fixtures.js';
+import {createStreetCoats} from './street-coats.js';
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 import {furnishKitchen,mouthPose,plantedStance} from './dining-room.js';
-import {SHOPS,SHOP_CUSTOMERS,ACTORS,createStreetNav,shopBlocks,marketRoomBlocks,pedestrianRoutes,PASSERS} from './street-space.js';
+import {SHOPS,SHOP_CUSTOMERS,ACTORS,createStreetNav,shopBlocks,marketRoomBlocks,pedestrianRoutes,PASSERS,crossesPerson} from './street-space.js';
 
 // The stall portraits have no leg bones. Add a stride to their existing body
 // geometry in bind space. Both skin and shadows then see the same moving feet.
@@ -114,7 +115,8 @@ export async function loadStreet(canvas) {
  ]);
  scene.add(env.model);
  const fittings=dressStoryShops(scene,env.model);
- fittings.heldCoat=(await load('held-coat.glb')).model;
+ const [counterCoat,original,loan]=await Promise.all(['held','original','loan'].map(kind=>load(kind+'-coat.glb')));
+ fittings.purchaseCoat=counterCoat.model.clone(true);
  const kitchen=new T.Group();
  kitchen.position.set(-15.72,0,8.8);kitchen.rotation.y=Math.PI/2;
  furnishKitchen(kitchen,env.model);scene.add(kitchen);
@@ -151,7 +153,7 @@ export async function loadStreet(canvas) {
    camera.updateProjectionMatrix();renderer.setSize(width,height,false);
   }
   camera.position.set(x,y,z);camera.rotation.set(pitch,-heading,0,'YXZ');
-  poseHeldCoat();
+  coats.update();
   renderer.render(scene,camera);
  }
  await Promise.all(layout.characters.map(async spec=>{
@@ -322,7 +324,7 @@ export async function loadStreet(canvas) {
   walk.speed=Math.min(pace,turningSpeed,walk.speed+1.4*dt);
   const step=Math.min(len,walk.speed*dt),x=p.x+Math.sin(model.rotation.y)*step,z=p.z+Math.cos(model.rotation.y)*step;
   if(!pedestrianNav.walkable(x,z)){walk.speed=0;walk.detour=[];return actor.step(0,dt);}
-  if([player,...crowd.filter(c=>c!==walk).map(c=>c.actor.model.position)].some(q=>
+  if(crossesPerson(p,{x,z},player)||crowd.filter(c=>c!==walk).map(c=>c.actor.model.position).some(q=>
    Math.hypot(q.x-x,q.z-z)<.51 && Math.hypot(q.x-x,q.z-z)<Math.hypot(q.x-p.x,q.z-p.z))){
    walk.detour=[];walk.speed=0;return actor.step(0,dt);
   }
@@ -422,7 +424,7 @@ export async function loadStreet(canvas) {
   }
   changed=shopVisits(point,engaged,now)||changed;
   if(strolling)refreshShadows();
-  return changed||bodiesChanged||strolling||Boolean(handoff);
+  return changed||bodiesChanged||strolling||coats.moving;
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
  const laundryMaterial=new Map();
@@ -455,40 +457,14 @@ export async function loadStreet(canvas) {
  }
  const paper=new T.Mesh(new T.BoxGeometry(.27,.025,.32),new T.MeshStandardMaterial({color:0xf3e1bc}));
  paper.position.set(15.61,1.06,.69);scene.add(paper);
- const coat=new T.Group(),laidCoat=fittings.heldCoat.clone(true);
+ const coat=new T.Group(),laidCoat=counterCoat.model;
  laidCoat.rotation.x=-Math.PI/2;coat.add(laidCoat);
  coat.position.set(15.28,1.103,1.19);coat.rotation.y=Math.PI/2;coat.visible=false;scene.add(coat);
- const carried=fittings.heldCoat.clone(true);
- carried.visible=false;scene.add(carried);
- const grip=new T.Vector3(),otherGrip=new T.Vector3();
- let handoff=null,holdingCoat=false;
- function showCoat(onCounter,inBag,withQing){
+ const coats=createStreetCoats(scene,camera,actors,{original:original.model,loan:loan.model},fittings);
+ function showCoat(onCounter,owners,tryingPurchase){
   coat.visible=onCounter;fittings.coatShown=onCounter;fittings.pressing.visible=!onCounter;
-  holdingCoat=inBag;fittings.qingHasCoat=withQing;
- }
- function transferCoat(actorId,receiving){
-  const model=actors.get(actorId).model;
-  let gripBone;
-  model.traverse(b=>{if(b.isBone&&/LeftHandMiddle1$/i.test(b.name))gripBone=b;});
-  handoff={model,bone:gripBone,receiving,start:performance.now()};
-  fittings.passingToQing=!receiving;
- }
- function poseHeldCoat(){
-  carried.visible=holdingCoat||Boolean(handoff);
-  if(!carried.visible)return;
-  camera.localToWorld(grip.set(Math.min(.36,.20*camera.aspect),-.09,-.70));
-  carried.position.copy(grip);
-  carried.quaternion.copy(camera.quaternion);
-  carried.rotateX(.48);carried.rotateZ(-.14);
-  if(!handoff)return;
-  const {model,bone,receiving,start}=handoff;
-  if(bone)bone.getWorldPosition(otherGrip);
-  else model.localToWorld(otherGrip.set(.14,.60,.25));
-  const elapsed=T.MathUtils.smoothstep(performance.now()-start,0,850);
-  carried.position.lerp(otherGrip,receiving?1-elapsed:elapsed);
-  if(elapsed>=1||!model.visible){
-   handoff=null;fittings.passingToQing=false;carried.visible=holdingCoat;
-  }
+  fittings.tryingPurchase=tryingPurchase;
+  coats.show(owners);
  }
  illuminate(false);
  function face(id,point,dt){
@@ -516,7 +492,7 @@ export async function loadStreet(canvas) {
   else{elder.position.copy(guestPosition);elder.rotation.y=guestYaw;}
   refreshShadows();
  }
- return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,transferCoat,placeStones,animateWork,illuminate,placeRack,refreshShadows};
+ return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,coats,placeStones,animateWork,illuminate,placeRack,refreshShadows};
 }
 
 function storeSign(text,w,h){

@@ -18,9 +18,12 @@ export const chapters={
  }
 };
 export const chapterSaveKey=id=>'yuekei-story-trial-v1:'+id;
+export function readChapter(storage,id){
+ try{return JSON.parse(storage.getItem(chapterSaveKey(id)));}catch{return null;}
+}
 export function chapterCompleted(id,save){
  const node=chapters[id]?.nodes[save?.node];
- return save?.completed===true||Boolean(node&&node[3].length===0);
+ return save?.completed===true||Array.isArray(node)&&node[3].length===0;
 }
 export const voices={master:'lam',friend:'intro',aqing:'qing',regular:'guest',aming:'ming',fang:'fang',ale:'lok',ling:'ling',lin:'lam'};
 export const names={master:'南音师傅',friend:'同行朋友',aqing:'阿晴',regular:'周叔',aming:'阿明',fang:'芳姐',ale:'阿乐',ling:'玲姐',lin:'林伯'};

@@ -1,4 +1,5 @@
 import {createReunionWall,savedPrint,portraitVersion} from './reunion-wall.js';
+import {handFrame,fingerContact} from './reunion-hand-poses.js';
 import {createReunionScene} from './reunion-scene.js';
 import {clearFormerGrocer} from './street-fixtures.js';
 import * as T from 'three';
@@ -7,6 +8,7 @@ import {plantedStance,mouthPose,clearBoothCups} from './dining-room.js';
 
 const v=(x,y,z)=>new T.Vector3(x,y,z);
 const boothSeat=.605;
+export const tableActionDuration=Object.freeze({seat:3600,tea:3500,lemon:3500});
 export async function createStoryScene(canvas,chapter){
  const renderer=new T.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=T.SRGBColorSpace;
@@ -169,16 +171,21 @@ export async function createStoryScene(canvas,chapter){
  }
  for(const entry of Object.values(cast))entry.neutral={};
  let serviceTake;
- let meal,carry,cups=[],cupTea,cupLemon,extraSticks,looseNews,newsFold;
+ let meal,carry,cups=[],cupTea,cupLemon,extraSticks,looseNews,newsLeaves;
  {
   const [districtFile,take]=await Promise.all([loader.loadAsync('assets/street/district.glb'),loader.loadAsync('assets/street/aming-service.glb')]);
   const district=districtFile.scene,rig=take.scene;scene.add(rig);rig.scale.setScalar(1.72);rig.position.set(2.21,.19,-2.42);
   const mixer=new T.AnimationMixer(rig),actions=[];
   for(const clip of take.animations){const a=mixer.clipAction(clip);a.setLoop(T.LoopOnce,1);a.clampWhenFinished=true;a.play();actions.push(a);}
   const saucer=rig.getObjectByName('ServiceSaucer');
-  const vessel=[];
+  const vessel=[],bones={};
+  rig.traverse(o=>{
+   if(!o.isBone)return;
+   const name=o.name.replace(/^mixamorig[:_]?/,'');bones[name]=o;
+   bindRotation.set(o,cast.aming.rest[name]);
+  });
   rig.traverse(o=>{if(/^(Hot|Cold)/.test(o.name))vessel.push(o);});
-  serviceTake={rig,mixer,actions,saucer,vessel,mouth:mouthPose(rig,'aming'),duration:Math.max(...take.animations.map(c=>c.duration))};
+  serviceTake={rig,bones,mixer,actions,saucer,vessel,mouth:mouthPose(rig,'aming'),duration:Math.max(...take.animations.map(c=>c.duration))};
   rig.visible=false;
   clearBoothCups(district);
   clearFormerGrocer(district);
@@ -211,7 +218,14 @@ export async function createStoryScene(canvas,chapter){
    drink.traverse(o=>{if(/^(Hot|Cold)/.test(o.name))o.visible=o.name.startsWith(cold?'Cold':'Hot');});
    return drink;
   }
-  cupTea=servedDrink(false);cupLemon=servedDrink(true);cups=[service(1.94,-1.82),service(2.23,-1.87),service(1.89,-1.32)];
+  // The saucer is set out beforehand. Ming carries the cup by its handle.
+  saucer.rotation.y=Math.PI;
+  cupTea=servedDrink(false);cupLemon=servedDrink(true);
+  const waitingSaucer=saucer.clone(false);
+  waitingSaucer.scale.setScalar(1.72);waitingSaucer.position.set(2.21-.070*1.72,.9425,-2.42+.173*1.72);
+  scene.add(waitingSaucer);serviceTake.waitingSaucer=waitingSaucer;waitingSaucer.visible=false;
+  saucer.material=new T.MeshBasicMaterial({visible:false});
+  cups=[service(2.21,-1.52),service(2.23,-1.87),service(1.89,-1.32)];
   meal=group();
   for(const z of [-1.39,-1.82]){
    cyl(meal,0x39625a,2.09,.957,z,.235,.014,.190);cyl(meal,0xeadbc0,2.09,.966,z,.213,.012,.171);
@@ -223,10 +237,14 @@ export async function createStoryScene(canvas,chapter){
    c.fillStyle='#d9d0b7';c.fillRect(0,0,w,h);c.fillStyle='#393831';c.textAlign='center';c.font='bold 42px KaiTi';c.fillText('街 坊 日 報',w/2,51);
    for(let col=0;col<4;col++)for(let row=0;row<23;row++)c.fillRect(18+col*w/4,78+row*9,w/4-31,2);
   },512,320);
-  looseNews=group();looseNews.position.set(1.97,.97,-1.51);looseNews.rotation.y=Math.PI/2;
-  const leftPage=print(looseNews,news,-.095,0,0,.19,.25);leftPage.rotation.x=-Math.PI/2;
-  newsFold=group(looseNews);
-  const rightPage=print(newsFold,news,.095,0,0,.19,.25);rightPage.rotation.x=-Math.PI/2;
+  looseNews=group();
+  newsLeaves={};
+  for(const [side,sign] of [['Right',-1],['Left',1]]){
+   const leaf=group(looseNews),tex=news.clone();
+   tex.repeat.x=.5;tex.offset.x=sign<0?0:.5;tex.needsUpdate=true;
+   const sheet=print(leaf,tex,sign*.093,0,0,.186,.244);sheet.rotation.x=-Math.PI/2;
+   newsLeaves[side]=leaf;
+  }
  }
  let mode='',view={},eye=v(),aim=v(),focus=v(),entered=0;
  function shot(pos,target,fov=49){
@@ -277,10 +295,10 @@ export async function createStoryScene(canvas,chapter){
    if(id==='tea'||id==='lemon')shot([2.05,1.64,-1.17],[2.12,1.12,-2.13],54);
    if(id==='morning')shot([2.16,1.64,-.17],[1.42,1.35,-1.92],53);
   }
-  looseNews.position.set(1.97,.958,-1.51);looseNews.rotation.set(0,Math.PI/2,0);newsFold.rotation.z=0;
+  foldPaper(['ask','door','seat'].includes(id)?0:1);
   cupTea.position.set(2.21-.070*1.72,.9425,-2.42+.173*1.72);cupLemon.position.copy(cupTea.position);
   const serving=id==='tea'||id==='lemon';
-  serviceTake.rig.visible=serving;
+  serviceTake.rig.visible=serving;serviceTake.waitingSaucer.visible=serving;
   if(serving){
    for(const act of serviceTake.actions)act.reset().play();
    serviceTake.mixer.setTime(0);
@@ -289,13 +307,13 @@ export async function createStoryScene(canvas,chapter){
   const ordered=!serving&&Boolean(state.drink)&&(!entry||id==='morning');
   cupTea.visible=ordered&&state.drink==='tea';cupLemon.visible=ordered&&state.drink==='lemon';
   cups[0].visible=true;cups[1].visible=ordered;cups[2].visible=Boolean((eating&&state.invited)||id==='morning');
-  looseNews.visible=true;if(!['ask','door','seat'].includes(id)){looseNews.position.set(1.77,.96,-1.84);newsFold.rotation.z=Math.PI-.025;}extraSticks.visible=cups[2].visible;
+  looseNews.visible=true;extraSticks.visible=cups[2].visible;
   meal.visible=eating;carry.visible=eating&&!state.invited&&id!=='invite';
  }
  if(chapter==='table')createReunionWall(scene)(savedPrint());
  const reunion=chapter==='reunion' ? createReunionScene({scene,camera,cast,group,box,cyl,part,sphere,print,texture,actor,placeHand,shot,portraitLean,portraitArm}) : null;
  function set(id,state){
-  mode=id;
+  mode=id;cast.regular.newsPhase=null;
   canvas.classList.toggle('framing',id==='proof');
   for(const a of Object.values(cast))a.model.visible=false;
   if(reunion){
@@ -337,7 +355,6 @@ export async function createStoryScene(canvas,chapter){
  }
  let level=0,speechShape,speaker=null;
  const q=new T.Quaternion(),nextQ=new T.Quaternion(),parentQ=new T.Quaternion(),yawQ=new T.Quaternion();
- const perform={seat:'regular',door:'friend'};
  function gesture(id,a,phase){
   const frames=poses[id];
   const index=Math.max(1,frames.findIndex(frame=>frame[0]>=phase));
@@ -350,28 +367,87 @@ export async function createStoryScene(canvas,chapter){
    b.parent.getWorldQuaternion(parentQ);b.quaternion.copy(parentQ.invert().multiply(q));
   }
  }
- function newspaper(a,time){
-  const t=T.MathUtils.clamp((time-entered)/3600,0,1);
-  const fold=T.MathUtils.smoothstep(t,.22,.66),reach=T.MathUtils.smoothstep(t,0,.20)*(1-T.MathUtils.smoothstep(t,.76,1));
-  looseNews.position.set(T.MathUtils.lerp(1.97,1.77,fold),.97+.06*Math.sin(Math.PI*fold),T.MathUtils.lerp(-1.51,-1.84,fold));
-  newsFold.rotation.z=(Math.PI-.025)*fold;
-  for(const side of ['Left','Right']){
-   const b=a.bones,arm=b[side+'Arm'],elbow=b[side+'ForeArm'],hand=b[side+'Hand'],middle=b[side+'HandMiddle1'];
-   for(const name of [side+'Arm',side+'ForeArm',side+'Hand'])b[name].quaternion.copy(a.neutral[name]);
-   const edge=v(side==='Right'?-.13:.13*Math.cos(Math.PI*fold),.028+(side==='Left'?.13*Math.sin(Math.PI*fold):0),0);
-   const goal=looseNews.localToWorld(edge);
-   const wristOrientation=hand.getWorldQuaternion(new T.Quaternion());
-   const offset=middle.getWorldPosition(v()).sub(hand.getWorldPosition(v()));
-   const target=hand.getWorldPosition(v()).lerp(goal.sub(offset),reach);
-   const origin=arm.getWorldPosition(v()),joint=elbow.getWorldPosition(v());
-   const l1=origin.distanceTo(joint),l2=joint.distanceTo(hand.getWorldPosition(v()));
-   const axis=target.clone().sub(origin),d=T.MathUtils.clamp(axis.length(),Math.abs(l1-l2)+.001,l1+l2-.001);axis.normalize();
-   const along=(l1*l1-l2*l2+d*d)/(2*d);
-   const pole=v(0,-1,side==='Left'?-1:1);pole.addScaledVector(axis,-pole.dot(axis)).normalize();
-   point(arm,elbow,origin.clone().addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,l1*l1-along*along))));
-   point(elbow,hand,target);
-   hand.quaternion.copy(hand.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(wristOrientation));
+ const smooth=T.MathUtils.smoothstep;
+ function foldPaper(t){
+  const close=smooth(t,.13,.51),setAside=smooth(t,.59,.87);
+  const halfAngle=T.MathUtils.lerp(.31,Math.PI/2-.006,close);
+  looseNews.position.set(1.979+.026*setAside,.947+(.055+.026*close)*(1-smooth(t,.59,.76)),-1.76-.086*setAside);
+  looseNews.rotation.order='YXZ';looseNews.rotation.set(0,Math.PI/2,-(Math.PI/2-.008)*setAside);
+  newsLeaves.Left.rotation.z=halfAngle;newsLeaves.Right.rotation.z=-halfAngle;
+ }
+ function shapeFingers(b,side,points){
+  const frame=handFrame(b,side);
+  for(const [digit,p] of Object.entries(points))fingerContact(b,side,digit,p,frame);
+ }
+ function newspaper(a,t){
+  if(a.newsPhase===t)return;
+  a.newsPhase=t;foldPaper(t);
+  for(const [side,sign] of [['Right',-1],['Left',1]]){
+   const leaf=newsLeaves[side],b=a.bones;
+   const hold=1-smooth(t,side==='Left'?.45:.73,side==='Left'?.65:.92);
+   const edge=leaf.localToWorld(v(sign*.185,0,side==='Left'?-.122:-.118));
+   const normal=v(0,1,0).applyQuaternion(leaf.getWorldQuaternion(new T.Quaternion()));
+   const front=v(1,0,0),across=v(0,0,-1);
+   const fingers=front.clone().addScaledVector(across,-sign*.25).normalize();
+   const rest=v(1.78,1.036,side==='Left'?-2.02:-1.58);
+   const close=smooth(t,.13,.51);
+   const outside=across.clone().multiplyScalar(sign).lerp(normal.clone().negate(),close).normalize();
+   const wrist=edge.clone().addScaledVector(fingers,-.148).addScaledVector(outside,.039);
+   wrist.y+=.024;
+   const palm=v(0,-1,0).lerp(outside.clone().negate(),.65*hold);
+   const target=rest.lerp(wrist,hold);
+   target.y+=.055*Math.sin(Math.PI*hold);
+   target.x-=.065*Math.sin(Math.PI*hold);
+   // Anchor the pinch on the near corner. Different grip depths keep the
+   // hands alongside one another when the two leaves meet at the spine.
+   for(let pass=0;pass<3;pass++){
+    placeHand(b,side,target,front,across.clone().multiplyScalar(2.8),1.5,palm,fingers.clone());
+    const frame=handFrame(b,side),prefix=side+'Hand';
+    for(const digit of ['Index','Middle','Ring','Pinky']){
+     const root=b[prefix+digit+'1'].getWorldPosition(v());
+     const len=b[prefix+digit+'2'].position.length()+b[prefix+digit+'3'].position.length()+b[prefix+digit+'4'].position.length();
+     const scale=a.model.scale.x;
+     const flex=({Index:.27,Middle:.36,Ring:.43,Pinky:.52})[digit]*hold;
+     const goal=root.clone().addScaledVector(frame.forward,len*scale*(.91-.35*flex)).addScaledVector(frame.palm,len*scale*flex);
+     fingerContact(b,side,digit,goal,frame);
+    }
+    const pad=b[prefix+'Index3'].getWorldPosition(v()).lerp(b[prefix+'Index4'].getWorldPosition(v()),.65);
+    const thumb=pad.clone().addScaledVector(frame.palm,.016).addScaledVector(frame.radial,.012);
+    fingerContact(b,side,'Thumb',thumb,frame,hold);
+    if(pass<2){
+     const gap=edge.clone().sub(pad);
+     const free=smooth(1-hold,0,.13);
+     gap.y-=free*Math.min(0,gap.y);gap.x-=free*Math.max(0,gap.x);
+     target.addScaledVector(gap,hold);
+    }
+   }
   }
+ }
+ function serveCup(seconds){
+  const {bones:b,saucer}=serviceTake,center=saucer.getWorldPosition(v());
+  const open=smooth(seconds,2.05,2.36),leave=smooth(seconds,2.19,3.50);
+  const withdraw=v(-.046*open-.048*leave,.032*open+.018*leave,-.020*open-.16*leave);
+  // Thumb on top of the ceramic loop, index in the loop, other fingers below.
+  // Release radially before retracting the elbow past the back of the table.
+  const cold=mode==='lemon',offset=cold?-.0475:-.075;
+  const wrist=center.clone().add(v(offset-.012,.092,-.159)).add(withdraw);
+  const fingers=v(.12,-.16,1).lerp(v(-.03,-.58,.83),leave);
+  placeHand(b,'Right',wrist,v(0,0,1),v(1,0,0),2.4,v(1,-.1,0),fingers);
+  const points={},frame=handFrame(b,'Right');
+  for(const [digit,x,y,z] of [['Thumb',.006,.083,.002],['Index',.007,.060,.006],['Middle',.003,.044,.005],['Ring',-.001,.042,-.015],['Pinky',-.008,.042,-.034]]){
+   points[digit]=center.clone().add(v(offset+x,y+(cold?.041:0),z+(cold?.009:0))).add(withdraw);
+   points[digit].x-=open*.013;
+   points[digit].z+=open*(digit==='Thumb'?-.022:.012);
+   if(leave){
+    const prefix='RightHand'+digit;
+    const root=b[prefix+'1'].getWorldPosition(v());
+    const len=b[prefix+'2'].position.length()+b[prefix+'3'].position.length()+b[prefix+'4'].position.length();
+    const relaxed=root.addScaledVector(frame.forward,len*serviceTake.rig.scale.x*.81).addScaledVector(frame.palm,.024);
+    if(digit==='Thumb')relaxed.addScaledVector(frame.radial,.037);
+    points[digit].lerp(relaxed,leave);
+   }
+  }
+  shapeFingers(b,'Right',points);
  }
  function speech(id,value,shape){speaker=id;level=value;speechShape=shape;}
  function tick(time,singing){
@@ -380,15 +456,17 @@ export async function createStoryScene(canvas,chapter){
    speech('master',level,[level*.80,level*.18,level*.20,level*.14]);
   }
   if(serviceTake?.rig.visible){
-   serviceTake.mixer.setTime(Math.min(serviceTake.duration,(time-entered)/1000));
-   serviceTake.mouth(speaker==='aming'?level:0,speechShape);
+   const seconds=T.MathUtils.clamp((time-entered)/1000,0,serviceTake.duration);
+   for(const action of serviceTake.actions){action.paused=true;action.time=Math.min(seconds,action.getClip().duration);}
+   serviceTake.mixer.update(0);
+   serveCup((time-entered)/1000);serviceTake.mouth(speaker==='aming'?level:0,speechShape);
   }
   for(const [id,a] of Object.entries(cast)){
    if(!a.model.visible)continue;
    a.mouth(id===speaker?level:0,speechShape);
    const head=a.bones.Head;if(!head||!a.neutral.Head)continue;
-   if(id==='regular'&&mode==='seat'){newspaper(a,time);continue;}
-   if(perform[mode]===id&&id!=='regular'){
+   if(id==='regular'&&chapter==='table'){newspaper(a,mode==='seat'?T.MathUtils.clamp((time-entered)/tableActionDuration.seat,0,1):['door','ask'].includes(mode)?0:1);continue;}
+   if(mode==='door'&&id==='friend'){
     const phase=T.MathUtils.clamp((time-entered)/2600,0,1);
     gesture(id,a,phase);
     continue;

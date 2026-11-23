@@ -1,8 +1,9 @@
+import {applyChapterDay} from './campaign.js';
 import {accompanySinger,songHitMask} from './nanyin-practice.js';
 import {isPrint,portraitVersion} from './reunion-wall.js';
 import {reunionIntents} from './story-reunion.js';
-import {chapters, chapterSaveKey, chapterCompleted, morning, names, voices} from './story-chapters.js';
-import {createStoryScene} from './story-scene.js';
+import {chapters, chapterSaveKey, chapterCompleted, readChapter, morning, names, voices} from './story-chapters.js';
+import {createStoryScene,tableActionDuration} from './story-scene.js';
 import {followSpeech, prepareVoiceRecording} from './voice-clips.js';
 import {createPracticeRecorder} from './practice-recorder.js';
 import {voiceUrl} from './voice-endpoint.js';
@@ -15,6 +16,8 @@ const defaults = () => chapter==='table'
  ? {node:book.start,drink:null,invited:false}
  : {node:book.start,songVersion:2,songHits:0,photos:null,photo:null};
 let state = defaults();
+const tableDone=()=>chapterCompleted('table',readChapter(localStorage,'table'));
+const locked=chapter==='reunion'&&!tableDone()&&!chapterCompleted('reunion',readChapter(localStorage,'reunion'));
 try {
  const saved = JSON.parse(localStorage.getItem(key));
  const resumeAfterMeal=chapter==='reunion'&&saved?.node==='toast';
@@ -67,8 +70,13 @@ async function listen(){
  });
 }
 function persist(){
- if(chapterCompleted(chapter,state))state.completed=true;
- try {localStorage.setItem(key,JSON.stringify(state));} catch {$('#status').textContent='当前浏览器空间不足，本次试玩仍可继续。';}
+ try{
+  const previous=readChapter(localStorage,chapter);
+  if(chapterCompleted(chapter,previous)&&!chapterCompleted(chapter,state))return;
+  if(previous?.reunionDay)state.reunionDay=previous.reunionDay;
+  if(chapterCompleted(chapter,state))state.completed=true;
+  localStorage.setItem(key,JSON.stringify(state));
+ }catch{$('#status').textContent='当前浏览器空间不足，进度未保存。';}
 }
 function stopAudio(){
  generation++;playback?.abort();audio.pause();stopTracking?.();stopTracking=null;
@@ -87,7 +95,9 @@ async function speak(){
   if(turn!==generation)return;
   audioUrl=URL.createObjectURL(clip.blob);audio.src=audioUrl;audio.playbackRate=clip.rate;
   stopTracking=followSpeech(audio,clip.blob,(value,shape)=>scene.speech(actor,value,shape),file);
+  if(!book.nodes[node][3].length)audio.onended=finishLine;
   await audio.play();
+  if(!book.nodes[node][3].length)clearTimeout(endingTimer);
  }catch(e){if(turn===generation && e.name!=='AbortError')$('#status').textContent=e.name==='NotAllowedError'?'点「听这句」播放对白。':'录音读取失败，可点「听这句」重试。';}
 }
 function button(text,fn,primary=false){
@@ -105,13 +115,35 @@ function showPhotoChoices(){
   fig.append(img,caption);gallery.append(fig);
  });
 }
-let enteringPortrait=false;
+let enteringPortrait=false,actionEnds=0;
+let endingTimer;
+function showResult(kind){
+ clearTimeout(endingTimer);audio.onended=null;stopAudio();
+ const final=kind==='finished',wait=kind==='locked';
+ const result=$('#chapter-result'),photo=$('#result-photo');
+ photo.hidden=!final;
+ if(final){photo.src=state.photo;state.endingSeen=true;persist();}
+ $('#result-place').textContent=final?'粵記茶餐廳　·　團年留影':wait?'主线三　·　预埋你嗰份':'第 '+state.reunionDay+' 天　·　粤记茶餐厅';
+ $('#result-title').textContent=final?'恭喜通关':wait?'团年饭尚未开启':'过了一天';
+ $('#result-description').textContent=final?'下次嚟飲茶，預埋你嗰份。':wait?'完成《今晚搭张台》后，街坊会邀你来吃团年饭。':'今晚是年三十。芳姐招呼你入座，桌上已经留了你的位置。';
+ const action=$('#result-action');
+ action.textContent=final?'回到封面':wait?'前往《今晚搭张台》':'赴团年饭 · 预埋你嗰份';
+ action.href=final?'./?street=3d':'?story='+(wait?'table':'reunion');
+ result.hidden=false;result.focus();
+}
+function finishLine(){
+ if(chapter==='table'){
+  try{state.reunionDay=applyChapterDay(localStorage);}catch(e){$('#status').textContent=e.message;return;}
+ }
+ showResult(chapter==='table'?'next-day':'finished');
+}
+
 function capturePortraits(){
  state.photos=['snapTidy','snapLaugh'].map(pose=>scene.photograph(pose,state));
  state.portraitVersion=portraitVersion;
 }
 function transition(dest){
- if(enteringPortrait)return;
+ if(enteringPortrait||performance.now()<actionEnds)return;
  if(dest==='proof'){
   enteringPortrait=true;revision++;recorder.cancel();transcription?.abort();stopAudio();
   document.body.dataset.moment='enterPortrait';
@@ -131,6 +163,9 @@ function transition(dest){
  if(chapter==='table'&&(dest==='tea'||dest==='lemon'))state.drink=dest;
  if(dest==='invite'||dest==='takeaway')state.invited=dest==='invite';
  state.node=dest;display();persist();
+ if(chapter==='table'&&dest==='morning'){
+  try{state.reunionDay=applyChapterDay(localStorage);}catch(e){$('#status').textContent=e.message;}
+ }
 }
 function sing(label,dest){
  const tap=button('敲板',()=>{},true);
@@ -159,15 +194,22 @@ function display(){
  if(playing)sing(...options[0]);
  else for(const [index,[label,dest]] of options.entries())button(label,()=>transition(dest),index===0);
  if(!options.length){
-  button('再玩一次',()=>{state={...defaults(),completed:true};display();persist();},true);
-  button('试玩另一段',()=>location.assign('?story='+book.other));
+  button(chapter==='table'?'前往下一天':'查看团年合照',finishLine,true);
+  clearTimeout(endingTimer);endingTimer=setTimeout(finishLine,12000);
  }
  if(options.length && (chapter==='table'||reunionIntents[n]))button('讲粤语',listen).id='record';
+ const duration=chapter==='table'?(tableActionDuration[n]||0):0;
+ actionEnds=performance.now()+duration;
+ if(duration){
+  const controls=[...$('#choices').querySelectorAll('button')];
+  for(const control of controls)control.disabled=true;
+  setTimeout(()=>{for(const control of controls)control.disabled=false;},duration);
+ }
  if(playing)return;
  button('听这句',()=>{recorder.cancel();transcription?.abort();const mic=$('#record');if(mic){mic.disabled=false;mic.textContent='讲粤语';}void speak();});void speak();
 }
 $('h1').textContent=book.title;document.title=book.title+' · 街坊故事';
-$('#other').href='?story='+book.other;$('#other').textContent=chapters[book.other].title;
+
 const canvas=$('#stage');
 canvas.addEventListener('click',event=>{
  const target=scene?.hit(event.clientX,event.clientY);
@@ -175,14 +217,32 @@ canvas.addEventListener('click',event=>{
  if(target==='lid')transition('dish');
  if(state.node==='supper'&&(target==='chicken'||target==='fish'))transition(target);
 });
-window.addEventListener('pagehide',()=>{song?.pause();stopAudio();recorder.cancel();transcription?.abort();});
-try{
+window.addEventListener('pagehide',()=>{clearTimeout(endingTimer);song?.pause();stopAudio();recorder.cancel();transcription?.abort();});
+window.addEventListener('pageshow',event=>{
+ if(event.persisted&&!locked&&!book.nodes[state.node][3].length&&$('#chapter-result').hidden)finishLine();
+});
+async function openChapter(){
+ if(locked){showResult('locked');return;}
+ if(chapter==='reunion'&&tableDone())applyChapterDay(localStorage);
+ const returningToPhoto=chapter==='reunion'&&isPrint(state.photo)&&(state.endingSeen||new URLSearchParams(location.search).has('ending'));
+ if(returningToPhoto&&state.portraitVersion===portraitVersion){showResult('finished');return;}
+ if(chapter==='table'&&state.node==='morning'&&state.reunionDay){showResult('next-day');return;}
  scene=await createStoryScene(canvas,chapter);
  if(chapter==='reunion'&&state.portraitVersion!==portraitVersion&&['proof','tidy','laugh'].includes(state.node)){
   capturePortraits();
   if(state.node!=='proof'){state.photo=state.photos[state.node==='laugh'?1:0];state.photos=null;}
   persist();
  }
- $('#loading').hidden=true;$('#dialogue').hidden=false;display();
- let last=0;function frame(t){if(!document.hidden&&t-last>40){scene.tick(t,song?.pose());scene.render();last=t;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+ if(returningToPhoto){showResult('finished');return;}
+ $('#loading').hidden=true;$('#dialogue').hidden=false;display();persist();
+ let last=0;
+ function frame(t){
+  if(!$('#chapter-result').hidden)return;
+  if(!document.hidden&&t-last>40){scene.tick(t,song?.pose());scene.render();last=t;}
+  requestAnimationFrame(frame);
+ }
+ requestAnimationFrame(frame);
+}
+try{
+ await openChapter();
 }catch(error){console.error(error);$('#loading').textContent='场景未能载入，请使用支持 WebGL 的浏览器刷新重试。';}
