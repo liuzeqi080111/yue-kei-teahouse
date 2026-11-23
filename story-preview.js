@@ -2,7 +2,7 @@ import {applyChapterDay} from './campaign.js';
 import {accompanySinger,songHitMask} from './nanyin-practice.js';
 import {isPrint,portraitVersion} from './reunion-wall.js';
 import {reunionIntents} from './story-reunion.js';
-import {chapters, chapterSaveKey, chapterCompleted, readChapter, morning, names, voices} from './story-chapters.js';
+import {chapters, chapterSaveKey, chapterCompleted, readChapter, chapterLine, names, voices} from './story-chapters.js';
 import {createStoryScene,tableActionDuration} from './story-scene.js';
 import {followSpeech, prepareVoiceRecording} from './voice-clips.js';
 import {createPracticeRecorder} from './practice-recorder.js';
@@ -13,10 +13,11 @@ const chapter = new URLSearchParams(location.search).get('story') === 'table' ? 
 const book = chapters[chapter];
 const key = chapterSaveKey(chapter);
 const defaults = () => chapter==='table'
- ? {node:book.start,drink:null,invited:false}
+ ? {node:book.start,drink:null}
  : {node:book.start,songVersion:2,songHits:0,photos:null,photo:null};
 let state = defaults();
 const tableDone=()=>chapterCompleted('table',readChapter(localStorage,'table'));
+const previousTable=chapter==='reunion'?readChapter(localStorage,'table'):null;
 const locked=chapter==='reunion'&&!tableDone()&&!chapterCompleted('reunion',readChapter(localStorage,'reunion'));
 try {
  const saved = JSON.parse(localStorage.getItem(key));
@@ -37,7 +38,7 @@ try {
   if(resumeAfterMeal)persist();
  }
 } catch {}
-let song,scene, generation=0, playback, stopTracking, audioUrl;
+let song,scene, generation=0, playback, stopTracking, audioUrl, dialogue;
 const audio=new Audio();
 let recording=false,transcription,revision=0;
 const recorder=createPracticeRecorder(active=>{recording=active;});
@@ -87,8 +88,7 @@ async function speak(){
  const turn=generation, node=state.node, actor=book.nodes[node][0];
  playback=new AbortController();
  try{
-  const suffix=node==='morning'?'-'+state.drink:'';
-  const file='assets/story-'+chapter+'-'+node+suffix+'.wav';
+  const {file}=dialogue;
   const response=await fetch(file,{signal:playback.signal});
   if(!response.ok)throw Error('recording');
   const clip=await prepareVoiceRecording(await response.blob(),voices[actor]);
@@ -180,8 +180,9 @@ function display(){
  revision++;recorder.cancel();transcription?.abort();song?.destroy();song=null;stopAudio();
 
  document.body.dataset.moment=state.node;
- const n=state.node,[actor,original,translation,options]=book.nodes[n];
- const [line,meaning]=n==='morning'?morning(state.drink):[original,translation];
+ const n=state.node,options=book.nodes[n][3];
+ dialogue=chapterLine(chapter,n,previousTable??state);
+ const {actor,text:line,meaning}=dialogue;
  const afterDinner=['wait','gather','call','ready','proof','tidy','laugh'].includes(n);
  $('#place').textContent=chapter==='reunion'
   ? '粤记茶餐厅　·　年三十'+(afterDinner?'饭后':'团年饭')

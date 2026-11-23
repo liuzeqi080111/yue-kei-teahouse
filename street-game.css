@@ -60,6 +60,9 @@
 .street-meaning:empty,#street-voice-state:empty{display:none}
 .street-tools{align-items:center;justify-content:center;gap:8px;margin-top:8px}
 .street-actions{display:contents}
+.street-game:is([data-shopping="question"],[data-shopping="review"],[data-shopping="buttoning"],[data-shopping="decision"],[data-shopping="paying"]) :is(#street-close,.street-more){display:none}
+.street-game:is([data-shopping="buttoning"],[data-shopping="paying"],[data-shopping="trying"]) .street-caption,
+.street-game:is([data-shopping="question"],[data-shopping="buttoning"],[data-shopping="decision"],[data-shopping="paying"]) .street-tools{display:none}
 .street-tools button,.street-tools summary{border-radius:30px;color:#fff6e4;border:1px solid #e6d6ac80;background:#20352fe8;font-size:var(--hud-ui-size,16px);padding:8px 14px;min-height:40px}
 .street-tools .street-actions button.street-primary{background:#efe2bd;color:#24342c}
 .street-more{position:relative}

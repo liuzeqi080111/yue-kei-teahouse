@@ -196,5 +196,6 @@ export const ROLE_CLIPS={
  "qing|你都覺得好睇呀？好，就要呢件。玲姐，八十蚊，我自己畀。": "assets/street-line-cebe66a41eaee2.wav",
  "qing|畀咗錢喇，我就着呢件去見工。多謝你陪我揀呀！": "assets/street-line-3ba3a03e871a19.wav",
  "qing|玲姐，我想買件褸去見工。呢件可唔可以試吓？": "assets/street-line-f1680276d9c7bf.wav",
- "qing|好呀，我入去試吓。你等我一陣吖。": "assets/street-line-7ad135a6c1a32c.wav"
+ "qing|好呀，我入去試吓。你等我一陣吖。": "assets/street-line-7ad135a6c1a32c.wav",
+ "qing|好，就呢件。": "assets/street-line-f1711678ff99f8.wav"
 };

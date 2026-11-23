@@ -230,8 +230,8 @@ export function createOccupations(scene,actors,kit){
   const delta=new T.Quaternion().setFromUnitVectors(from,to);
   joint.quaternion.premultiply(parent.clone().invert().multiply(delta).multiply(parent));
  }
- function reach(job,side,target,weight){
-  const b=job.bones,upper=b[side+'Arm'],elbow=b[side+'ForeArm'],end=b[side+'HandMiddle1']||b[side+'Hand'];
+ function reach(job,side,target,weight,tip){
+  const b=job.bones,upper=b[side+'Arm'],elbow=b[side+'ForeArm'],end=tip||b[side+'HandMiddle1']||b[side+'Hand'];
   if(!weight)return end.getWorldPosition(v());
   const root=upper.getWorldPosition(v()),bend=elbow.getWorldPosition(v()),hand=end.getWorldPosition(v());
   const goal=hand.clone().lerp(target,weight),axis=goal.clone().sub(root).normalize();
@@ -262,7 +262,7 @@ export function createOccupations(scene,actors,kit){
   const parent=wrist.parent.getWorldQuaternion(new T.Quaternion());
   wrist.quaternion.premultiply(parent.clone().invert().multiply(new T.Quaternion().slerp(roll,job.weight)).multiply(parent));
  }
- function placeFingertip(job,side,digit,target){
+ function placeFingertip(job,side,digit,target,maxBend=.85){
   const tip=job.bones[side+'Hand'+digit+'4'];
   const joints=[3,2,1].map(index=>job.bones[side+'Hand'+digit+index]);
   if(!tip||joints.some(joint=>!joint))return;
@@ -278,10 +278,26 @@ export function createOccupations(scene,actors,kit){
     const parent=joint.parent.getWorldQuaternion(new T.Quaternion());
     joint.quaternion.premultiply(parent.clone().invert().multiply(rotation).multiply(parent));
     const rest=job.base.get(joint),bend=rest.angleTo(joint.quaternion);
-    if(bend>.85)joint.quaternion.copy(rest.clone().slerp(joint.quaternion,.85/bend));
+    if(bend>maxBend)joint.quaternion.copy(rest.clone().slerp(joint.quaternion,maxBend/bend));
    }
   }
  }
+ const shopper=jobs.find(job=>job.id==='aqing');
+ kit.buttonPose=(look,right,left,lift)=>{
+  const {model,bones,base}=shopper;
+  bones.Head.quaternion.copy(base.get(bones.Head));
+  leanForward(bones.Head,model,look*.58);
+  for(const [side,contact] of [['Left',left],['Right',right]]){
+   kit.releaseHand('aqing',side);
+   if(!lift)continue;
+   // Keep the pad of the index finger on the hardware, even while the
+   // opposite hand pulls the fabric. The knuckle is well behind the pad.
+   const tip=bones[side+'HandIndex4'];
+   reach(shopper,side,contact,lift,tip);
+   const pinch=contact.clone().add(v().set(side==='Right'?-.008:.008,-.007,.004).applyQuaternion(model.quaternion));
+   if(lift>.97)placeFingertip(shopper,side,'Thumb',pinch);
+  }
+ };
  kit.coatGrip=(id,side,target,grip)=>{
   const job=jobs.find(j=>j.id===id);
   const offset=new T.Vector3(0,-.006,.013).applyQuaternion(job.model.quaternion);
@@ -299,6 +315,23 @@ export function createOccupations(scene,actors,kit){
   for(const [name,bone] of Object.entries(job.bones)){
    if(name.startsWith(side)&&job.base.has(bone))bone.quaternion.copy(job.base.get(bone));
   }
+ };
+ // Pinch a thin banknote between the pads of the thumb and index finger.
+ // Orient the wrist along the counter so the palms never cover the whole note.
+ kit.cashGrip=(id,side,target,closed)=>{
+  const job=jobs.find(j=>j.id===id),b=job.bones;
+  kit.releaseHand(id,side);
+  const along=v().set(side==='Right'?-1:1,.12,0).normalize();
+  const hand=b[side+'Hand'],knuckle=b[side+'HandMiddle1'];
+  const palmLength=hand.getWorldPosition(v()).distanceTo(knuckle.getWorldPosition(v()));
+  const wrist=reach(job,side,target.clone().addScaledVector(along,-palmLength-.021),1,hand);
+  aim(hand,knuckle,wrist.add(along));
+  const contact=knuckle.getWorldPosition(v()).addScaledVector(along,.021);
+  const gap=.003+.022*(1-closed);
+  placeFingertip(job,side,'Thumb',contact.clone().add(v().set(0,gap,-.004)),1.20);
+  placeFingertip(job,side,'Index',contact.clone().add(v().set(0,-gap,.001)),1.40);
+  placeFingertip(job,side,'Middle',contact.clone().add(v().set(0,-gap-.004,.014)),1.40);
+  return contact;
  };
  return (point,engaged,now,tendingCustomer=false)=>{
   let changed=false;

@@ -1,4 +1,4 @@
-import {chapters} from './story-chapters.js';
+import {chapterRecordings} from './story-chapters.js';
 import {rehearsalCast} from './rehearsal-cast.js';
 export const storyFiles=[
  'street-coats.js','street-fitting.js','assets/street/original-coat.glb','assets/street/loan-coat.glb',
@@ -6,5 +6,5 @@ export const storyFiles=[
  'reunion-player-meal.js','reunion-hand-poses.js','reunion-boards.js','assets/nanyin-wusong-gather.wav',
  'assets/reunion-portrait-tidy.jpg','assets/reunion-portrait-laugh.jpg',
  ...Object.keys(rehearsalCast).map(id=>'assets/rehearsal-'+id+'.mp4'),
- ...Object.entries(chapters).flatMap(([chapter,book])=>Object.keys(book.nodes).filter(id=>book.nodes[id][0]!=='master').flatMap(id=>(id==='morning'?['-tea','-lemon']:['']).map(suffix=>'assets/story-'+chapter+'-'+id+suffix+'.wav')))
+ ...Array.from(chapterRecordings(),recording=>recording.file)
 ];

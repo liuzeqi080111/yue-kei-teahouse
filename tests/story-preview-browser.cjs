@@ -60,6 +60,10 @@ const root=process.env.STORY_URL||'http://127.0.0.1:4216';
    await page.reload();await page.getByRole('heading',{name:'过了一天'}).waitFor();assert.equal(await day(),2);
    await page.getByRole('link',{name:/赴团年饭/}).click();
    await page.getByRole('button',{name:'唔該，咁我坐喇！'}).waitFor();
+   assert.equal(await page.locator('#line').innerText(),mobile?'上次多谢你杯热茶呀。嚟，坐我隔篱啦！':'上次你留位畀我，今次到我留位畀你喇。');
+   assert.match(await page.locator('#meaning').innerText(),mobile?/热茶.*旁边/:/上次.*留.*这次/);
+   const greetingFile='/assets/story-reunion-join-'+(mobile?'takeaway':'invite')+'.wav';
+   await page.waitForFunction(file=>performance.getEntriesByName(location.origin+file).some(entry=>entry.decodedBodySize>44),greetingFile);
    await pick();
    const shot=name=>page.screenshot({path:'output/ba-review/reunion-'+name+(mobile?'-phone':'-desktop')+'.jpg'});
    async function song(node,dest,reload=false){

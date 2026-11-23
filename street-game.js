@@ -275,7 +275,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   const qingState=qingStatus(w);
   const stage=shopping();
   let fittingStage=null;
-  if(shopTurn==='trying'||shopTurn==='paying')fittingStage=shopTurn;
+  if(['trying','buttoning','decision','paying'].includes(shopTurn))fittingStage=shopTurn;
   else if(stage==='paid')fittingStage='paid';
   else if(stage==='review'||stage==='paying')fittingStage='review';
   else if(stage==='fitting'||shopTurn)fittingStage='intro';
@@ -420,7 +420,10 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(stage==='ask')shopLine('intro','intro','qing');
   else if(stage==='fitting')shopLine('quote','quote','ling');
   else if(stage==='review')shopLine('question','review','qing');
-  else if(stage==='paying')shopLine('decision','paying','qing');
+  else if(stage==='paying'){
+   shopTurn='buttoning';host.dataset.shopping=shopTurn;talking='qing';
+   stopSpeech();lastSpeech=null;showChoices();drawHud();dirty=true;
+  }
   else if(stage==='paid')shopLine('paid','paid','qing');
  }
  function updateShopping(now){
@@ -428,7 +431,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   const subject=body(lastSpeech?.speaker||talking);
   pendingLook={heading:angle(current,pointOf(subject)),pitch:talking==='ling'?-.1:-.21};
   const elapsed=now-shopSince;
-  const finishedLine=elapsed>=1600&&(!clipRequest||elapsed>=9000);
+  const finishedLine=elapsed>=1600&&!clipRequest;
   if(shopTurn==='intro'&&finishedLine){
    shopTurn='ask';host.dataset.shopping='ask';talking='ling';showChoices();
   }else if(shopTurn==='quote'&&finishedLine)shopLine('request','trying','qing');
@@ -439,6 +442,8 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    if(reply.ok)shopLine('question','review','qing');
   }else if(shopTurn==='question'&&finishedLine){
    shopTurn='review';host.dataset.shopping='review';showChoices();
+  }else if(shopTurn==='buttoning'&&scene.fitting.finished){
+   shopLine('decision','paying','qing');
   }else if(shopTurn==='decision'&&finishedLine){
    shopTurn='paying';host.dataset.shopping='paying';drawHud();
   }else if(shopTurn==='paying'&&scene.fitting.finished){

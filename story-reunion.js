@@ -1,6 +1,18 @@
+const seatGreetings = {
+ invite:['上次你留位畀我，今次到我留位畀你喇。','上次你给我留了位子，这次轮到我给你留位子啦。','-invite'],
+ takeaway:['上次多谢你杯热茶呀。嚟，坐我隔篱啦！','谢谢你上次给我的热茶。来，坐我旁边吧！','-takeaway'],
+ legacy:['呢个位预咗畀你㗎。','这个位子给你留着呢。','']
+};
+
+export function seatGreeting(invited){
+ if(invited===true)return seatGreetings.invite;
+ if(invited===false)return seatGreetings.takeaway;
+ return seatGreetings.legacy;
+}
+
 export const reunion = {
  title:'预埋你嗰份',start:'join',other:'table',nodes:{
-  join:['fang','年三十喇，嚟，坐埋嚟！呢個位預咗畀你㗎。','年三十啦，过来一起坐！这个位子给你留着呢。',[['唔該，咁我坐喇！','guess']]],
+  join:['fang',seatGreetings.legacy[0],seatGreetings.legacy[1],[['唔該，咁我坐喇！','guess']]],
   guess:['aming','過年要好意頭。估吓個碟入面係乜餸呀？','过年讨个好兆头。猜猜盘子里是什么菜？',[['係咪髮菜蠔豉呀？','right'],['我估係燒鵝！','goose']]],
   right:['aming','咁叻嘅！揭開睇吓，估唔估得中？','真机灵！揭开看看，猜对了吗？',[['揭开菜盖','dish']]],
   goose:['aming','燒鵝？我都想呀！揭開睇吓先。','烧鹅？我也想啊！先揭开看看。',[['揭开菜盖','dish']]],

@@ -1,4 +1,4 @@
-import {reunion} from './story-reunion.js';
+import {reunion,seatGreeting} from './story-reunion.js';
 export const chapters={
  reunion,
  table:{
@@ -28,3 +28,29 @@ export function chapterCompleted(id,save){
 export const voices={master:'lam',friend:'intro',aqing:'qing',regular:'guest',aming:'ming',fang:'fang',ale:'lok',ling:'ling',lin:'lam'};
 export const names={master:'南音师傅',friend:'同行朋友',aqing:'阿晴',regular:'周叔',aming:'阿明',fang:'芳姐',ale:'阿乐',ling:'玲姐',lin:'林伯'};
 export function morning(drink){return drink==='lemon'?['又嚟喇？凍檸茶少冰，仲係窗口位，啱唔啱？','又来了？冻柠茶少冰，还是窗边，对吧？']:['又嚟喇？熱奶茶少甜，仲係窗口位，啱唔啱？','又来了？热奶茶少甜，还是窗边，对吧？'];}
+
+// Keep the displayed dialogue and the local performance for a saved choice together.
+export function chapterLine(chapter,node,progress={}){
+ const [actor,original,translation]=chapters[chapter].nodes[node];
+ let text=original,meaning=translation,suffix='';
+ if(chapter==='reunion'&&node==='join'){
+  [text,meaning,suffix]=seatGreeting(progress.invited);
+ }else if(chapter==='table'&&node==='morning'){
+  const drink=progress.drink==='lemon'?'lemon':'tea';
+  [text,meaning]=morning(drink);
+  suffix='-'+drink;
+ }
+ return {actor,text,meaning,file:'assets/story-'+chapter+'-'+node+suffix+'.wav'};
+}
+
+export function* chapterRecordings(){
+ for(const [chapter,story] of Object.entries(chapters)){
+  for(const [node,[actor]] of Object.entries(story.nodes)){
+   if(actor==='master')continue;
+   let takes=[{}];
+   if(chapter==='reunion'&&node==='join')takes=[{}, {invited:true}, {invited:false}];
+   if(chapter==='table'&&node==='morning')takes=[{drink:'tea'}, {drink:'lemon'}];
+   for(const progress of takes)yield {chapter,node,...chapterLine(chapter,node,progress)};
+  }
+ }
+}

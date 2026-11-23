@@ -1,4 +1,4 @@
-"""Play the buy-coat branch through the normal street controls and resume its three checkpoints."""
+"""Play the buy-coat branch through the street controls and reload its checkpoints."""
 import json
 import os
 import re
@@ -112,6 +112,11 @@ with sync_playwright() as pw:
 
     action('coat-review').click()
     wait_flag('coat-reviewed')
+    reviewed = world()
+    assert 'qing-paid-coat' not in reviewed['flags'] and reviewed['money'] == wallet
+    resume_at_shop()
+    expect(action('coat-review')).not_to_be_visible()
+    expect(page.locator('.street-line')).to_have_text('好，就呢件。')
     wait_flag('qing-paid-coat')
     assert world()['money'] == wallet
     after_pay = world()
@@ -121,6 +126,8 @@ with sync_playwright() as pw:
     expect(action('coat-quote')).not_to_be_visible()
     expect(goal).to_contain_text('面试')
     paid = world()
+    assert paid['flags'].count('qing-paid-coat') == 1
+    assert sum('自己付了 HK$80' in note for note in paid['notes']) == 1
     assert paid['items'] == after_pay['items'] and paid['money'] == wallet
     assert paid['notes'] == after_pay['notes']
     paid_actor = confirm_counter(fitted)
@@ -133,7 +140,7 @@ with sync_playwright() as pw:
     assert page.evaluate("readShoppingActors().visible") is False
     assert world()['coatOutcome'] == 'emergency' and world()['money'] == wallet
     assert not errors, errors
-    print('PASS buy route, three refreshes, single review, outfit, positions, wallet and send-off', flush=True)
+    print('PASS buy route, four refreshes, single purchase, outfit, positions, wallet and send-off', flush=True)
     (out/'buy-resume-check.json').write_text(json.dumps({
         'walletBefore':wallet,'walletAfter':world()['money'],'stageFlags':paid['flags'],
         'opening':opening,'afterQuotedReload':quoted,'fitted':fitted,'afterFittedReload':resumed,'afterPaidReload':paid_actor,
