@@ -31,6 +31,12 @@ await inspect(target);
 for(const name of publicFiles){const dest=path.join(target,name);await mkdir(path.dirname(dest),{recursive:true});await copyFile(path.join(root,name),dest);}
 const voiceOrigin=process.env.VOICE_API_ORIGIN||'';
 if(voiceOrigin&&(!/^https:\/\/[a-z0-9.-]+$/.test(voiceOrigin)))throw Error('VOICE_API_ORIGIN must be an HTTPS origin');
-let html=await readFile(path.join(target,'index.html'),'utf8');html=html.replace('<html lang="zh-Hans">',voiceOrigin?`<html lang="zh-Hans" data-voice-api="${voiceOrigin}">`:'<html lang="zh-Hans" data-preview="true">');await writeFile(path.join(target,'index.html'),html);await writeFile(path.join(target,'.nojekyll'),'');
+for (const name of ['index.html','story-preview.html']) {
+ const page = path.join(target,name);
+ const html = await readFile(page,'utf8');
+ const openingTag = voiceOrigin ? `<html lang="zh-Hans" data-voice-api="${voiceOrigin}">` : '<html lang="zh-Hans" data-preview="true">';
+ await writeFile(page,html.replace('<html lang="zh-Hans">',openingTag));
+}
+await writeFile(path.join(target,'.nojekyll'),'');
 console.log(`Built ${publicFiles.length} public files in dist/ (${voiceOrigin?'cloud voice enabled':'voice backend disabled'}).`);
 await writeFile(path.join(target,'version.json'),JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),builtAt:new Date().toISOString(),voiceEnabled:Boolean(voiceOrigin)},null,2));

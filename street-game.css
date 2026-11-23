@@ -102,5 +102,13 @@
 .street-game .street-tray button.quest-row:disabled{cursor:default;opacity:1;background:#342d27;color:#cbbda8}.street-game .quest-row:disabled .quest-state{color:#cab99e}
 .street-tray[data-kind=tasks] p{margin:.65em 0;line-height:1.45}
 
+@media (max-height:500px) {
+ .street-game #street-map {width:88px}
+ .street-navigation .street-tray {
+  max-height:calc(100dvh - 100% - 24px - env(safe-area-inset-bottom));
+  overscroll-behavior:contain;
+ }
+}
+
 .street-game .street-tray button.quest-row[aria-pressed=true]{background:#554134;border-color:#e6ad6f}
 .street-game .street-tray button:focus-visible{outline:2px solid #ffe4a5;outline-offset:2px}

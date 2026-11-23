@@ -22,6 +22,18 @@ jobs:
       - run: npm run build:pages
         env:
           VOICE_API_ORIGIN: https://yue-kei-voice-whmzrtlgod.cn-hangzhou.fcapp.run
+      - name: Check out the original teahouse release
+        uses: actions/checkout@v6
+        with:
+          ref: 63ad8cf48f640e2ab8caf7b111ae745ec059ab17
+          path: previous-demo
+      - name: Preserve the original demo at /demo1/
+        working-directory: previous-demo
+        run: |
+          npm run build:pages
+          mv dist ../dist/demo1
+        env:
+          VOICE_API_ORIGIN: https://yue-kei-voice-whmzrtlgod.cn-hangzhou.fcapp.run
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist

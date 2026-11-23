@@ -137,3 +137,16 @@ body[data-meaning="false"] :is(.street-meaning,.hud-cantonese:not([hidden])+.hud
 #settings .settings button,#settings header button{margin:0}
 #settings header button{background:transparent}
 @media(prefers-reduced-motion:reduce){.vinyl-rotation{animation-duration:8s}}
+
+/* The printed labels are too close together for touch on a narrow cover. */
+@media (orientation:portrait) and (max-width:650px) {
+ #welcome.vinyl-edition .vinyl-continue,
+ #welcome.vinyl-edition .vinyl-new {
+  top:calc(100% + 12px);width:40%;height:46px;
+  background:#3b281d;color:#fff1d7;border:1px solid #ba9771;
+  font:600 17px/1.2 system-ui,sans-serif;border-radius:8px;
+ }
+ #welcome.vinyl-edition .vinyl-continue {left:8%}
+ #welcome.vinyl-edition .vinyl-new {left:52%}
+ #welcome.vinyl-edition .vinyl-continue:disabled {color:#baa998;background:#30261e}
+}
