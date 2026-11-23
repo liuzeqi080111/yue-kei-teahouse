@@ -120,6 +120,21 @@ export function resetWorld(storage){
  }
  catch{return {ok:false,error:'无法清除本游戏存档：浏览器存储不可用。'};}
 }
+export function shoppingStage(s){
+ if(!s.streetView||s.coatOutcome||!s.flags.includes('coat-route-buy')||s.items.includes('loanCoat')||s.items.includes('newCoat'))return null;
+ for(const [flag,stage] of [['qing-paid-coat','paid'],['coat-reviewed','paying'],['coat-fitted','review'],['coat-quoted','fitting']]){
+  if(s.flags.includes(flag))return stage;
+ }
+ return 'ask';
+}
+export const SHOPPING_LINES={
+ intro:['玲姐，我想買件褸去見工。呢件可唔可以試吓？','玲姐，我想买件面试穿的外套。这件能试一下吗？'],
+ quote:['呢件八十蚊，阿晴你試吓先。','这件八十元。阿晴，你先试一下。'],
+ trying:['好呀，我入去試吓。你等我一陣吖。','好呀，我进去试试。你等我一会儿。'],
+ review:['你睇，着呢件去見工得唔得呀？','你看，我穿这件去面试怎么样？'],
+ paying:['你都覺得好睇呀？好，就要呢件。玲姐，八十蚊，我自己畀。','你也觉得好看？好，就买这件。玲姐，八十元，我自己付。'],
+ paid:['畀咗錢喇，我就着呢件去見工。多謝你陪我揀呀！','付过钱了，我就穿这件去面试。谢谢你陪我挑！'],
+};
 export function optionsFor(s,npc){
  // 阿晴赴面试离场期间不能对话：没有任何选项。
  if(npc==='qing'&&s.coatOutcome&&!s.flags.includes('qing-returned'))return [];
@@ -138,11 +153,12 @@ export function optionsFor(s,npc){
     if(f('coat-pickup-visit')&&f('shop-check')&&!f('coat-inspected'))add('coat-inspect','让阿晴看看刚取的外套','咦？我件褸右邊袖口補過㗎，呢件冇。芳姐，呢件唔係我嘅喎。','咦？我的右袖口补过，这件没有。芳姐，这件不是我的。',d=>{flag(d,'coat-inspected');flag(d,'coat-detail');note(d,'阿晴检查刚取的外套，发现右袖口没有她的补痕。');});
     if(!f('coat-pickup-visit')&&!f('coat-detail'))add('coat-detail','你的外套有什么特征？','右邊袖口補過一小塊，內袋有我個名。','右边袖口补过一小块，内袋有我的名字。',d=>{flag(d,'coat-detail');note(d,'外套特征：右袖补痕、内袋名字。');});
     if(!s.coatOutcome){
-     if(firstPerson&&f('coat-quoted')&&f('coat-route-buy')&&!f('qing-paid-coat')&&!has('loanCoat')&&!has('newCoat')){
-      add('coat-buy','听阿晴确认价格并付款 · 她付 HK$80',
-       '八十蚊啱啦，我自己畀。唔該晒你陪我嚟試。','八十元可以，我自己付。谢谢你陪我来试衣。',
-       d=>{flag(d,'qing-paid-coat');note(d,'阿晴试穿后自己支付了 HK$80，新外套由她自己拿着。原衣仍待找回。');});
-     }
+     const stage=shoppingStage(s);
+     if(stage==='fitting')add('coat-fitted','等阿晴试穿',...SHOPPING_LINES.review,d=>flag(d,'coat-fitted'));
+     if(stage==='review')add('coat-review','看起来不错',...SHOPPING_LINES.paying,d=>flag(d,'coat-reviewed'));
+     if(stage==='paying')add('coat-buy','阿晴亲自付款',...SHOPPING_LINES.paid,d=>{
+      flag(d,'qing-paid-coat');note(d,'阿晴听过你的评价，自己付了 HK$80，穿上新衣准备去面试。');
+     });
      if(has('coat'))add('coat-return','把外套亲手交给阿晴（推进一个时段）','就係呢件！多謝你，我而家出發喇。','就是这件！谢谢你，我现在出发了。',d=>{take(d,'coat');note(d,'阿晴接过你递来的外套，认出了右袖口的补痕。');coatEnd(d,'returned');});
      if(has('loanCoat')||has('newCoat')||firstPerson&&f('qing-paid-coat'))add('coat-emergency',firstPerson&&f('qing-paid-coat')?'阿晴穿新衣去面试（推进一个时段）':'先穿这件去面试，原衣服稍后找（推进一个时段）','啱身呀，咁我先去見工，返嚟再處理。','合身，那我先去面试，回来再处理。原衣服仍可继续找。此选择推进一个时段。',d=>{if(d.items.includes('loanCoat')){take(d,'loanCoat');flag(d,'qing-wore-loan');}else take(d,'newCoat');if(firstPerson)flag(d,'coat-misunderstanding');coatEnd(d,'emergency');});
      if(f('shop-contact')&&has('wrongCoat'))add('coat-cooperate','芳姐会换回衣服，你过去核对后出发（推进一个时段）','好，我同芳姐一齊核對，唔再鬧交喇。','好，我和芳姐一起核对，不再争吵了。此选择推进一个时段。',d=>{take(d,'wrongCoat');coatEnd(d,'cooperate');});
@@ -196,8 +212,8 @@ export function optionsFor(s,npc){
    const canBorrowAgain=!f('loan-returned')||!f('qing-wore-loan')&&!f('coat-swapped');
    if(f('coat-start')&&!s.coatOutcome&&!has('loanCoat')&&!has('newCoat')&&canBorrowAgain&&!f('qing-paid-coat')){
    add('coat-loan','邻居急着面试，可以借件外套吗？','借畀佢應急先，見完工記得帶返嚟。','先借给她应急，面试后记得还。',d=>{d.flags=d.flags.filter(x=>x!=='loan-returned');give(d,'loanCoat');flag(d,'loan-due');note(d,'向玲姐借了外套，答应面试后归还。');});
-   if(firstPerson&&f('shop-check')&&f('coat-route-buy')&&!f('coat-quoted')){
-    add('coat-quote','替阿晴问这件外套的价格','呢件八十蚊，阿晴你試吓先。','这件八十元。阿晴，你先试一下。',d=>{flag(d,'coat-quoted');note(d,'玲姐报价 HK$80，由阿晴试穿后决定是否自己付款。');});
+   if(f('shop-check')&&shoppingStage(s)==='ask'){
+    add('coat-quote','替阿晴问价 · 玲姐，呢件褸幾多錢呀？',...SHOPPING_LINES.quote,d=>{flag(d,'coat-quoted');note(d,'玲姐报价 HK$80，由阿晴试穿后决定是否自己付款。');});
    }
    if(!firstPerson&&s.money>=8000)add('coat-buy','买一件应急外套 · HK$80','呢件八十蚊，試啱就攞去啦。','这件八十元，合适就拿去。',d=>{d.money-=8000;give(d,'newCoat');});
   }
@@ -256,6 +272,12 @@ export function npcContext(s,npc){
  if(!Object.prototype.hasOwnProperty.call(NPC_PROFILES,npc))return null;
  const f=k=>s.flags.includes(k),has=k=>s.items.includes(k);
  const known=[],relations=[];
+ const shopping=shoppingStage(s);
+ if(shopping&&['qing','ling'].includes(npc))known.push({
+  ask:'阿晴和玩家来玲记买面试外套，由玩家替她问价。',
+  fitting:'玲姐报价八十港元，阿晴正在试穿。',review:'阿晴穿好新衣问玩家意见，还没有付款。',
+  paying:'玩家觉得新衣好看，阿晴决定自己买下。',paid:'阿晴已经用自己的八十港元付过款，准备穿新衣去面试。',
+ }[shopping]);
  if(npc==='qing'){
   known.push('自己的外套右袖口补过一小块、内袋有自己的名字。');
   if(!s.coatOutcome&&s.streetView){

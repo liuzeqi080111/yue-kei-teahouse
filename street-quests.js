@@ -1,8 +1,9 @@
+import {shoppingStage} from './neighborhood-state.js';
 import {chapters} from './story-chapters.js';
 import {ACTORS,REST,RESTAURANT} from './street-space.js';
 
 const qingAtHome={...ACTORS.qing,name:'安和楼梯口'};
-const qingAtMarket={name:'玲记衣铺门边',position:[-14.57,.111,-9.42],point:{x:-13.55,z:-9.14},zone:[-14.42,-12.98,-9.88,-8.18]};
+const qingAtMarket={name:'玲记衣铺柜台前',position:[-14.57,.111,-9.42],point:{x:-13.55,z:-9.14},zone:[-14.42,-12.98,-9.88,-8.18]};
 export function qingLocation(world){
  return world.flags.includes('coat-route-buy')&&!world.coatOutcome?qingAtMarket:qingAtHome;
 }
@@ -27,7 +28,11 @@ export function streetQuests(w,completed={}){
    if(f('qing-paid-coat'))return ['qing','阿晴已经在玲记付了钱，送她穿着新外套去面试。','coat-emergency'];
    if(has('newCoat')||has('loanCoat'))return ['qing','把面试用衣交给阿晴，送她去面试。','coat-emergency'];
    if(f('coat-route-borrow'))return ['ling','到夜市衣铺，向玲姐借一件面试外套。','coat-loan'];
-   if(f('coat-route-buy'))return f('coat-quoted')?['qing','在衣铺旁找阿晴确认价格，由她付款。','coat-buy']:['ling','陪阿晴到夜市，请玲姐报价。','coat-quote'];
+   const shopping=shoppingStage(w);
+   if(shopping==='ask')return ['ling','陪阿晴到玲记衣铺，替她问面试外套的价钱。','coat-quote'];
+   if(shopping==='fitting')return ['qing','在玲记柜台前等阿晴试穿新外套。','coat-fitted'];
+   if(shopping==='review')return ['qing','看看阿晴穿上新外套的样子，告诉她你的评价。','coat-review'];
+   if(shopping==='paying')return ['qing','等阿晴亲自向玲姐付款。','coat-buy'];
   }
   if(!w.coatOutcome||f('coat-misunderstanding')&&!f('original-returned')){
    if(!f('guest-found'))return ['ming','先到粤记门口问阿明，哪位客人拿错了衣服。','guest-found'];

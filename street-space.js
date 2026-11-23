@@ -235,6 +235,9 @@ export const MARKET_ROOMS=[
  {id:'clothes',sign:'玲記衣舖',z:-10.17,width:3.34},
 ];
 export function marketRoomBlocks({x,z}){
+ // Footprints of the sales counter and fitting curtain, with walking clearance.
+ if(Math.abs(x+15.22)<.44&&Math.abs(z+10.93)<.97)return true;
+ if(Math.abs(x+15.08)<.18&&Math.abs(z+9.11)<.61)return true;
  if(x< -20.18||x> -14.91)return false;
  return MARKET_ROOMS.some(r=>Math.abs(Math.abs(z-r.z)-r.width/2)<.15);
 }

@@ -104,10 +104,10 @@ export function createStreetCompanions(nav,friend,qing){
   }
   return null;
  }
- function walk(player,dt,counterPoint){
+ function walk(player,dt,counterPoint,friendPoint={x:12.55,z:.48}){
   record(player);
   follow(qing,counterPoint||slot(player,1.16,.3),player,dt);
-  follow(friend,counterPoint?{x:12.55,z:.48}:slot(player,2.48,-.36),player,dt);
+  follow(friend,counterPoint?friendPoint:slot(player,2.48,-.36),player,dt);
  }
  return {reset,standNear,canPlayerMove,walk,get retryPlayer(){return retryPlayer;}};
 }

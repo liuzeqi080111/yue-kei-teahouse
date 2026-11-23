@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {createBailian} from '../server/bailian.mjs';
 import {characterVoice} from '../voice-clips.js';
 import {SHOPS,PASSERS,streetHello,streetReply} from '../street-space.js';
-import {optionsFor,freshWorld,NPCS,COUNTER_GUESTS,applyWorldAction,restEvent} from '../neighborhood-state.js';
+import {optionsFor,freshWorld,SHOPPING_LINES,NPCS,COUNTER_GUESTS,applyWorldAction,restEvent} from '../neighborhood-state.js';
 import {STREET_CLIPS,ROLE_CLIPS} from '../fp1-clips.js';
 
 const lines=new Map();
@@ -33,7 +33,7 @@ const enquiries='guest-found coat-swap';
 const visits=[
  pickup+'recover '+enquiries+' coat-return rest',
  pickup+'borrow coat-loan coat-emergency rest coat-collect-loan loan-returned',
- pickup+'buy coat-quote coat-buy coat-emergency rest '+enquiries+' coat-return-original laundry-reconcile',
+ pickup+'buy coat-quote coat-fitted coat-review coat-buy coat-emergency rest '+enquiries+' coat-return-original laundry-reconcile',
 ];
 for(const visit of visits){
  let state=base;
@@ -60,6 +60,7 @@ for(const [id,text] of [
  ['qing','我見完工返嚟喇。'],['qing','件褸我想試多次，睇吓啱唔啱身。'],['qing','多謝你肯幫手。你問到啲咩呀？'],
  ['fang','有事嘅話，你慢慢講。'],['fang','張單已經入咗簿。'],
 ])add(id,text);
+for(const [stage,[line]] of Object.entries(SHOPPING_LINES))add(stage==='quote'?'ling':'qing',line);
 // Saved dialogue history can replay lines from earlier story revisions.
 const map={...ROLE_CLIPS};
 for(const [key,{text,voice}] of lines){

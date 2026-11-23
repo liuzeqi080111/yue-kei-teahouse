@@ -22,7 +22,12 @@ test('第一人称买衣由阿晴付款，应急与和解是两个事件',()=>{
  assert.equal(initial.items.includes('ticket'),false);
  assert.equal(applyWorldAction(initial,'qing','coat-buy').ok,false);
  assert.equal(applyWorldAction(initial,'ling','coat-buy').ok,false);
- const paid=play([['ling','coat-quote'],['qing','coat-buy']],initial);
+ const quoted=play([['ling','coat-quote']],initial);
+ assert.equal(applyWorldAction(quoted,'qing','coat-review').ok,false);
+ assert.equal(applyWorldAction(quoted,'qing','coat-buy').ok,false);
+ const fitted=play([['qing','coat-fitted']],quoted);
+ assert.equal(applyWorldAction(fitted,'qing','coat-buy').ok,false);
+ const paid=play([['qing','coat-review'],['qing','coat-buy']],fitted);
  assert.equal(paid.money,initial.money);
  assert.equal(paid.items.includes('newCoat'),false);
  assert.equal(applyWorldAction(paid,'qing','coat-buy').ok,false);

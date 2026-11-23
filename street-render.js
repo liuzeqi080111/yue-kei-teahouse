@@ -1,5 +1,6 @@
 import {dressStoryShops,createOccupations} from './street-fixtures.js';
 import {createStreetCoats} from './street-coats.js';
+import {createShopFitting} from './street-fitting.js';
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
@@ -116,7 +117,6 @@ export async function loadStreet(canvas) {
  scene.add(env.model);
  const fittings=dressStoryShops(scene,env.model);
  const [counterCoat,original,loan]=await Promise.all(['held','original','loan'].map(kind=>load(kind+'-coat.glb')));
- fittings.purchaseCoat=counterCoat.model.clone(true);
  const kitchen=new T.Group();
  kitchen.position.set(-15.72,0,8.8);kitchen.rotation.y=Math.PI/2;
  furnishKitchen(kitchen,env.model);scene.add(kitchen);
@@ -153,7 +153,11 @@ export async function loadStreet(canvas) {
    camera.updateProjectionMatrix();renderer.setSize(width,height,false);
   }
   camera.position.set(x,y,z);camera.rotation.set(pitch,-heading,0,'YXZ');
+  applyCoatOwners();
   coats.update();
+  if(fittingRoom.finishCoat()){
+   applyCoatOwners();coats.update();
+  }
   renderer.render(scene,camera);
  }
  await Promise.all(layout.characters.map(async spec=>{
@@ -404,10 +408,11 @@ export async function loadStreet(canvas) {
   return changed;
  }
  const workNearby=createOccupations(scene,actors,fittings);
+ const fittingRoom=createShopFitting(scene,actors,fittings,refreshShadows,()=>coats.moving);
  function animateWork(point,engaged,now){
   let strolling=false;
   for(const walk of crowd)strolling=stepResident(walk,point,engaged,now)||strolling;
-  const bodiesChanged=workNearby(point,engaged,now);
+  const bodiesChanged=workNearby(point,engaged,now,fittingRoom.tendingCustomer);
   let changed=false;
   for(const actor of working){
    if(Math.hypot(actor.model.position.x-point.x,actor.model.position.z-point.z)>9)continue;
@@ -424,7 +429,8 @@ export async function loadStreet(canvas) {
   }
   changed=shopVisits(point,engaged,now)||changed;
   if(strolling)refreshShadows();
-  return changed||bodiesChanged||strolling||coats.moving;
+  const shoppingChanged=fittingRoom.tick(now);
+  return changed||bodiesChanged||strolling||coats.moving||shoppingChanged;
  }
  // Counter faces the side aisle. All new fixtures stay on the staff side.
  const laundryMaterial=new Map();
@@ -461,10 +467,13 @@ export async function loadStreet(canvas) {
  laidCoat.rotation.x=-Math.PI/2;coat.add(laidCoat);
  coat.position.set(15.28,1.103,1.19);coat.rotation.y=Math.PI/2;coat.visible=false;scene.add(coat);
  const coats=createStreetCoats(scene,camera,actors,{original:original.model,loan:loan.model},fittings);
- function showCoat(onCounter,owners,tryingPurchase){
+ let coatOwners={};
+ function applyCoatOwners(){
+  coats.show(fittingRoom.wearingOriginal&&coatOwners.original==='aqing'?{...coatOwners,original:null}:coatOwners);
+ }
+ function showCoat(onCounter,owners){
   coat.visible=onCounter;fittings.coatShown=onCounter;fittings.pressing.visible=!onCounter;
-  fittings.tryingPurchase=tryingPurchase;
-  coats.show(owners);
+  coatOwners=owners;applyCoatOwners();
  }
  illuminate(false);
  function face(id,point,dt){
@@ -492,7 +501,7 @@ export async function loadStreet(canvas) {
   else{elder.position.copy(guestPosition);elder.rotation.y=guestYaw;}
   refreshShadows();
  }
- return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,coats,placeStones,animateWork,illuminate,placeRack,refreshShadows};
+ return {reunion,speak,layout,actors,character,overheard:()=>overheard,render,face,showCoat,coats,placeStones,animateWork,illuminate,placeRack,refreshShadows,fitting:fittingRoom};
 }
 
 function storeSign(text,w,h){

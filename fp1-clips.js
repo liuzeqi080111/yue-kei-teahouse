@@ -191,5 +191,10 @@ export const ROLE_CLIPS={
  "southRice|一個留畀自己，一個留畀我個孫。": "assets/street-line-28d411f704f2c9.wav",
  "marketBack|我嚟揀幾個橙。你都嚟買生果呀？": "assets/street-line-310adc90d1fb3a.wav",
  "marketBack|我鍾意揀墜手嗰啲，拎返去同屋企人分嚟食。": "assets/street-line-6265a870de1c8a.wav",
- "lam|阿祥覆咗喇！佢喺東街南洋餅家，等緊榮叔執菠蘿包。你幫我問吓佢，今晚得唔得閒去榕樹頭捉棋呀？": "assets/street-line-18235ba1c7c0c8.wav"
+ "lam|阿祥覆咗喇！佢喺東街南洋餅家，等緊榮叔執菠蘿包。你幫我問吓佢，今晚得唔得閒去榕樹頭捉棋呀？": "assets/street-line-18235ba1c7c0c8.wav",
+ "qing|你睇，着呢件去見工得唔得呀？": "assets/street-line-4205c3e73aaa30.wav",
+ "qing|你都覺得好睇呀？好，就要呢件。玲姐，八十蚊，我自己畀。": "assets/street-line-cebe66a41eaee2.wav",
+ "qing|畀咗錢喇，我就着呢件去見工。多謝你陪我揀呀！": "assets/street-line-3ba3a03e871a19.wav",
+ "qing|玲姐，我想買件褸去見工。呢件可唔可以試吓？": "assets/street-line-f1680276d9c7bf.wav",
+ "qing|好呀，我入去試吓。你等我一陣吖。": "assets/street-line-7ad135a6c1a32c.wav"
 };

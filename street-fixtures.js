@@ -184,8 +184,6 @@ export function createOccupations(scene,actors,kit){
   const {box,cyl,piece,ball}=kit;
   if(id==='fang'){
    piece(right,ball,0x636c70,0,-.039,.022,.087,.033,.18);box(right,0x994c3c,0,-.016,.007,.072,.045,.109);box(right,0x42372c,0,.017,0,.024,.021,.08);
-  }else if(id==='aqing'){
-   kit.purchaseCoat.position.set(-.13,-.005,-.020);left.add(kit.purchaseCoat);
   }else if(id==='ale'){
    const lp=cyl(left,0x282324,.085,.018,.028,.27,.013,.27);cyl(lp,0xc46946,0,.66,0,.31,.12,.31);
    box(right,0xddc7a4,0,-.008,0,.077,.016,.066);
@@ -296,7 +294,13 @@ export function createOccupations(scene,actors,kit){
   }
   return contact;
  };
- return (point,engaged,now)=>{
+ kit.releaseHand=(id,side)=>{
+  const job=jobs.find(j=>j.id===id);
+  for(const [name,bone] of Object.entries(job.bones)){
+   if(name.startsWith(side)&&job.base.has(bone))bone.quaternion.copy(job.base.get(bone));
+  }
+ };
+ return (point,engaged,now,tendingCustomer=false)=>{
   let changed=false;
   for(const j of jobs){
    const {model,id}=j;
@@ -311,8 +315,9 @@ export function createOccupations(scene,actors,kit){
    }
    const coatOnCounter=kit.coatShown&&(id==='fang'||id==='aqing'&&Math.hypot(model.position.x-15.54,model.position.z-1.19)<2.4);
    const giving=kit.coatHandOccupied(id,'Left')||kit.coatHandOccupied(id,'Right');
-   const tryingPurchase=id==='aqing'&&kit.tryingPurchase&&!giving;
-   const working=!coatOnCounter&&(giving||tryingPurchase||id!=='aqing'&&engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
+   const atTill=tendingCustomer&&id==='ling';
+   if(atTill)j.left.visible=j.right.visible=false;
+   const working=!coatOnCounter&&!atTill&&(giving||id!=='aqing'&&engaged!==id&&!(id==='vendor'&&engaged==='juiceCart'));
    if(!working&&!j.weight)continue;
    if(working&&engaged!==id&&['fang','ale','aming','ling','regular'].includes(id)){
     const delta=j.actor.spec.rotationY-model.rotation.y;
@@ -323,7 +328,7 @@ export function createOccupations(scene,actors,kit){
    const t=now*.001+j.index*.86,swing=Math.sin(t*1.6),lift=(1-Math.cos(t*1.6))*.5;
    let l=v().set(.07,.59,.18),r=v().set(-.042+.035*swing,.62,.18);
    switch(id){
-    case 'aqing':l.set(.17,tryingPurchase?.65:.425,tryingPurchase?.27:.085);r.set(-.17,.425,.085);break;
+    case 'aqing':l.set(.17,.425,.085);r.set(-.17,.425,.085);break;
     case 'fang': l.set(.12,.55,.22);r.set(-.073+.102*swing,.55+.032*Math.max(0,-Math.cos(t*1.6)),.24);break;
     case 'ale':l.set(.115,.56,.22);r.set(-.038+.056*Math.cos(t*2.5),.624,.26+.026*Math.sin(t*2.5));break;
     case 'ling':r.set(-.05+.08*lift,.625,.225+.035*lift);break;
@@ -383,10 +388,8 @@ export function createOccupations(scene,actors,kit){
      placeFingertip(j,'Right',digit,target);
     }
    }else j.right.position.copy(reach(j,'Right',model.localToWorld(r),j.weight));
-   j.left.visible=j.right.visible=j.weight>.045;
-   if(id==='aqing'){
-    j.left.visible=tryingPurchase;j.right.visible=false;
-   }
+   j.left.visible=j.right.visible=!atTill&&j.weight>.045;
+   if(id==='aqing')j.left.visible=j.right.visible=false;
    if(id==='fang'&&working){
     for(const [index,digit] of ['Index','Middle','Ring','Pinky'].entries()){
      placeFingertip(j,'Right',digit,j.right.localToWorld(v().set(.020,.006,-.030+index*.020)));

@@ -178,3 +178,43 @@ test('相同输入重复调用结果一致，冻结棋盘与入参都不被修�
  assert.equal(frozen[at(4,4)],0);
  assert.equal(frozenResult.board[at(4,4)],1);
 });
+
+function turnWith(black,white,index){
+ const board=emptyBoard();
+ for(const i of black)board[i]=1;
+ for(const i of white)board[i]=2;
+ const result=playTurn(board,index);
+ return {reply:result.board.findIndex((cell,i)=>cell===2&&board[i]===0),outcome:result.outcome};
+}
+
+test('四个方向的直四与断四都在唯一胜点封住',()=>{
+ for(const [dr,dc,start] of [[0,1,at(0,0)],[1,0,at(0,0)],[1,1,at(0,0)],[1,-1,at(0,8)]]){
+  for(const blank of [1,2,3,4]){
+   const span=Array.from({length:5},(_,i)=>start+(dr*9+dc)*i);
+   const line=span.filter((_,i)=>i!==blank);
+   const result=turnWith(line.slice(0,-1),[],line.at(-1));
+   assert.equal(result.reply,span[blank]);
+  }
+ }
+});
+
+test('旧版两盘实战在黑棋第三手漏防；新白棋提前封住活三',()=>{
+ for(const [black,move,block] of [[[10,11],12,13],[[10,19],28,37]]){
+  assert.equal(turnWith(black,[40,31],move).reply,block);
+ }
+});
+
+test('在交叉点造出双活三前限制对手',()=>{
+ const result=turnWith([28,29,12],[8,54,72],21);
+ assert.equal(result.reply,30);
+});
+
+test('林伯主动连成活四，使下一手有两个不重合的胜点',()=>{
+ const before=[55,56,57];
+ const result=turnWith([4,20,45],before,78);
+ assert.equal(result.reply,58);
+ for(const [block,other] of [[54,59],[59,54]]){
+  const next=turnWith([4,20,45,78],[...before,result.reply],block);
+  assert.equal(next.reply,other);assert.equal(next.outcome,'white');
+ }
+});

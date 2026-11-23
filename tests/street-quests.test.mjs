@@ -134,7 +134,9 @@ test('an original recovered on the shopping route resumes at Qing’s current sh
  assert.ok(Math.hypot(questPoint(atShop,saved).x-ACTORS.ling.point.x,questPoint(atShop,saved).z-ACTORS.ling.point.z)<2);
  assert.ok(!applyWorldAction(saved,'guest','coat-swap').ok);
  const quoted=applyWorldAction(saved,'ling','coat-quote');assert.ok(quoted.ok);
- const paid=applyWorldAction(quoted.state,'qing','coat-buy');assert.ok(paid.ok);
+ const fitted=applyWorldAction(quoted.state,'qing','coat-fitted');assert.ok(fitted.ok);
+ const reviewed=applyWorldAction(fitted.state,'qing','coat-review');assert.ok(reviewed.ok);
+ const paid=applyWorldAction(reviewed.state,'qing','coat-buy');assert.ok(paid.ok);
  const emergency=applyWorldAction(paid.state,'qing','coat-emergency');assert.ok(emergency.ok);
  const away=emergency.state;
  assert.equal(streetQuests(away)[0].action,'rest');
