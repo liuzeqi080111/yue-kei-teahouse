@@ -489,7 +489,7 @@ function onWorldHistoryChange(snapshot){
 }
 const firstPerson=new URLSearchParams(location.search).get('street')!=='2d';
 const neighborhoodRoot=neighborhoodRootFromDocument();
-const createWorldView=firstPerson?(await import('./street-game.js')).createStreetGame:createNeighborhood;
+const createWorldView=firstPerson?(await import('./street-game.js?preload=1')).createStreetGame:createNeighborhood;
 neighborhood=createWorldView({
  root:neighborhoodRoot,
  getState:()=>world,
@@ -544,6 +544,12 @@ if(!worldSaveLocked&&loadedWorld.exists){
  const validated=validateWorldCandidate(world);if(!validated.ok)lockWorld(validated.error);
 }
 syncWorldTitle();
+if(firstPerson&&!worldSaveLocked&&world.location!=='restaurant'&&!chapterCompleted('reunion',readChapter(worldStorage,'reunion'))){
+ requestAnimationFrame(()=>{
+  // A failed background load can be retried when the player enters.
+  void neighborhood.prepareStreet().catch(()=>{});
+ });
+}
 function feedback(s){
  if(s.includes('售罄'))return s.replace(/今日售罄.*/, '今天已经售完，请选另一款。');
  if(s.includes('未确认的商品'))return '还有餐品未确认，下单或取消这些餐品后就可以结账。';
@@ -1064,13 +1070,12 @@ window.addEventListener('pagehide', () => { cancelAnimationFrame(frame); frame =
 window.addEventListener('pageshow', scheduleSceneFrame);
 window.addEventListener('npc-mouth',()=>{if(diningRenderer&&!neighborhood?.active){const {state,view}=game.snapshot();paint(state,view);}});
 
-if (new URLSearchParams(location.search).get('cover') !== 'classic') {
+if (document.querySelector('#welcome.vinyl-edition')) {
  const welcome = document.querySelector('#welcome');
- const content = document.querySelector('#vinyl-template').content.cloneNode(true);
- const frame = content.querySelector('.vinyl-frame');
- const resume = content.querySelector('.vinyl-continue');
- const fresh = content.querySelector('.vinyl-new');
- const motor = content.querySelector('.vinyl-motor');
+ const frame = welcome.querySelector('.vinyl-frame');
+ const resume = frame.querySelector('.vinyl-continue');
+ const fresh = frame.querySelector('.vinyl-new');
+ const motor = frame.querySelector('.vinyl-motor');
  const start = welcome.querySelector('[data-world-save-state]');
  const restart = welcome.querySelector('#world-title-restart');
  function updateCoverButtons() {
@@ -1089,6 +1094,5 @@ if (new URLSearchParams(location.search).get('cover') !== 'classic') {
  }
  setMotor(true);
  motor.addEventListener('click', () => setMotor(frame.classList.contains('vinyl-stopped')));
- welcome.prepend(content);
- welcome.classList.add('vinyl-edition');
+ motor.disabled = false;
 }

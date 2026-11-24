@@ -808,10 +808,8 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
   if(initial&&!showedIntroduction){showedIntroduction=true;openDialogue('intro');}
   else if(shopping()&&shopping()!=='ask'&&(canTalk('ling',current)||canTalk('qing',current)))openDialogue('ling');
  }
- function load(initial){
-  active=true;host.hidden=false;status.textContent='正在打开街区…';
-  const run=++restoreId;
-  loading??=import('./street-render.js').then(({loadStreet})=>loadStreet(canvas)).then(value=>{
+ function prepareStreet(){
+  return loading??=import('./street-render.js').then(({loadStreet})=>loadStreet(canvas)).then(value=>{
    scene=value;
    nav=createStreetNav(scene.layout,point=>{
     const rack=rackLayout(getState());
@@ -822,7 +820,11 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
    companions=createStreetCompanions(nav,scene.actors.get('friend'),scene.actors.get('aqing'));
    return value;
   }).catch(error=>{loading=null;throw error;});
-  void loading.then(()=>{
+ }
+ function load(initial){
+  active=true;host.hidden=false;status.textContent='正在打开街区…';
+  const run=++restoreId;
+  void prepareStreet().then(()=>{
    if(!active||run!==restoreId)return;
    status.textContent='';reveal(initial);
   }).catch(error=>{
@@ -896,6 +898,7 @@ export function createStreetGame({getState,onAction,onRest,onLocation,onView,onH
  return {
   get active(){return active;},
   get soundLocation(){return atFangCounter(current)?'interior':'outside';},
+  prepareStreet,
   start:()=>load(true),
   restore:()=>{
    voice.importHistory(historyValue(getState().history));
